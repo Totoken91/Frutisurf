@@ -5,3 +5,4 @@ dist/
 .vite/
 stats.html
 shots/
+dist-single/

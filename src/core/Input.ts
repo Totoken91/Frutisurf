@@ -106,7 +106,14 @@ export class Input {
   }
 
   private gamepad(): { steer: number; jump: boolean; boost: boolean } | null {
-    const pads = navigator.getGamepads?.();
+    // Dans une iframe bac a sable, getGamepads peut lever au lieu de renvoyer
+    // une liste vide : sans ce garde, la boucle de rendu meurt a la premiere frame.
+    let pads: ReturnType<Navigator['getGamepads']> | null = null;
+    try {
+      pads = navigator.getGamepads?.() ?? null;
+    } catch {
+      return null;
+    }
     if (!pads) return null;
     for (const p of pads) {
       if (!p) continue;
