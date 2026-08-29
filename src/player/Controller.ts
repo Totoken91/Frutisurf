@@ -14,7 +14,8 @@ import type { Input } from '../core/Input';
 
 export interface SurfEvents {
   onPop?: (charge: number, combo: number) => void;
-  onJump?: (timed: number) => void;
+  /** @param timed qualite du timing sur la crete  @param wind charge d'elan */
+  onJump?: (timed: number, wind: number) => void;
   onLand?: (impact: number, quality: number) => void;
   onCarveFull?: () => void;
   onGlideStart?: () => void;
@@ -32,6 +33,16 @@ const GRIP = 1.8;
  * on veut timer un sommet, pas chaque caillou.
  */
 const LIP_SPAN = 7;
+
+/**
+ * Economie du boost. Ce n'est plus une touche qu'on tient : c'est une
+ * RESSOURCE que les figures remplissent. Sans ca, le boost n'a pas de cout et
+ * enchainer des figures ne sert a rien.
+ */
+const BOOST_DRAIN = 0.40;
+/** Fond de recharge : on ne reste jamais bloque sans jamais rien pouvoir faire. */
+const BOOST_REGEN = 0.03;
+const BOOST_MIN = 0.05;
 
 export class Controller {
   // --- Etat cinematique
@@ -54,6 +65,19 @@ export class Controller {
   gliding = false;
   glideTime = 0;
   airTime = 0;
+
+  /**
+   * Elan du saut : monte tant qu'on maintient au sol, se libere au relachement.
+   * C'est ce qui permet d'ANTICIPER une crete au lieu de reagir dessus.
+   */
+  jumpWind = 0;
+  private jumpHeldPrev = false;
+  /** La portance ne se prend qu'UNE fois par vol (cf. commentaire plus bas). */
+  private liftUsed = false;
+
+  /** Jauge de boost, 0..1. Remplie par les figures, videe par le boost. */
+  boost = 0.5;
+  boosting = false;
 
   // --- Les deux ressorts qui font tout le feeling.
   readonly steer = new Spring(0, 14, 0.72);
@@ -79,6 +103,11 @@ export class Controller {
 
   private cruise(): number {
     return 22 + Math.min(12, this.distance / 260);
+  }
+
+  /** Les figures rechargent le boost. C'est la seule facon d'en gagner vite. */
+  private reward(amount: number): void {
+    this.boost = clamp(this.boost + amount, 0, 1);
   }
 
   get speedNorm(): number {
@@ -130,9 +159,11 @@ export class Controller {
     if (this.wasCarving && !carving && this.carveCharge > 0.18) this.pop();
     this.wasCarving = carving;
 
-    // --- Vitesse
-    const boosting = boostAllowed && input.boostHeld;
-    const target = this.cruise() + (boosting ? 13 : 0);
+    // --- Vitesse. Le boost consomme la jauge ; a sec, la touche ne fait rien.
+    this.boosting = boostAllowed && input.boostHeld && this.boost > BOOST_MIN;
+    if (this.boosting) this.boost = Math.max(0, this.boost - BOOST_DRAIN * dt);
+    else this.boost = Math.min(1, this.boost + BOOST_REGEN * dt);
+    const target = this.cruise() + (this.boosting ? 13 : 0);
     this.speed += (target - this.speed) * (1 - Math.exp(-2.4 * dt));
 
     // La pente tire ou retient. Coefficient sous la gravite reelle : on veut
@@ -143,12 +174,22 @@ export class Controller {
     const effective = Math.min(60, this.speed + this.bonus.value);
 
     // --- Saut, envol, plane
-    const jumped = input.consumeJump();
+    // On ne declenche plus sur l'APPUI mais sur le RELACHEMENT : maintenir
+    // charge l'elan, relacher le libere. C'est ce qui permet de voir une crete
+    // arriver, d'armer le saut, et de lacher pile au sommet.
+    input.consumeJump();
+    const held = input.jumpHeld;
+    const released = this.jumpHeldPrev && !held;
+    this.jumpHeldPrev = held;
 
     if (!this.airborne) {
-      if (jumped) {
-        this.launch(effective, this.lipFactor);
-      } else {
+      if (held) this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
+
+      if (released && this.jumpWind > 0) {
+        this.launch(effective, this.lipFactor, this.jumpWind);
+        this.jumpWind = 0;
+      } else if (!held) {
+        this.jumpWind = 0;
         // Decollage naturel : au-dela d'une certaine vitesse, une crete bombee
         // ne peut plus retenir le disque. C'est de la physique, pas un scenario.
         //
@@ -161,7 +202,8 @@ export class Controller {
           this.vy = this.slopeTravel * effective;
           this.airTime = 0;
           this.peakY = this.y;
-          this.events.onJump?.(0);
+          this.liftUsed = false;
+          this.events.onJump?.(0, 0);
         }
       }
     }
@@ -171,26 +213,40 @@ export class Controller {
 
       // Plane : uniquement a partir de l'apex. Declenche des la montee, ca
       // donnerait un saut mou au lieu d'un envol suivi d'un vol.
-      const wantGlide = input.jumpHeld && this.vy < 1.0;
-      if (wantGlide && !this.gliding) this.events.onGlideStart?.();
+      const wantGlide = held && this.vy < 1.2;
+      if (wantGlide && !this.gliding && !this.liftUsed) {
+        // Coup de portance a l'ouverture : sans lui on "arrete de tomber",
+        // avec lui on ACCROCHE l'air. C'est ce qui fait la sensation de vol.
+        //
+        // UNE SEULE FOIS par vol. Sinon relacher et re-maintenir redonne la
+        // poussee a chaque fois : il suffit de tapoter pour ne jamais redescendre.
+        this.vy += 2.2;
+        this.liftUsed = true;
+        this.events.onGlideStart?.();
+      }
       this.gliding = wantGlide;
       this.glideTime = wantGlide ? this.glideTime + dt : Math.max(0, this.glideTime - dt * 2);
 
-      // Le plane s'essouffle : la gravite revient a pleine valeur en ~2 s.
-      const g = this.gliding ? lerp(0.30, 1.0, smoothstep(1.1, 2.3, this.glideTime)) : 1;
+      // Le plane s'essouffle, mais lentement : la gravite ne revient a pleine
+      // valeur qu'au bout de ~3 s de vol.
+      const g = this.gliding ? lerp(0.20, 1.0, smoothstep(1.6, 3.0, this.glideTime)) : 1;
       this.vy += GRAVITY * g * dt;
       this.y += this.vy * dt;
       this.peakY = Math.max(this.peakY, this.y);
 
-      // Planer maintient la vitesse : c'est ce qui rend la ligne aerienne
-      // competitive face au carve au sol.
-      if (this.gliding) this.bonus.add(2.6 * dt);
+      if (this.gliding) {
+        this.bonus.add(3.0 * dt);
+        this.reward(0.10 * dt);
+      }
 
       if (this.y <= this.groundY) {
         this.y = this.groundY;
         this.airborne = false;
         this.gliding = false;
         this.glideTime = 0;
+        this.jumpWind = 0;
+        this.jumpHeldPrev = held;
+        this.liftUsed = false;
         this.land(effective);
       }
     } else {
@@ -218,23 +274,30 @@ export class Controller {
     this.score += effective * dt * (1 + this.combo * 0.35);
   }
 
-  /** Saut. La recompense est maximale pile sur la crete. */
-  private launch(speed: number, timed: number): void {
+  /**
+   * Saut. Deux multiplicateurs INDEPENDANTS se composent :
+   *  - l'elan (combien de temps on a arme) : ce qu'on anticipe ;
+   *  - le timing sur la crete : ce qu'on execute.
+   * Il faut les deux pour un grand saut, et rater l'un n'annule pas l'autre.
+   */
+  private launch(speed: number, timed: number, wind: number): void {
     this.airborne = true;
     this.airTime = 0;
     this.peakY = this.y;
+    this.liftUsed = false;
     // On herite de la vitesse verticale que la montee donnait deja : sauter
     // juste avant le sommet paie donc aussi, la fenetre reste indulgente.
     const inherited = Math.max(0, this.slopeTravel * speed);
-    this.vy = JUMP_V * (1 + 1.15 * timed) + inherited;
-    if (timed > 0.75) {
+    this.vy = JUMP_V * (0.60 + 0.75 * wind) * (1 + 1.15 * timed) + inherited;
+    if (timed > 0.55) {
       this.combo += 1;
       this.comboTimer = 2.6;
       this.bonus.add(5 * timed);
       this.hitstop = Math.max(this.hitstop, 0.035);
       this.score += 90 * timed;
+      this.reward(0.13 * timed + 0.06 * wind);
     }
-    this.events.onJump?.(timed);
+    this.events.onJump?.(timed, wind);
   }
 
   private land(speed: number): void {
@@ -249,6 +312,7 @@ export class Controller {
       this.combo += 1;
       this.comboTimer = 2.6;
       this.score += 110 * quality;
+      this.reward(0.16 * quality);
     }
     if (this.peakY - this.groundY > 1.8) {
       this.hitstop = Math.max(this.hitstop, 0.03);
@@ -265,6 +329,9 @@ export class Controller {
     this.bonus.add(9 * c);
     this.hitstop = Math.max(this.hitstop, 0.045);
     this.score += 120 * c * (1 + this.combo * 0.5);
+    // Le slalom est la figure la plus accessible : c'est elle qui doit
+    // alimenter le boost au quotidien.
+    this.reward(0.11 * c);
     this.carveCharge = 0;
     this.carveSign = 0;
     this.events.onPop?.(c, this.combo);
@@ -280,6 +347,11 @@ export class Controller {
     s.score = this.score;
     s.distance = this.distance;
     s.airborne = this.airborne;
+    s.boost = this.boost;
+    s.boosting = this.boosting;
+    s.jumpWind = this.jumpWind;
+    s.gliding = this.gliding;
+    s.lipFactor = this.airborne ? 0 : this.lipFactor;
     s.popFlash = lerp(s.popFlash, 0, 0.12);
   }
 }

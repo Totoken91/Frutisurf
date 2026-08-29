@@ -8,7 +8,7 @@
 | **TypeScript** | Le contrôleur de glisse a une douzaine d'états couplés ; typer évite les bugs de feeling silencieux |
 | **Vite** | HMR instantané — on va itérer des centaines de fois sur des constantes de ressort |
 | **postprocessing** (pmndrs) | Chaîne d'effets fusionnée en un pass. Meilleur bloom que le `UnrealBloomPass` de Three, et SMAA inclus |
-| **Aucune interface** | Ni HUD ni DOM de jeu : l'écran est entièrement rendu. `style.css` ne fait qu'un reset et plein-écran du canvas |
+| **HUD en DOM, pas en 3D** | Deux jauges seulement. En DOM elles restent nettes à toute densité de pixels, ne coûtent pas de passe de rendu, et **ne traversent pas le post-processing** — une jauge qui prendrait le flou radial serait illisible |
 | **Zéro asset binaire** | Textures (nuages, bruit, herbe), sons et géométries générés au boot. Le repo reste léger et rien ne casse au déploiement |
 
 ## 2. Carte des modules
@@ -40,6 +40,8 @@ src/
 │   ├── SurfEffect.ts        radial blur + speed lines + aberration + vignette
 │   ├── ShockRing.ts         anneaux d'impact
 │   └── CameraRig.ts         ressort, FOV, roll, bruit, shake
+├── hud/
+│   └── Gauges.ts            vitesse + jauge de boost (DOM)
 ├── audio/
 │   └── Audio.ts             synthèse WebAudio
 ├── world/World.ts           assemblage du décor + lumières
@@ -67,6 +69,17 @@ render()
 
 120 Hz de simulation : les ressorts de `steer` (ω=14) ont besoin de ça pour ne pas
 osciller en escalier sur un écran 60 Hz.
+
+## 3 ter. Ce qui suit la caméra, et pourquoi
+
+Tout élément « infini » doit être ancré sur le joueur. Le dôme de ciel ne
+l'était pas, et le symptôme s'est manifesté en deux temps : vers `z ≈ -2000` son
+bord traversait la caméra (l'écran scintillait), puis on en sortait et **tout
+passait au noir** — après environ 70 s de jeu à vitesse de croisière.
+
+Le sol, les nuages et la ville suivaient déjà. Le ciel a été le seul oublié
+parce qu'il est le seul objet que rien ne recycle : sa géométrie n'a pas besoin
+de bouger, seulement sa position.
 
 ## 3 bis. Une seule source de vérité pour le sol
 

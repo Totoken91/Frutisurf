@@ -64,9 +64,13 @@ export class CameraRig {
     const handheld = 0.35 * (Math.PI / 180) * (c.airborne ? 0.7 : 1);
     const sh = this.shake.value;
 
+    // Secousse en bruit LISSE, pas en Math.random() par frame : du bruit blanc
+    // sur la position lit comme une vibration dure, pas comme un impact.
+    const sx = (fbm2D(time * 26.0, 7.3) - 0.5) * 2;
+    const sy = (fbm2D(11.7, time * 26.0) - 0.5) * 2;
     this.camera.position.set(
-      this.pos.x + nx * handheld * 6 + (Math.random() - 0.5) * sh,
-      this.pos.y + ny * handheld * 6 + (Math.random() - 0.5) * sh,
+      this.pos.x + nx * handheld * 6 + sx * sh,
+      this.pos.y + ny * handheld * 6 + sy * sh,
       this.pos.z,
     );
 

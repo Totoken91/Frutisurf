@@ -11,6 +11,9 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const bundle = readFileSync('dist-single/bundle.js', 'utf8');
+// La feuille du jeu est inlinee telle quelle : elle porte le reset plein ecran
+// ET les deux jauges. La dupliquer ici la ferait deriver au premier ajustement.
+const css = readFileSync('src/style.css', 'utf8');
 const out = process.argv[2] ?? 'dist-single/artifact.html';
 
 if (bundle.includes('</script')) {
@@ -18,29 +21,17 @@ if (bundle.includes('</script')) {
 }
 
 const html = `<title>Frutiger Surfer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;800&display=swap" rel="stylesheet" />
 <style>
-  /* Theme unique assume : le jeu est un plein jour fixe. Le fond est le cyan
-     du ciel, pour qu'aucun liseré blanc n'apparaisse avant le premier rendu
-     ni autour du canvas sur un ecran d'un autre rapport. */
-  :root { color-scheme: light; }
-  html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: #15cee8;
-    overscroll-behavior: none;
-    touch-action: none;
-  }
-  #stage {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-    outline: none;
-  }
+/* Theme unique assume : le jeu est un plein jour fixe, il ne doit pas repondre
+   au mode sombre du lecteur. Le fond est donc peint explicitement. */
+:root { color-scheme: light; }
+${css}
 </style>
 <canvas id="stage"></canvas>
+<div id="hud"></div>
 <script>
 ${bundle}
 </script>

@@ -7,13 +7,15 @@ Une expérience WebGL temps réel qui reconstruit — et fait vivre — l'esthé
 **Frutiger Aero** : verre, gloss, nature + technologie, bloom, et cette lumière
 de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
 
-Aucune interface. Aucun compteur. Juste la plaine, le surfeur et la glisse.
+Deux jauges a l'ecran, pas une de plus : la vitesse et le boost. Tout le
+reste du retour est diegetique — un son pour les cretes, la couleur pour la
+charge, l'image qui sature avec le combo.
 
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
 <p align="center">
   <img src="docs/hero.png" width="360" alt="Collines procedurales et surfeur MSN" />
-  <img src="docs/hero-boost.png" width="360" alt="En vol apres un saut time sur une crete" />
+  <img src="docs/hero-boost.png" width="360" alt="Jauges de vitesse et de boost, en carve a 102 km/h" />
 </p>
 
 ## Lancer
@@ -28,14 +30,25 @@ npm run dev     # http://localhost:5173
 | Action | Clavier | Tactile | Manette |
 |---|---|---|---|
 | Diriger | `←` `→` / `A` `D` | glisser | stick gauche |
-| Sauter | `Espace` / `↑` | tap | `A` |
-| Planer | maintenir `Espace` après l'apex | garder le doigt appuyé | maintenir `A` |
+| Armer / sauter | maintenir puis **relâcher** `Espace` | maintenir puis relâcher | `A` |
+| Planer | re-maintenir après l'apex | re-maintenir | `A` |
 | Boost | `Maj` | deux doigts | `RT` |
 
-**Le relief** : le terrain est procédural et vallonné. Appuie sur saut **pile
-sur la crête** — un son monte d'une octave pour te le dire, il n'y a pas
-d'interface — et l'impulsion double. Garde la touche enfoncée après l'apex pour
-planer. Retombe dans une pente descendante : ça amortit et ça relance.
+**Le relief** : le terrain est procédural et vallonné. Le saut se déclenche au
+**relâchement**, pas à l'appui — maintiens pour armer l'élan en voyant la crête
+arriver, et lâche **pile au sommet**. Un son monte d'une octave pour te dire où
+il est. Élan et timing sont deux multiplicateurs indépendants : rater l'un
+n'annule pas l'autre, mais il faut les deux pour un grand saut.
+
+Re-maintiens après l'apex pour **planer** : la gravité tombe à 20 %, la vitesse
+se maintient, et une impulsion de portance à l'ouverture donne la sensation
+d'accrocher l'air. Elle ne se prend qu'une fois par vol.
+
+Retombe dans une **pente descendante** : ça amortit et ça relance.
+
+**Le boost est une ressource**, pas une touche à tenir. Les figures le
+remplissent — slalom, sauts timés, planés, réceptions propres — et le boost le
+vide. À dépense égale, jouer proprement rapporte plus du double.
 
 **La boucle** : tiens un virage pour charger la carre — le disque se met sur la
 tranche, le spray s'intensifie, le son monte d'une tierce. Relâche au bon moment
@@ -59,10 +72,12 @@ Les deux `check` simulent le contrôleur **sans rendu** : si le feeling dépend
 d'un effet visuel, c'est que les ressorts sont ratés.
 
 - `check` : le carve enchaîné doit battre la ligne droite. Actuellement **+52 %**.
-- `check:air` : sauter sur la crête doit battre sauter au hasard (**+63 %** de
-  vol par saut), planer doit allonger encore le vol (**+42 %**), et le terrain
-  seul ne doit pas envoyer en l'air plus de 30 % du temps en croisière — sinon
-  c'est un trampoline, plus une glisse.
+- `check:air` : cinq pilotes automatiques sur le même terrain. Chaque palier de
+  maîtrise doit payer — tap **0,86 s** de vol par saut → armé **1,25 s** →
+  timé **1,83 s** → plané **3,18 s**. Le terrain seul ne doit pas envoyer en
+  l'air plus de 30 % du temps en croisière (actuellement 1 %) sinon c'est un
+  trampoline, et les figures doivent rapporter plus de boost que la recharge
+  passive, à dépense égale.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 

@@ -211,10 +211,13 @@ export class Audio {
     this.blip(base * 1.5, 0.34, 'sine', 0.11);
   }
 
-  jump(timed = 0): void {
+  jump(timed = 0, wind = 0): void {
     // Un saut bien time sonne plus haut et plus clair : le retour audio doit
     // confirmer le timing avant meme qu'on voie la hauteur atteinte.
-    this.blip(300 + timed * 180, 0.16 + timed * 0.1, 'sine', 0.10 + timed * 0.07, 620 + timed * 520);
+    // Plus l'elan est arme, plus le depart sonne grave et plein ; plus le
+    // timing est bon, plus il monte haut.
+    const base = 300 + timed * 180 - wind * 70;
+    this.blip(base, 0.16 + timed * 0.1 + wind * 0.08, 'sine', 0.10 + timed * 0.07 + wind * 0.04, 620 + timed * 520);
     if (timed > 0.75) this.blip(880, 0.28, 'triangle', 0.09, 1320);
   }
 

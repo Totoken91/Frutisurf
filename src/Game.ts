@@ -6,6 +6,7 @@ import { Input } from './core/Input';
 import { clamp } from './core/Spring';
 import { CameraRig } from './fx/CameraRig';
 import { PostFX } from './fx/PostFX';
+import { Gauges } from './hud/Gauges';
 import { ShockRing } from './fx/ShockRing';
 import { Controller } from './player/Controller';
 import { Spray } from './player/Spray';
@@ -29,6 +30,7 @@ export class Game {
   readonly trail = new Trail();
   readonly rings = new ShockRing();
   readonly audio = new Audio();
+  readonly gauges: Gauges;
 
   private acc = 0;
   private last = performance.now();
@@ -59,13 +61,14 @@ export class Game {
         this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time, this.controller.groundY);
         this.audio.pop(charge, combo);
       },
-      onJump: (timed) => {
-        this.audio.jump(timed);
-        if (timed > 0.35) {
+      onJump: (timed, wind) => {
+        this.audio.jump(timed, wind);
+        if (timed > 0.35 || wind > 0.6) {
           // Recompense visible du saut bien time : gerbe, anneau, coup de FOV.
-          this.rig.punch(0.18 * timed, 9 * timed);
-          this.spray.burst(this.contactPoint(), Math.round(55 * timed), 0.8 + timed, this.time);
-          this.rings.spawn(this.contactPoint(), 0.45 + timed * 0.5, this.time, this.controller.groundY);
+          const force = Math.max(timed, wind * 0.7);
+          this.rig.punch(0.18 * force, 9 * force);
+          this.spray.burst(this.contactPoint(), Math.round(55 * force), 0.8 + force, this.time);
+          this.rings.spawn(this.contactPoint(), 0.45 + force * 0.5, this.time, this.controller.groundY);
           this.state.popFlash = Math.max(this.state.popFlash, timed * 0.8);
         }
       },
@@ -97,7 +100,9 @@ export class Game {
     this.engine.onResize = (w, h) => this.post.resize(w, h);
     this.trail.reset(this.contactPoint());
 
-    // Plus d'ecran de depart : l'audio s'arme au premier geste, c'est tout
+    this.gauges = new Gauges(document.getElementById('hud')!);
+
+    // Pas d'ecran de depart : l'audio s'arme au premier geste, c'est tout
     // ce qu'imposait la politique autoplay.
     this.input.onFirstGesture = () => {
       this.state.started = true;
@@ -152,6 +157,7 @@ export class Game {
     }
 
     this.controller.writeState(this.state);
+    this.gauges.update(this.state, real);
 
     // La camera tourne en temps reel : elle doit rester fluide meme si la
     // simulation est gelee.
@@ -215,7 +221,9 @@ export class Game {
     this.audio.update(
       c.speedNorm,
       Math.abs(c.steer.value),
-      c.carveCharge,
+      // L'elan du saut partage le bourdon de charge avec le carve : deux
+      // tensions, un seul son qui monte, ca reste lisible.
+      Math.max(c.carveCharge, c.jumpWind * 0.85),
       c.airborne,
       c.airborne ? 0 : c.lipFactor,
       c.gliding,
@@ -244,10 +252,11 @@ export class Game {
     // Rotation propre du CD : elle monte avec la vitesse et la charge.
     s.disc.group.rotation.y += (2.2 + c.speedNorm * 5.0 + c.carveCharge * 4.0) * (1 / 60);
 
-    // Squash & stretch.
+    // Squash & stretch. Au sol, l'elan du saut COMPRIME le buddy : c'est le
+    // seul retour visuel qui dit qu'on est en train d'armer.
     const squash = c.airborne
       ? clamp(c.vy * 0.018, -0.10, 0.14)
-      : 0;
+      : -c.jumpWind * 0.26;
     s.buddy.setSquash(squash);
 
     s.update(this.time, c.carveCharge, c.speedNorm, c.y - c.groundY, c.groundY, this.groundNormal);

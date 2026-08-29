@@ -16,13 +16,17 @@
 
 ## Retiré du périmètre
 
-**Interface, poissons volants et bulles** ont été supprimés après le premier
-jalon complet, à la demande de l'auteur du projet. La scène ne garde que le
-ciel, la plaine, les nuages, la ville et le surfeur.
+**Poissons volants et bulles** ont été supprimés après le premier jalon complet,
+à la demande de l'auteur. La scène garde le ciel, la plaine vallonnée, les
+nuages, la ville et le surfeur.
 
-Conséquences assumées : plus de collecte ni de score affiché — le combo ne se
-lit plus que dans la saturation de l'image. `GameState` survit uniquement pour
-le post-processing et l'audio.
+Le **HUD complet** a été supprimé au même moment, puis **deux jauges sont
+revenues** (vitesse et boost) quand le boost est devenu une ressource : une
+ressource qu'on ne voit pas ne se gère pas. Tout le reste du retour est resté
+diégétique — un son pour les crêtes, la couleur du disque pour la charge,
+l'image qui sature avec le combo.
+
+Il n'y a toujours ni score affiché, ni collecte.
 
 L'analyse de référence ([`00`](00-REFERENCE-ANALYSIS.md)) décrit toujours la
 faune et le HUD : c'est le relevé de l'image source, pas la spec du rendu.

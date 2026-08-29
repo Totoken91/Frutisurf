@@ -17,3 +17,109 @@ html, body {
   height: 100%;
   display: block;
 }
+
+/*
+ * Deux jauges, pas une de plus.
+ *
+ * Le langage Aqua du projet tient a UNE chose : la cassure NETTE du highlight
+ * au milieu de la pilule. Un degrade doux donnerait du plastique mat.
+ *
+ * Placement en haut a gauche : sur un telephone tenu en portrait, les pouces
+ * occupent le bas de l'ecran et c'est aussi la que se joue la glisse.
+ */
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: calc(12px + env(safe-area-inset-top)) 12px 0 calc(12px + env(safe-area-inset-left));
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: clamp(12px, 3.2vw, 15px);
+  color: #f2fbff;
+  text-shadow: 0 1px 2px rgba(4, 40, 96, 0.6);
+}
+
+.aero {
+  position: relative;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.20) 48%,
+      rgba(255, 255, 255, 0.00) 49%,
+      rgba(255, 255, 255, 0.09) 100%),
+    linear-gradient(180deg, #3fb4ee 0%, #1063d7 52%, #0c57c9 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -10px 18px rgba(2, 26, 82, 0.36),
+    0 4px 14px rgba(4, 36, 104, 0.40);
+}
+
+/* --- vitesse */
+.speed {
+  padding: 0.30em 0.85em 0.34em;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+.speedVal {
+  font-size: 1.7em;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.1em;
+  text-align: right;
+}
+.speedUnit {
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  opacity: 0.85;
+}
+
+/* --- boost */
+.boost {
+  position: relative;
+  width: 8.2em;
+  height: 0.82em;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #072a5e 0%, #04193c 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+}
+.boost > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d6ffe6 0%, #48fd76 42%, #14b34e 100%);
+  box-shadow: 0 0 9px rgba(72, 253, 118, 0.8);
+  transition: width 0.09s linear;
+}
+/* A sec, la jauge vire au rouge : on comprend sans texte pourquoi ca ne boost plus. */
+.boost.empty > i {
+  background: linear-gradient(180deg, #ffd9d0 0%, #ff7a5c 45%, #c2341a 100%);
+  box-shadow: 0 0 9px rgba(255, 122, 92, 0.75);
+}
+/* En depense, elle pulse — sinon on ne voit pas qu'on consomme. */
+.boost.spending > i { animation: drain 0.42s ease-in-out infinite; }
+@keyframes drain { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
+
+/* Un gain de figure fait flasher le contour : le retour arrive AVANT que la
+   barre n'ait fini de bouger, donc on relie le geste a la recompense. */
+.boost.gain { animation: gain 0.34s ease-out; }
+@keyframes gain {
+  0%   { box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 0 rgba(150, 255, 190, .9); }
+  100% { box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 9px rgba(150, 255, 190, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boost > i { transition: none; }
+  .boost.spending > i, .boost.gain { animation: none; }
+}

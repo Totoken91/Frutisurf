@@ -2,6 +2,7 @@ import {
   DirectionalLight,
   Group,
   HemisphereLight,
+  Mesh,
   Scene,
   Vector3,
   WebGLRenderer,
@@ -23,6 +24,7 @@ export class World {
   readonly clouds: Clouds;
   readonly city = new City();
   readonly lights = new Group();
+  private sky: Mesh;
 
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
     const dense = quality !== 'low';
@@ -30,7 +32,8 @@ export class World {
     this.clouds = new Clouds(quality === 'high' ? 46 : 26);
 
     scene.environment = createEnvironment(renderer);
-    scene.add(createSky());
+    this.sky = createSky();
+    scene.add(this.sky);
     scene.add(this.ground.mesh);
     scene.add(this.city.group);
     scene.add(this.clouds.mesh);
@@ -51,6 +54,10 @@ export class World {
   }
 
   update(origin: Vector3, camPos: Vector3, time: number, speedN: number): void {
+    // Le dome de ciel SUIT la camera. Fixe a l'origine, son bord finissait par
+    // traverser la camera (le ciel scintillait), puis on en sortait et tout
+    // passait au noir — apres environ 70 s de jeu a vitesse de croisiere.
+    this.sky.position.copy(camPos);
     this.ground.update(camPos, origin, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);

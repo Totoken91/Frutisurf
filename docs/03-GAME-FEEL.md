@@ -122,6 +122,22 @@ sans aucun scénario écrit : la vitesse seule change le comportement.
 > pure) le relief envoyait en l'air un quart du temps en croisière : on ne
 > glissait plus, on rebondissait.
 
+### Armer avant, viser après
+
+Le saut se déclenche au **relâchement**, pas à l'appui. Maintenir au sol charge
+un élan (`jumpWind`, plein en 0,5 s) qui comprime visiblement le buddy.
+
+Deux multiplicateurs **indépendants** se composent :
+
+```
+  vy = JUMP_V × (0.60 + 0.75·élan) × (1 + 1.15·timing) + vitesse héritée de la montée
+                └──── ce qu'on ANTICIPE ────┘   └── ce qu'on EXÉCUTE ──┘
+```
+
+Les séparer est délibéré : rater l'un n'annule pas l'autre, donc un débutant qui
+arme sans viser progresse quand même, et un joueur qui vise sans armer aussi.
+Il faut les deux pour un grand saut.
+
 ### La fenêtre de timing
 
 ```
@@ -156,7 +172,13 @@ diégétique, ça n'occupe aucun pixel, et ça s'apprend en trois collines.
 Maintenir le saut **après l'apex** (jamais pendant la montée — ça donnerait un
 saut mou au lieu d'un envol suivi d'un vol) :
 
-- gravité à 30 %, puis retour progressif à 100 % en ~2 s ;
+- une **impulsion de portance** de +2,2 m/s à l'ouverture : sans elle on
+  « arrête de tomber », avec elle on **accroche** l'air. Elle ne se prend
+  **qu'une fois par vol** — sinon relâcher et re-maintenir la redonne à chaque
+  fois, et il suffit de tapoter pour ne jamais redescendre (le contrôle
+  automatique a trouvé cet exploit : un pilote restait 89 s en l'air d'un seul
+  saut) ;
+- gravité à 20 %, puis retour progressif à 100 % en ~3 s ;
 - la vitesse est maintenue, ce qui rend la ligne aérienne compétitive face au
   carve au sol ;
 - le buddy se cabre, la caméra recule, prend de la hauteur et vise plus bas —
@@ -166,6 +188,24 @@ saut mou au lieu d'un envol suivi d'un vol) :
 
 Atterrir dans la pente descendante amortit et relance ; à plat ou en montée, ça
 casse. C'est ce qui pousse à choisir *où* retomber, pas seulement *quand* sauter.
+
+## 4 ter. L'économie du boost
+
+Le boost n'est plus une touche qu'on tient : c'est une **ressource**. Sans coût,
+enchaîner des figures ne servirait à rien.
+
+| Source | Gain |
+|---|---|
+| Pop de carve (slalom) | `+0.11 × charge` |
+| Saut timé | `+0.13 × timing + 0.06 × élan` |
+| Plané | `+0.10 / s` |
+| Réception propre | `+0.16 × qualité` |
+| Recharge passive | `+0.03 / s` |
+
+La dépense est de `0.40/s`, soit 2,5 s de boost continu depuis le plein. La
+recharge passive seule ne suit pas : elle sert de plancher pour ne jamais rester
+bloqué, pas de source. Mesuré à dépense égale, un pilote qui enchaîne les
+figures gagne **plus du double** de boost qu'un pilote qui roule tout droit.
 
 ## 5. Le saut
 

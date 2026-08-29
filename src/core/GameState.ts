@@ -13,6 +13,12 @@ export interface GameState {
   distance: number;
   airborne: boolean;
   boosting: boolean;
+  /** Jauge de boost 0..1 : remplie par les figures, videe en boostant. */
+  boost: number;
+  /** Elan du saut en cours d'armement, 0..1. */
+  jumpWind: number;
+  gliding: boolean;
+  lipFactor: number;
   popFlash: number;
   fps: number;
   started: boolean;
@@ -29,6 +35,10 @@ export const createState = (): GameState => ({
   distance: 0,
   airborne: false,
   boosting: false,
+  boost: 0.5,
+  jumpWind: 0,
+  gliding: false,
+  lipFactor: 0,
   popFlash: 0,
   fps: 60,
   started: false,

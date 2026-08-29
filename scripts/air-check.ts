@@ -1,19 +1,20 @@
 /**
- * Verifie que le saut TIME et le plane existent vraiment comme mecaniques,
- * et pas seulement dans les intentions.
+ * Verifie que l'elan, le timing sur la crete et le plane existent vraiment
+ * comme mecaniques, et pas seulement dans les intentions.
  *
- * Quatre pilotes automatiques parcourent le meme terrain :
+ * Depuis le passage au saut charge, le saut se declenche au RELACHEMENT :
+ * les pilotes pilotent donc `jumpHeld`, pas un front d'appui.
+ *
+ * Cinq pilotes parcourent le meme terrain :
  *   - sol    : ne saute jamais. Mesure le vol que le RELIEF SEUL provoque.
- *   - naif   : appuie a intervalle regulier, sans regarder le relief
- *   - time   : appuie quand lipFactor depasse le seuil, donc sur la crete
- *   - plane  : comme "time", mais garde le saut enfonce apres l'apex
+ *   - tap    : tape court, sans armer ni viser.
+ *   - arme   : maintient 0.6 s puis relache, sans viser la crete.
+ *   - time   : arme A L'APPROCHE et relache pile sur la crete.
+ *   - plane  : comme "time", puis re-maintient apres l'apex.
  *
  * On compare le vol PAR SAUT, pas le vol total : un bon planeur reste en l'air
  * plus longtemps, croise donc moins de cretes, et son total peut baisser alors
  * meme que chaque saut est meilleur.
- *
- * Le pilote "sol" est le garde-fou anti-trampoline : si le terrain seul envoie
- * le surfeur en l'air la moitie du temps, ce n'est plus un jeu de glisse.
  */
 import { Controller } from '../src/player/Controller';
 import type { Input } from '../src/core/Input';
@@ -23,30 +24,40 @@ const DURATION = 90;
 
 interface Bot {
   name: string;
-  wantJump: (c: Controller, t: number) => boolean;
-  hold: boolean;
+  /** Doit-on maintenir le saut a cet instant ? */
+  hold: (c: Controller, t: number) => boolean;
   boost: boolean;
 }
 
-function run(bot: Bot): { air: number; jumps: number; best: number; dist: number; combo: number } {
+interface Result {
+  air: number;
+  jumps: number;
+  best: number;
+  dist: number;
+  combo: number;
+  boostAvg: number;
+  /** Boost REELLEMENT gagne par les figures, cumul des hausses de jauge. */
+  boostEarned: number;
+}
+
+function run(bot: Bot): Result {
   const c = new Controller();
   let t = 0;
   let air = 0;
   let jumps = 0;
   let best = 0;
   let maxCombo = 0;
-  let edge = false;
   let apex = 0;
+  let boostSum = 0;
+  let frames = 0;
+  let earned = 0;
+  let prevBoost = c.boost;
 
   const input = {
     steer: 0,
     jumpHeld: false,
     boostHeld: bot.boost,
-    consumeJump: () => {
-      const e = edge;
-      edge = false;
-      return e;
-    },
+    consumeJump: () => false,
   } as unknown as Input;
 
   while (t < DURATION) {
@@ -56,15 +67,12 @@ function run(bot: Bot): { air: number; jumps: number; best: number; dist: number
       continue;
     }
     const wasAir = c.airborne;
-    if (!c.airborne && bot.wantJump(c, t)) {
-      edge = true;
-      jumps++;
-    }
-    input.jumpHeld = bot.hold && c.airborne;
+    input.jumpHeld = bot.hold(c, t);
 
     c.step(STEP, input);
 
     if (c.airborne) {
+      if (!wasAir) jumps++;
       air += STEP;
       apex = Math.max(apex, c.y - c.groundY);
     } else if (wasAir) {
@@ -72,69 +80,81 @@ function run(bot: Bot): { air: number; jumps: number; best: number; dist: number
       apex = 0;
     }
     maxCombo = Math.max(maxCombo, c.combo);
+    if (c.boost > prevBoost) earned += c.boost - prevBoost;
+    prevBoost = c.boost;
+    boostSum += c.boost;
+    frames++;
     t += STEP;
   }
-  return { air, jumps, best, dist: c.distance, combo: maxCombo };
+  return { air, jumps, best, dist: c.distance, combo: maxCombo,
+    boostAvg: boostSum / frames, boostEarned: earned };
 }
 
-const ground = run({ name: 'sol', hold: false, boost: false, wantJump: () => false });
-const groundFast = run({ name: 'sol+', hold: false, boost: true, wantJump: () => false });
+/**
+ * Comportement d'un joueur qui a compris le jeu : il MAINTIENT en permanence
+ * pour garder l'elan arme, et ne relache que quand il est sur la crete.
+ */
+const aimLip = (c: Controller): boolean => c.lipFactor < 0.70;
 
-let naiveClock = 0;
-const naive = run({
-  name: 'naif',
-  hold: false,
+const ground = run({ name: 'sol', boost: false, hold: () => false });
+const groundFast = run({ name: 'sol+', boost: true, hold: () => false });
+const tap = run({
+  name: 'tap',
   boost: false,
-  wantJump: (_c, t) => {
-    if (t - naiveClock < 1.7) return false;
-    naiveClock = t;
-    return true;
-  },
+  hold: (c, t) => !c.airborne && t % 1.7 < 0.08,
 });
-const timed = run({ name: 'time', hold: false, boost: false, wantJump: (c) => c.lipFactor > 0.7 });
-const glided = run({ name: 'plane', hold: true, boost: false, wantJump: (c) => c.lipFactor > 0.7 });
+const wound = run({
+  name: 'arme',
+  boost: false,
+  hold: (c, t) => !c.airborne && t % 1.7 < 0.6,
+});
+// Les deux pilotes a figures DEPENSENT aussi du boost : sans depense tout le
+// monde plafonne a 100 % et le gain reel devient invisible.
+const timed = run({ name: 'time', boost: true, hold: (c) => !c.airborne && aimLip(c) });
+const glided = run({
+  name: 'plane',
+  boost: true,
+  hold: (c) => (c.airborne ? c.vy < 1.2 : aimLip(c)),
+});
 
-const row = (n: string, r: ReturnType<typeof run>): string =>
-  `${n.padEnd(7)} vol ${r.air.toFixed(1).padStart(5)} s  ` +
+const row = (n: string, r: Result): string =>
+  `${n.padEnd(6)} vol ${r.air.toFixed(1).padStart(5)} s  ` +
   `sauts ${String(r.jumps).padStart(3)}  ` +
   `apex ${r.best.toFixed(2).padStart(5)} m  ` +
-  `dist ${r.dist.toFixed(0).padStart(5)} m  combo ${r.combo}`;
+  `dist ${r.dist.toFixed(0).padStart(5)} m  ` +
+  `combo ${String(r.combo).padStart(2)}  boost gagne ${r.boostEarned.toFixed(1).padStart(5)}`;
 
-console.log(row('sol', ground));
-console.log(row('sol+', groundFast));
-console.log(row('naif', naive));
-console.log(row('time', timed));
-console.log(row('plane', glided));
+[['sol', ground], ['sol+', groundFast], ['tap', tap], ['arme', wound],
+ ['time', timed], ['plane', glided]].forEach(([n, r]) => console.log(row(n as string, r as Result)));
 
-const per = (r: ReturnType<typeof run>): number => r.air / Math.max(1, r.jumps);
-const pNaive = per(naive);
-const pTimed = per(timed);
-const pGlide = per(glided);
-
-console.log(`\nvol par saut : naif ${pNaive.toFixed(2)} s -> time ${pTimed.toFixed(2)} s ` +
-  `(${(((pTimed / pNaive) - 1) * 100).toFixed(0)} %) -> plane ${pGlide.toFixed(2)} s ` +
-  `(${(((pGlide / pTimed) - 1) * 100).toFixed(0)} %)`);
-console.log(`apex : naif ${naive.best.toFixed(2)} m -> time ${timed.best.toFixed(2)} m`);
-console.log(`vol subi par le relief seul : ${(100 * ground.air / DURATION).toFixed(0)} % en croisiere, ` +
-  `${(100 * groundFast.air / DURATION).toFixed(0)} % en boost`);
+const per = (r: Result): number => r.air / Math.max(1, r.jumps);
+console.log(
+  `\nvol par saut : tap ${per(tap).toFixed(2)} s -> arme ${per(wound).toFixed(2)} s ` +
+    `(${(((per(wound) / per(tap)) - 1) * 100).toFixed(0)} %) -> time ${per(timed).toFixed(2)} s ` +
+    `(${(((per(timed) / per(wound)) - 1) * 100).toFixed(0)} %) -> plane ${per(glided).toFixed(2)} s ` +
+    `(${(((per(glided) / per(timed)) - 1) * 100).toFixed(0)} %)`,
+);
+console.log(
+  `vol subi par le relief seul : ${(100 * ground.air / DURATION).toFixed(0)} % en croisiere, ` +
+    `${(100 * groundFast.air / DURATION).toFixed(0)} % en boost`,
+);
 
 let bad = false;
-if (pTimed <= pNaive * 1.15) {
-  console.error('\nECHEC — sauter sur la crete ne paie pas : la fenetre de timing ne sert a rien.');
-  bad = true;
-}
-if (pGlide <= pTimed * 1.20) {
-  console.error('\nECHEC — le plane n\'allonge pas le vol.');
-  bad = true;
-}
-if (timed.jumps < 8) {
-  console.error(`\nECHEC — seulement ${timed.jumps} cretes en ${DURATION} s : le relief n'en offre pas assez.`);
-  bad = true;
-}
+const fail = (m: string): void => { console.error(`\nECHEC — ${m}`); bad = true; };
+
+if (per(wound) <= per(tap) * 1.20) fail("armer le saut ne paie pas : l'elan ne sert a rien.");
+if (per(timed) <= per(wound) * 1.15) fail('viser la crete ne paie pas : la fenetre de timing ne sert a rien.');
+if (per(glided) <= per(timed) * 1.20) fail("le plane n'allonge pas le vol.");
+if (timed.jumps < 8) fail(`seulement ${timed.jumps} sauts en ${DURATION} s : le relief n'offre pas assez de cretes.`);
 if (ground.air > DURATION * 0.30) {
-  console.error(`\nECHEC — le relief seul envoie en l'air ${(100 * ground.air / DURATION).toFixed(0)} % ` +
-    'du temps en croisiere : c\'est un trampoline, plus une glisse.');
-  bad = true;
+  fail(`le relief seul envoie en l'air ${(100 * ground.air / DURATION).toFixed(0)} % du temps en croisiere : c'est un trampoline.`);
 }
-if (!bad) console.log('\nOK — le timing et le plane sont des mecaniques reelles, et le sol reste le sol.');
+// Les figures doivent VRAIMENT recharger le boost, sinon la jauge est un decor.
+// On compare le boost GAGNE a DEPENSE EGALE (les deux pilotes boostent), et
+// pas le niveau moyen : sans depense tout le monde finit a 100 % et la moyenne
+// ne dit rien.
+if (timed.boostEarned <= groundFast.boostEarned * 1.3) {
+  fail('les figures ne rechargent pas le boost plus vite que la recharge passive.');
+}
+if (!bad) console.log('\nOK — elan, timing, plane et economie de boost sont des mecaniques reelles.');
 process.exitCode = bad ? 1 : 0;
