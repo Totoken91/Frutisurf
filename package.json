@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "check": "esbuild scripts/carve-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/carve.mjs --log-level=error && node node_modules/.cache/carve.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.36.4",

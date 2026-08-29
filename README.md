@@ -37,9 +37,16 @@ combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 ## Vérifier le rendu
 
 ```bash
-npm run build     # bundle de prod
+npm run build     # typecheck + bundle de prod
+npm run check     # verifie que le carve est plus rapide que la ligne droite
 npm run shot      # capture Playwright, a comparer a docs/reference.jpg
 ```
+
+`npm run check` simule le contrôleur seul, sans rendu, et vérifie le critère
+de recette n°2 du doc 03 : *le carve enchaîné doit battre la ligne droite*.
+Actuellement **+33 %** sur 40 s, combo max 17. Si ce chiffre passe sous zéro,
+le jeu n'a plus de raison d'exister — c'est le garde-fou le plus important
+du dépôt.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 
