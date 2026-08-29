@@ -58,7 +58,7 @@ export class Ground {
           float dist = length(vWorld.xz - uCam.xz);
 
           // --- Profondeur normalisee : asymptotique, jamais de coupure franche
-          float f = 1.0 - exp(-dist / 150.0);
+          float f = 1.0 - exp(-dist / 95.0);
 
           // --- Stries radiales : bruit ecrase ~70x le long de Z
           //     Une derive laterale lente en fonction de Z fait "respirer" le champ.
@@ -73,7 +73,7 @@ export class Ground {
           // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan
           vec3 c = mix(uNear, uMid, smoothstep(0.00, 0.34, f));
           c = mix(c, uFar, smoothstep(0.30, 0.66, f));
-          c = mix(c, uHorizon, smoothstep(0.62, 0.97, f));
+          c = mix(c, uHorizon, smoothstep(0.48, 0.94, f));
 
           // Les stries teintent sans repeindre : on reste dans la famille verte.
           c = mix(mix(c, uShadow, 0.30), mix(c, uStreak, 0.55), streak);

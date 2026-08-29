@@ -140,10 +140,10 @@ export class Bubbles {
     const r = this.rng;
     if (b.playable) {
       // Dans le couloir de jeu, a hauteur d'epaule.
-      b.pos.set(r.range(-13, 13), r.range(1.4, 4.2), initial ? r.range(20, this.range) : this.range);
+      b.pos.set(r.range(-13, 13), r.range(1.4, 4.2), -(initial ? r.range(20, this.range) : this.range));
       b.drift.set(r.range(-0.2, 0.2), r.range(0.1, 0.4), 0);
     } else {
-      b.pos.set(r.range(-90, 90), r.range(8, 70), initial ? r.range(-40, this.range) : this.range);
+      b.pos.set(r.range(-90, 90), r.range(8, 70), -(initial ? r.range(-40, this.range) : this.range));
       b.drift.set(r.range(-0.5, 0.5), r.range(0.3, 1.1), 0);
     }
     b.alive = true;
@@ -184,7 +184,7 @@ export class Bubbles {
       if (!b.alive) {
         if (time >= b.respawnAt) {
           this.respawn(b, false);
-          b.pos.z = origin.z + this.range;
+          b.pos.z = origin.z - this.range;
           this.alphaAttr.setX(i, 1);
           this.alphaAttr.needsUpdate = true;
         } else {
@@ -195,10 +195,11 @@ export class Bubbles {
       b.pos.addScaledVector(b.drift, dt);
       b.pos.x += Math.sin(time * 0.7 + b.phase) * dt * 0.35;
 
-      const dz = b.pos.z - origin.z;
-      if (dz < -30 || b.pos.y > 190) {
+      // Passee derriere la camera ou montee trop haut : on recycle devant.
+      const ahead = origin.z - b.pos.z;
+      if (ahead < -30 || b.pos.y > 190) {
         this.respawn(b, false);
-        b.pos.z = origin.z + this.range;
+        b.pos.z = origin.z - this.range;
       }
 
       this.s.setScalar(b.radius);

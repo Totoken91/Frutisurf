@@ -1,10 +1,18 @@
-import { Group, HemisphereLight, DirectionalLight, Scene, Vector3 } from 'three';
+import {
+  DirectionalLight,
+  Group,
+  HemisphereLight,
+  Scene,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
 import { col } from '../core/Palette';
 import { Bubbles } from './Bubbles';
 import { City } from './City';
 import { Clouds } from './Clouds';
 import { FishSchool } from './FishSchool';
 import { Ground } from './Ground';
+import { createEnvironment } from './Environment';
 import { createSky, SUN_DIR } from './Sky';
 import type { Quality } from '../core/Engine';
 
@@ -20,12 +28,13 @@ export class World {
   readonly bubbles: Bubbles;
   readonly lights = new Group();
 
-  constructor(scene: Scene, quality: Quality) {
+  constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
     const dense = quality === 'high';
     this.clouds = new Clouds(dense ? 46 : 26);
     this.fish = new FishSchool(dense ? 26 : 16);
     this.bubbles = new Bubbles(dense ? 44 : 26);
 
+    scene.environment = createEnvironment(renderer);
     scene.add(createSky());
     scene.add(this.ground.mesh);
     scene.add(this.city.group);

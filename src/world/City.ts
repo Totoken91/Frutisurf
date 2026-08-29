@@ -95,6 +95,6 @@ export class City {
   }
 
   update(origin: Vector3): void {
-    this.group.position.set(origin.x * 0.06, 0, origin.z + DISTANCE);
+    this.group.position.set(origin.x * 0.06, 0, origin.z - DISTANCE);
   }
 }

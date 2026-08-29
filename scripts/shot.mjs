@@ -20,6 +20,18 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(String(e)));
 
 await page.goto(URL, { waitUntil: 'networkidle' });
+
+// Pilotage scripte : permet de capturer une pose precise (virage, saut).
+const DRIVE = process.env.SHOT_DRIVE ?? '';
+if (DRIVE) {
+  for (const seg of DRIVE.split(';')) {
+    const [key, ms] = seg.split(':');
+    if (key === 'wait') { await page.waitForTimeout(Number(ms)); continue; }
+    await page.keyboard.down(key);
+    await page.waitForTimeout(Number(ms));
+    await page.keyboard.up(key);
+  }
+}
 await page.waitForTimeout(WAIT);
 
 const shots = (process.env.SHOT_SEQ ?? '0').split(',').map(Number);

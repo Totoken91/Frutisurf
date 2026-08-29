@@ -113,8 +113,8 @@ export class Clouds {
 
     for (let i = 0; i < count; i++) {
       // Les nuages se concentrent sur la bande d'horizon, pas au zenith.
-      const z = rng.range(140, this.span);
-      const depth = z / this.span;
+      const z = -rng.range(140, this.span);
+      const depth = -z / this.span;
       off[i * 3] = rng.range(-1500, 1500);
       off[i * 3 + 1] = rng.range(30, 130) + depth * 55;
       off[i * 3 + 2] = z;
@@ -158,7 +158,7 @@ export class Clouds {
         void main(){
           // Repli du champ devant la camera : les nuages ne s'epuisent jamais.
           vec3 o = iOffset;
-          o.z = mod(o.z - uOrigin.z, uSpan) + uOrigin.z;
+          o.z = uOrigin.z - mod(uOrigin.z - o.z, uSpan);
           o.x += uOrigin.x * 0.10 + sin(uTime * 0.05 + iMisc.z) * 14.0;
 
           // Billboard autour de Y uniquement.
@@ -171,7 +171,7 @@ export class Clouds {
           vec2 cell = vec2(mod(q, 2.0), floor(q * 0.5));
           vUv = (uv + cell) * 0.5;
 
-          vDepth = clamp((o.z - uOrigin.z) / uSpan, 0.0, 1.0);
+          vDepth = clamp((uOrigin.z - o.z) / uSpan, 0.0, 1.0);
           vOpacity = iMisc.y;
 
           gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);

@@ -183,7 +183,7 @@ export class FishSchool {
     f.pos.set(
       close ? r.range(-70, 70) : r.range(-420, 420),
       close ? r.range(10, 52) : r.range(16, 165),
-      initial ? z - 40 : z,
+      -(initial ? z - 40 : z),
     );
 
     // Cap majoritairement transversal : ils traversent le champ de vision.
@@ -202,10 +202,11 @@ export class FishSchool {
       const bob = Math.sin(time * 0.6 + f.bobPhase) * f.bobAmp;
 
       // Recyclage : hors de la zone utile, on renvoie devant.
-      const dz = f.pos.z - origin.z;
-      if (dz < -140 || dz > this.range + 200 || Math.abs(f.pos.x - origin.x) > 700) {
+      // Distance DEVANT le joueur (l'avant est en -Z).
+      const ahead = origin.z - f.pos.z;
+      if (ahead < -140 || ahead > this.range + 200 || Math.abs(f.pos.x - origin.x) > 700) {
         this.respawn(f, false);
-        f.pos.z = origin.z + this.rng.range(this.range * 0.5, this.range);
+        f.pos.z = origin.z - this.rng.range(this.range * 0.5, this.range);
       }
 
       // Roulis leger dans le sens du virage : ils planent, ils ne roulent pas a plat.
