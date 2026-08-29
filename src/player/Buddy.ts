@@ -20,11 +20,11 @@ import { HEX } from '../core/Palette';
  * pour l'accumulation de teinte dans le volume, plus un rim de Fresnel
  * injecte dans le shader. Sans ce rim le buddy disparait dans le vert.
  */
-export const BUDDY_HEIGHT = 2.14;
+export const BUDDY_HEIGHT = 2.24;
 
 function bodyProfile(): Vector2[] {
-  const H = 1.12;
-  const RMAX = 0.82;
+  const H = 1.24;
+  const RMAX = 0.76;
   const N = 34;
   const pts: Vector2[] = [new Vector2(0, 0)];
   for (let i = 0; i <= N; i++) {
@@ -102,7 +102,7 @@ export class Buddy {
 
     this.head = new Mesh(new SphereGeometry(0.46, 48, 32), mat);
     // Vide franc entre le buste et la tete : c'est la signature de l'icone.
-    this.head.position.y = 1.68;
+    this.head.position.y = 1.78;
 
     this.group.add(this.body, this.head);
   }
@@ -116,6 +116,6 @@ export class Buddy {
     const xz = 1 - squash * 0.72;
     this.group.scale.set(xz, y, xz);
     // La tete suit le corps sans se deformer elle-meme : elle flotte.
-    this.head.position.y = 1.68 - squash * 0.10;
+    this.head.position.y = 1.78 - squash * 0.10;
   }
 }

@@ -4,8 +4,12 @@ import { createState } from './core/GameState';
 import { Input } from './core/Input';
 import { clamp } from './core/Spring';
 import { CameraRig } from './fx/CameraRig';
+import { PostFX } from './fx/PostFX';
+import { ShockRing } from './fx/ShockRing';
 import { Controller } from './player/Controller';
+import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
+import { Trail } from './player/Trail';
 import { World } from './world/World';
 import type { BubbleHit } from './world/Bubbles';
 
@@ -19,6 +23,10 @@ export class Game {
   readonly rig: CameraRig;
   readonly input: Input;
   readonly state = createState();
+  readonly post: PostFX;
+  readonly spray: Spray;
+  readonly trail = new Trail();
+  readonly rings = new ShockRing();
 
   private acc = 0;
   private last = performance.now();
@@ -27,6 +35,9 @@ export class Game {
   private hits: BubbleHit[] = [];
   private fpsAcc = 0;
   private fpsCount = 0;
+  private contact = new Vector3();
+  private vanish = new Vector3();
+  private trailPoint = new Vector3();
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -34,18 +45,39 @@ export class Game {
     this.surfer = new Surfer(this.engine.scene);
     this.input = new Input(canvas);
 
+    this.spray = new Spray(this.engine.quality === 'low' ? 380 : 760);
+    this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.rings.group);
+
     this.controller = new Controller({
       onPop: (charge) => {
         this.rig.punch(0.35 * charge, 14 * charge);
         this.state.popFlash = charge;
+        this.spray.burst(this.contactPoint(), Math.round(90 * charge), 0.9 + charge, this.time);
+        this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time);
       },
       onLand: (impact) => {
         this.rig.punch(0.22 * impact, 5 * impact);
+        this.spray.burst(this.contactPoint(), Math.round(46 * impact), 0.7 + impact, this.time);
+        this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time);
       },
     });
 
     this.rig = new CameraRig(this.engine.camera);
     this.rig.snap(this.controller);
+
+    this.post = new PostFX(
+      this.engine.renderer,
+      this.engine.scene,
+      this.engine.camera,
+      this.engine.quality,
+    );
+    this.engine.onResize = (w, h) => this.post.resize(w, h);
+    this.trail.reset(this.contactPoint());
+  }
+
+  private contactPoint(): Vector3 {
+    const c = this.controller;
+    return this.contact.set(c.x, c.y + 0.08, c.z);
   }
 
   start(): void {
@@ -100,9 +132,43 @@ export class Game {
       this.controller.speedNorm,
     );
 
-    this.engine.renderer.render(this.engine.scene, this.engine.camera);
+    this.updateFx(real);
+    this.post.render(real);
     this.engine.sampleFrame(real * 1000);
   };
+
+  private updateFx(dt: number): void {
+    const c = this.controller;
+    const contact = this.contactPoint();
+
+    this.spray.update(this.time);
+    if (!c.airborne) {
+      this.spray.emit(contact, c.steer.value, this.state.speed, Math.abs(c.steer.value), dt, this.time);
+    }
+
+    this.trail.update(
+      this.trailPoint.set(c.x, c.airborne ? c.y + this.surfer.hover : 0.07, c.z),
+      dt,
+      c.speedNorm,
+      c.carveCharge,
+      c.airborne,
+    );
+    this.rings.update(this.time);
+
+    // Le point de fuite, pas le centre de l'ecran : quand on carve, tout
+    // l'effet de vitesse pivote avec la trajectoire.
+    this.vanish.set(c.x + c.steer.value * 3.4, c.y + 1.15, c.z - 400);
+    this.vanish.project(this.engine.camera);
+    this.post.surf.set(
+      c.speedNorm,
+      this.input.boostHeld ? 1 : 0,
+      c.carveCharge,
+      this.state.popFlash,
+      this.vanish.x * 0.5 + 0.5,
+      this.vanish.y * 0.5 + 0.5,
+    );
+    this.post.setCombo(c.combo);
+  }
 
   private syncSurfer(): void {
     const c = this.controller;
