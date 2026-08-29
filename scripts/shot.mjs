@@ -22,14 +22,16 @@ page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(URL, { waitUntil: 'networkidle' });
 
 // Pilotage scripte : permet de capturer une pose precise (virage, saut).
+// Format: "wait:800;down:ShiftLeft;wait:4000;down:ArrowRight;wait:1500;up:ArrowRight"
+// down/up permettent de MAINTENIR plusieurs touches en meme temps (boost + virage).
 const DRIVE = process.env.SHOT_DRIVE ?? '';
 if (DRIVE) {
   for (const seg of DRIVE.split(';')) {
-    const [key, ms] = seg.split(':');
-    if (key === 'wait') { await page.waitForTimeout(Number(ms)); continue; }
-    await page.keyboard.down(key);
-    await page.waitForTimeout(Number(ms));
-    await page.keyboard.up(key);
+    const [op, arg] = seg.split(':');
+    if (op === 'wait') await page.waitForTimeout(Number(arg));
+    else if (op === 'down') await page.keyboard.down(arg);
+    else if (op === 'up') await page.keyboard.up(arg);
+    else { await page.keyboard.down(op); await page.waitForTimeout(Number(arg)); await page.keyboard.up(op); }
   }
 }
 await page.waitForTimeout(WAIT);

@@ -128,15 +128,27 @@ Aucun détail de façade : à cette distance on ne lit que des silhouettes.
 ## 4. Post-processing (ordre imposé)
 
 ```
-1. Bloom          seuil 0.62 · intensité 0.85 · rayon 0.72  → le gloss Aero
+1. Bloom          seuil 0.80 · intensité 0.92 · rayon 0.72  → le gloss Aero
 2. RadialBlur     centré au point de fuite, force ∝ vitesse  → la glisse
-3. ChromaticAber  0.0006 au repos → 0.0035 en boost           → le punch
-4. Vignette       0.28, douce                                  → recentre
-5. SMAA                                                        → bords de HUD nets
+3. SpeedLines     stries radiales, alpha ∝ vitesse            → le vent
+4. ChromaticAber  0.0006 au repos → 0.0035 en boost           → le punch
+5. Vignette       0.28, douce                                  → recentre
+6. SMAA                                                        → bords de HUD nets
 ```
 
-Tone mapping : **ACES Filmic**, exposure 1.15. Sortie sRGB.
-ACES écrase un peu les verts hors-gamut — c'est voulu, sinon ils postérisent.
+Les points 2 à 5 sont fusionnés dans un seul effet (`fx/SurfEffect.ts`) :
+les séparer coûterait quatre lectures de framebuffer pour rien.
+
+Tone mapping : **Neutral** (Khronos PBR Neutral), exposure 1.0. Sortie sRGB.
+
+> Le plan initial était ACES Filmic. Mesuré contre la référence, ACES
+> désature violemment les cyans et les verts quasi hors-gamut et rend
+> l'image **pastel** : `#8CFF84` sortait à `#39F05B`. Neutral préserve la
+> saturation et ne comprime que le roll-off des hautes lumières.
+
+**Seuil de bloom : 0.80, pas 0.62.** Les verts saturés de la plaine sont très
+lumineux ; à 0.62 le bloom attrapait *tout le sol* et délavait l'image. On ne
+fait briller que les vrais highlights — nuages, verre, disque, spray.
 
 ## 5. Garde-fous
 

@@ -42,11 +42,11 @@ export function createSky(): Mesh {
 
         // Halo solaire large, sans disque. Rechauffe le quadrant haut-droit.
         float sd = max(dot(d, normalize(uSun)), 0.0);
-        c += vec3(0.55, 0.72, 0.60) * pow(sd, 3.2) * 0.30;
+        c += vec3(0.40, 0.55, 0.46) * pow(sd, 3.6) * 0.20;
         c += vec3(0.30, 0.44, 0.42) * pow(sd, 14.0) * 0.55;
 
         // Legere surexposition juste au-dessus de l'horizon (diffusion atmospherique).
-        c += uHorizon * 0.34 * pow(1.0 - clamp(abs(h) * 4.2, 0.0, 1.0), 2.0);
+        c += uHorizon * 0.18 * pow(1.0 - clamp(abs(h) * 5.0, 0.0, 1.0), 2.0);
 
         // Sous l'horizon le dome ne doit jamais s'assombrir : le sol le recouvre,
         // mais les bords d'ecran en perspective large peuvent le laisser voir.

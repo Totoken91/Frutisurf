@@ -81,8 +81,8 @@ export class Ground {
           // --- Micro-detail de brins, uniquement dans le champ proche
           float near = 1.0 - smoothstep(0.0, 0.42, f);
           float blade = fbm(vec2(p.x * 2.2, p.y * 2.2));
-          c = mix(c, mix(c, uStreak, 0.34), blade * near * 0.50);
-          c *= 1.0 - near * 0.10 * fbm(vec2(p.x * 0.9, p.y * 0.9));
+          c = mix(c, mix(c, uStreak, 0.30), blade * near * 0.30);
+          c *= 1.0 - near * 0.14 * fbm(vec2(p.x * 0.9, p.y * 0.9));
 
           // --- Bandes de defilement : la lecture de vitesse. Alpha faible,
           //     sinon l'effet tapis roulant tue l'illusion de plaine.
@@ -92,11 +92,11 @@ export class Ground {
           // --- Sheen laque : c'est lui qui allume la bande d'horizon
           vec3 V = normalize(uCam - vWorld);
           float graze = pow(1.0 - clamp(V.y, 0.0, 1.0), 4.5);
-          c += vec3(0.10, 0.30, 0.20) * graze * 0.55;
+          c += vec3(0.07, 0.22, 0.15) * graze * 0.50;
 
           // Lobe speculaire large, blanc : la plaine reagit comme une surface vernie.
           vec3 H = normalize(V + normalize(uSun));
-          c += vec3(0.26, 0.34, 0.28) * pow(max(H.y, 0.0), 46.0) * 0.55;
+          c += vec3(0.20, 0.27, 0.22) * pow(max(H.y, 0.0), 46.0) * 0.48;
 
           // Contact net avec le ciel, sans lisere detache.
           c = mix(c, uHorizon, smoothstep(0.93, 1.0, f));

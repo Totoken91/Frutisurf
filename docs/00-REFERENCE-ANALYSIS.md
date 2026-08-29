@@ -1,7 +1,7 @@
 # 00 — Analyse forensique de l'image de référence
 
 Source : capture d'un Reel Instagram (`@..._robots`, légende « Frutiger Surfer … »).
-Résolution native analysée : **1080 × 2316**.
+Résolution native analysée : **1080 × 2316**. L'image est conservée dans le dépôt (`docs/reference.jpg`) et `scripts/shot.mjs` sert à comparer le rendu au pixel près.
 Le chrome Instagram (barre Reels, compteurs likes/commentaires, bouton Suivre, PiP,
 barre de commentaire) **ne fait pas partie du concept** — c'est du contenant, pas du contenu.
 

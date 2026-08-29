@@ -34,7 +34,7 @@ export class CameraRig {
     const offY = lerp(3.3, 2.9, sn);
     const offZ = lerp(9.6, 11.4, sn);
 
-    const targetX = c.x + c.steer.value * 0.55;
+    const targetX = c.x + c.steer.value * 1.35;
     const targetY = c.y + offY;
     const targetZ = c.z + offZ;
 
@@ -60,7 +60,7 @@ export class CameraRig {
     );
 
     // Elle regarde DANS le virage, pas devant elle.
-    this.look.set(c.x + c.steer.value * 3.4, c.y + 1.15, c.z - 9.0);
+    this.look.set(c.x + c.steer.value * 2.3, c.y + 1.15, c.z - 9.0);
     this.camera.lookAt(this.look);
 
     // Le roulis : le parametre le plus sous-estime du jeu video.

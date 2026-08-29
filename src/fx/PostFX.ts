@@ -34,7 +34,7 @@ export class PostFX {
 
     this.bloom = new BloomEffect({
       intensity: 0.85,
-      luminanceThreshold: 0.62,
+      luminanceThreshold: 0.80,
       luminanceSmoothing: 0.22,
       radius: 0.72,
       mipmapBlur: true,
@@ -51,7 +51,7 @@ export class PostFX {
 
   /** Le combo sature progressivement l'image : a combo 10 c'est presque trop beau. */
   setCombo(combo: number): void {
-    this.bloom.intensity = 0.85 + Math.min(combo, 10) * 0.055;
+    this.bloom.intensity = 0.92 + Math.min(combo, 10) * 0.055;
   }
 
   resize(w: number, h: number): void {

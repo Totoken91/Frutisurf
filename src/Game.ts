@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { Audio } from './audio/Audio';
 import { Engine } from './core/Engine';
 import { createState } from './core/GameState';
 import { Input } from './core/Input';
@@ -10,6 +11,7 @@ import { Controller } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
+import { Hud } from './hud/Hud';
 import { World } from './world/World';
 import type { BubbleHit } from './world/Bubbles';
 
@@ -27,6 +29,8 @@ export class Game {
   readonly spray: Spray;
   readonly trail = new Trail();
   readonly rings = new ShockRing();
+  readonly hud: Hud;
+  readonly audio = new Audio();
 
   private acc = 0;
   private last = performance.now();
@@ -49,16 +53,19 @@ export class Game {
     this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.rings.group);
 
     this.controller = new Controller({
-      onPop: (charge) => {
+      onPop: (charge, combo) => {
         this.rig.punch(0.35 * charge, 14 * charge);
         this.state.popFlash = charge;
         this.spray.burst(this.contactPoint(), Math.round(90 * charge), 0.9 + charge, this.time);
         this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time);
+        this.audio.pop(charge, combo);
       },
+      onJump: () => this.audio.jump(),
       onLand: (impact) => {
         this.rig.punch(0.22 * impact, 5 * impact);
         this.spray.burst(this.contactPoint(), Math.round(46 * impact), 0.7 + impact, this.time);
         this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time);
+        this.audio.land(impact);
       },
     });
 
@@ -73,6 +80,14 @@ export class Game {
     );
     this.engine.onResize = (w, h) => this.post.resize(w, h);
     this.trail.reset(this.contactPoint());
+
+    this.hud = new Hud(document.getElementById('hud')!);
+    const begin = (): void => {
+      this.state.started = true;
+      this.audio.start();
+    };
+    this.hud.onStart = begin;
+    this.input.onFirstGesture = begin;
   }
 
   private contactPoint(): Vector3 {
@@ -116,6 +131,7 @@ export class Game {
     }
 
     this.controller.writeState(this.state);
+    this.hud.update(this.state, real);
 
     // La camera tourne en temps reel : elle doit rester fluide meme si la
     // simulation est gelee.
@@ -157,7 +173,7 @@ export class Game {
 
     // Le point de fuite, pas le centre de l'ecran : quand on carve, tout
     // l'effet de vitesse pivote avec la trajectoire.
-    this.vanish.set(c.x + c.steer.value * 3.4, c.y + 1.15, c.z - 400);
+    this.vanish.set(c.x + c.steer.value * 2.3, c.y + 1.15, c.z - 400);
     this.vanish.project(this.engine.camera);
     this.post.surf.set(
       c.speedNorm,
@@ -168,6 +184,8 @@ export class Game {
       this.vanish.y * 0.5 + 0.5,
     );
     this.post.setCombo(c.combo);
+
+    this.audio.update(c.speedNorm, Math.abs(c.steer.value), c.carveCharge, c.airborne);
   }
 
   private syncSurfer(): void {
@@ -201,6 +219,7 @@ export class Game {
     for (const h of this.hits) {
       this.world.bubbles.pop(h.index, this.time);
       c.collectBubble();
+      this.audio.bubble(c.combo);
     }
   }
 }

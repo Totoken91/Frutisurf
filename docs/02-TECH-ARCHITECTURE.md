@@ -15,7 +15,7 @@
 
 ```
 src/
-├── main.ts                  bootstrap + boucle
+├── main.ts                  bootstrap
 ├── core/
 │   ├── Engine.ts            renderer, scène, caméra, composer, resize, PMREM
 │   ├── Input.ts             clavier + tactile + gamepad → un axe unifié
@@ -24,9 +24,9 @@ src/
 │   └── Palette.ts           la palette du doc 01, source unique de vérité
 ├── world/
 │   ├── Sky.ts               dôme dégradé + soleil
+│   ├── Environment.ts       PMREM ciel+herbe pour les réflexions du verre
 │   ├── Clouds.ts            champ de billboards
 │   ├── Ground.ts            plaine infinie (shader)
-│   ├── GrassField.ts        brins instanciés + sillage
 │   ├── City.ts              skyline de cristal
 │   ├── FishSchool.ts        poissons volants instanciés
 │   └── Bubbles.ts           bulles irisées (décor + collectables)
@@ -37,22 +37,23 @@ src/
 │   ├── Trail.ts             ruban derrière le disque
 │   └── Spray.ts             particules d'herbe
 ├── fx/
-│   ├── PostFX.ts            bloom → radial blur → aberration → vignette → SMAA
-│   ├── SpeedLines.ts        streaks en espace écran
+│   ├── PostFX.ts            bloom → SurfEffect → SMAA
+│   ├── SurfEffect.ts        radial blur + speed lines + aberration + vignette
 │   ├── ShockRing.ts         anneaux d'impact
-│   └── CameraRig.ts         ressort, FOV, roll, bruit, shake, hitstop
+│   └── CameraRig.ts         ressort, FOV, roll, bruit, shake
 ├── hud/
 │   ├── Hud.ts               binding état → DOM
 │   └── hud.css              verre Aero
 ├── audio/
 │   └── Audio.ts             synthèse WebAudio
-└── shaders/
-    ├── ground.glsl.ts
-    ├── disc.glsl.ts
-    ├── rim.glsl.ts
-    ├── bubble.glsl.ts
-    └── speedlines.glsl.ts
+├── world/World.ts           assemblage du décor + lumières
+└── Game.ts                  assemblage général, boucle, collecte
 ```
+
+> Les shaders vivent dans le module qui les possède plutôt que dans un dossier
+> `shaders/` séparé : chacun n'est utilisé qu'à un seul endroit, et les lire à
+> côté de leurs uniformes évite des allers-retours. Seul le bruit est partagé
+> (`core/Noise.ts`, chunk `GLSL_NOISE`).
 
 ## 3. Boucle
 
@@ -71,7 +72,14 @@ render()
 120 Hz de simulation : les ressorts de `steer` (ω=14) ont besoin de ça pour ne pas
 osciller en escalier sur un écran 60 Hz.
 
-## 4. Monde infini
+## 4. Monde infini et orientation
+
+**Avant = -Z, droite écran = +X** (convention three.js). Le premier jet
+avançait vers `+Z` : avec une caméra qui regarde dans cette direction, la
+droite de l'écran devient `-X` et *chaque* signe du projet s'inverse
+(direction, inclinaison, roulis, éjection du spray, point de fuite). Basculer
+tôt a coûté huit lignes ; le garder aurait coûté un bug de signe par effet.
+
 
 Le surfeur ne s'éloigne jamais de l'origine. C'est le **monde qui recule**.
 

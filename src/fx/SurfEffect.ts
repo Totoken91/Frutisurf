@@ -35,7 +35,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
       float t = float(i) / 5.0;
       acc += texture2D(inputBuffer, uv - dir * blur * t).rgb;
     }
-    col = mix(col, acc / 6.0, 0.75);
+    col = mix(col, acc / 6.0, 0.62);
   }
 
   // --- Aberration chromatique : au repos elle doit etre presque invisible.
@@ -49,15 +49,15 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   float lines = smoothstep(0.55, 1.0, uSpeed) + uBoost * 0.55;
   if (lines > 0.01) {
     float ang = atan(dir.y, dir.x);
-    float streak = hash12(vec2(floor(ang * 62.0), 1.0));
-    float band = smoothstep(0.86, 1.0, streak) * smoothstep(0.22, 0.85, dist);
-    col += vec3(0.55, 0.85, 0.95) * band * lines * 0.30;
+    float streak = hash12(vec2(floor(ang * 96.0), 1.0));
+    float band = smoothstep(0.93, 1.0, streak) * smoothstep(0.30, 0.92, dist);
+    col += vec3(0.55, 0.85, 0.95) * band * lines * 0.16;
   }
 
   // --- Le pop de carve pulse l'ecran en cyan.
   col += vec3(0.20, 0.60, 0.75) * uFlash * 0.28;
   // La charge tire vers le blanc sur les bords : la tension monte.
-  col += vec3(0.55, 0.85, 1.0) * uCharge * smoothstep(0.35, 0.95, dist) * 0.12;
+  col += vec3(0.55, 0.85, 1.0) * uCharge * smoothstep(0.45, 1.0, dist) * 0.08;
 
   // --- Vignette douce.
   col *= 1.0 - smoothstep(0.42, 1.05, dist) * 0.28;

@@ -15,7 +15,7 @@ export const HEX = {
   grassHorizon: 0x8cff84,
   grassFar: 0x75fc85,
   grassMid: 0x48fd76,
-  grassNear: 0x19e25f,
+  grassNear: 0x14d955,
   grassShadow: 0x12a84e,
   grassStreak: 0x6bff92,
 
