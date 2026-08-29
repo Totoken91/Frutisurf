@@ -11,6 +11,7 @@ import { Controller } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
+import { terrainGradient, terrainHeight } from './world/Terrain';
 import { World } from './world/World';
 
 const STEP = 1 / 120;
@@ -37,6 +38,8 @@ export class Game {
   private fpsCount = 0;
   private contact = new Vector3();
   private vanish = new Vector3();
+  private grad = { dx: 0, dz: 0 };
+  private groundNormal = new Vector3(0, 1, 0);
   private trailPoint = new Vector3();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -53,15 +56,32 @@ export class Game {
         this.rig.punch(0.35 * charge, 14 * charge);
         this.state.popFlash = charge;
         this.spray.burst(this.contactPoint(), Math.round(90 * charge), 0.9 + charge, this.time);
-        this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time);
+        this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time, this.controller.groundY);
         this.audio.pop(charge, combo);
       },
-      onJump: () => this.audio.jump(),
-      onLand: (impact) => {
-        this.rig.punch(0.22 * impact, 5 * impact);
-        this.spray.burst(this.contactPoint(), Math.round(46 * impact), 0.7 + impact, this.time);
-        this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time);
-        this.audio.land(impact);
+      onJump: (timed) => {
+        this.audio.jump(timed);
+        if (timed > 0.35) {
+          // Recompense visible du saut bien time : gerbe, anneau, coup de FOV.
+          this.rig.punch(0.18 * timed, 9 * timed);
+          this.spray.burst(this.contactPoint(), Math.round(55 * timed), 0.8 + timed, this.time);
+          this.rings.spawn(this.contactPoint(), 0.45 + timed * 0.5, this.time, this.controller.groundY);
+          this.state.popFlash = Math.max(this.state.popFlash, timed * 0.8);
+        }
+      },
+      onGlideStart: () => this.audio.glide(),
+      onLand: (impact, quality) => {
+        // Une reception propre dans la pente secoue moins et gicle plus :
+        // le retour doit dire au joueur qu'il a bien choisi son point de chute.
+        this.rig.punch(0.22 * impact * (1 - quality * 0.55), 5 * impact);
+        this.spray.burst(
+          this.contactPoint(),
+          Math.round(46 * impact + 40 * quality),
+          0.7 + impact,
+          this.time,
+        );
+        this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time, this.controller.groundY);
+        this.audio.land(impact, quality);
       },
     });
 
@@ -88,6 +108,13 @@ export class Game {
   private contactPoint(): Vector3 {
     const c = this.controller;
     return this.contact.set(c.x, c.y + 0.08, c.z);
+  }
+
+  /** Normale du terrain sous le surfeur, pour poser tout ce qui touche le sol. */
+  private updateGroundNormal(): void {
+    const c = this.controller;
+    terrainGradient(c.x, c.z, this.grad);
+    this.groundNormal.set(-this.grad.dx, 1, -this.grad.dz).normalize();
   }
 
   start(): void {
@@ -130,7 +157,8 @@ export class Game {
     // simulation est gelee.
     this.rig.update(real, this.controller, this.time);
 
-    this.syncSurfer();
+    this.updateGroundNormal();
+    this.syncSurfer(real);
 
     this.origin.set(this.controller.x, 0, this.controller.z);
     this.world.update(
@@ -155,11 +183,16 @@ export class Game {
     }
 
     this.trail.update(
-      this.trailPoint.set(c.x, c.airborne ? c.y + this.surfer.hover : 0.07, c.z),
+      this.trailPoint.set(
+        c.x,
+        c.airborne ? c.y + this.surfer.hover : c.groundY + 0.07,
+        c.z,
+      ),
       dt,
       c.speedNorm,
       c.carveCharge,
       c.airborne,
+      (x, z) => terrainHeight(x, z),
     );
     this.rings.update(this.time);
 
@@ -177,20 +210,36 @@ export class Game {
     );
     this.post.setCombo(c.combo);
 
-    this.audio.update(c.speedNorm, Math.abs(c.steer.value), c.carveCharge, c.airborne);
+    // Le repere de crete est SONORE : sans interface, c'est lui qui dit quand
+    // appuyer. Il monte a l'approche du sommet et retombe apres.
+    this.audio.update(
+      c.speedNorm,
+      Math.abs(c.steer.value),
+      c.carveCharge,
+      c.airborne,
+      c.airborne ? 0 : c.lipFactor,
+      c.gliding,
+    );
   }
 
-  private syncSurfer(): void {
+  private syncSurfer(dt: number): void {
     const c = this.controller;
     const s = this.surfer;
 
     s.rig.position.set(c.x, c.y + s.hover, c.z);
 
-    // Banking : le haut du buddy part DANS le virage. Rotation autour de
-    // l'axe d'avance, donc -Z ; d'ou le signe negatif.
+    // Le rig epouse le terrain, le tilt porte le carve : les separer evite que
+    // l'inclinaison de pente ne se melange a celle du virage.
+    const slopePitch = c.airborne ? 0 : c.slopeTravel;
+    const slopeRoll = c.airborne ? 0 : this.grad.dx;
+    s.rig.rotation.x += (slopePitch - s.rig.rotation.x) * Math.min(1, dt * 9);
+    s.rig.rotation.z += (slopeRoll - s.rig.rotation.z) * Math.min(1, dt * 9);
+
+    // Banking : le haut du buddy part DANS le virage.
     s.tilt.rotation.z = -c.lean.value;
-    // En l'air le disque pique legerement du nez.
-    s.tilt.rotation.x = c.airborne ? 0.18 : 0;
+    // En l'air le disque pique du nez ; en plane il se cabre pour porter.
+    const airPitch = c.gliding ? -0.24 : c.airborne ? 0.18 : 0;
+    s.tilt.rotation.x += (airPitch - s.tilt.rotation.x) * Math.min(1, dt * 7);
 
     // Rotation propre du CD : elle monte avec la vitesse et la charge.
     s.disc.group.rotation.y += (2.2 + c.speedNorm * 5.0 + c.carveCharge * 4.0) * (1 / 60);
@@ -201,7 +250,7 @@ export class Game {
       : 0;
     s.buddy.setSquash(squash);
 
-    s.update(this.time, c.carveCharge, c.speedNorm, c.y);
+    s.update(this.time, c.carveCharge, c.speedNorm, c.y - c.groundY, c.groundY, this.groundNormal);
   }
 
 }

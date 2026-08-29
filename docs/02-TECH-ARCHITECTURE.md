@@ -23,10 +23,11 @@ src/
 │   ├── Noise.ts             valeur/Perlin/FBM pour CPU et GLSL
 │   └── Palette.ts           la palette du doc 01, source unique de vérité
 ├── world/
+│   ├── Terrain.ts           hauteur du sol, source unique CPU + GPU
 │   ├── Sky.ts               dôme dégradé + soleil
 │   ├── Environment.ts       PMREM ciel+herbe pour les réflexions du verre
 │   ├── Clouds.ts            champ de billboards
-│   ├── Ground.ts            plaine infinie (shader)
+│   ├── Ground.ts            grille en éventail déplacée par Terrain
 │   └── City.ts              skyline de cristal
 ├── player/
 │   ├── Buddy.ts             le bonhomme MSN en verre
@@ -66,6 +67,26 @@ render()
 
 120 Hz de simulation : les ressorts de `steer` (ω=14) ont besoin de ça pour ne pas
 osciller en escalier sur un écran 60 Hz.
+
+## 3 bis. Une seule source de vérité pour le sol
+
+`world/Terrain.ts` définit la hauteur du terrain **une fois**, et le chunk GLSL
+est **généré** depuis les mêmes constantes plutôt que recopié. Deux versions
+écrites à la main dérivent au premier ajustement, et le symptôme est vicieux :
+le surfeur flotte de quelques centimètres ou s'enfonce dans la colline sans que
+rien ne plante.
+
+Des sinus plutôt qu'un bruit, pour deux raisons : reproductibles à l'identique
+des deux côtés, et surtout **dérivables analytiquement**. La pente et la
+courbure sortent d'un `cos`, sans échantillonner — c'est ce qui rend la
+détection de crête exacte plutôt qu'approchée.
+
+La grille de sol est un **éventail ancré sur le joueur** : rangées serrées
+devant lui (1,2 m) puis écartement géométrique jusqu'à l'horizon, largeur qui
+croît avec la distance pour couvrir le champ de vision quel que soit le rapport
+d'écran. Elle ne suit le joueur qu'en Z, **par pas entiers de maille** — un
+suivi continu ferait glisser les sommets le long des pentes et scintiller tout
+le relief.
 
 ## 4. Monde infini et orientation
 

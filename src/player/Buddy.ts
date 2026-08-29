@@ -220,6 +220,11 @@ export class Buddy {
     const y = 1 + squash;
     const xz = 1 - squash * 0.72;
     this.group.scale.set(xz, y, xz);
+
+    // La tete encaisse l'etirement a 40 % seulement : a pleine deformation
+    // elle devient un oeuf et la silhouette MSN ne se lit plus. Le buste, lui,
+    // s'etire franchement — c'est lui qui porte l'effet.
+    this.head.scale.set(1 / (1 - squash * 0.43), 1 / (1 + squash * 0.6), 1 / (1 - squash * 0.43));
     this.head.position.y = HEAD_Y - squash * 0.10;
   }
 }

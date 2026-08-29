@@ -38,6 +38,10 @@ export class Audio {
   private slideGain!: GainNode;
   private chargeOsc!: OscillatorNode;
   private chargeGain!: GainNode;
+  private lipOsc!: OscillatorNode;
+  private lipGain!: GainNode;
+  private glideGain!: GainNode;
+  private glideFilter!: BiquadFilterNode;
   private white!: AudioBuffer;
   private started = false;
   muted = false;
@@ -95,6 +99,29 @@ export class Audio {
     this.chargeOsc.connect(this.chargeGain).connect(this.master);
     this.chargeOsc.start();
 
+    // --- Repere de crete. Sans interface, c'est ce son qui dit quand sauter :
+    // il monte a l'approche du sommet et retombe des qu'on l'a depasse.
+    this.lipOsc = ctx.createOscillator();
+    this.lipOsc.type = 'sine';
+    this.lipOsc.frequency.value = 520;
+    this.lipGain = ctx.createGain();
+    this.lipGain.gain.value = 0;
+    this.lipOsc.connect(this.lipGain).connect(this.master);
+    this.lipOsc.start();
+
+    // --- Nappe de plane : souffle aigu et calme, l'oppose du vent au sol.
+    const glide = ctx.createBufferSource();
+    glide.buffer = pink;
+    glide.loop = true;
+    this.glideFilter = ctx.createBiquadFilter();
+    this.glideFilter.type = 'bandpass';
+    this.glideFilter.frequency.value = 2400;
+    this.glideFilter.Q.value = 0.8;
+    this.glideGain = ctx.createGain();
+    this.glideGain.gain.value = 0;
+    glide.connect(this.glideFilter).connect(this.glideGain).connect(this.master);
+    glide.start();
+
     if (ctx.state === 'suspended') void ctx.resume();
   }
 
@@ -103,7 +130,14 @@ export class Audio {
   }
 
   /** Etat continu, appele chaque frame. */
-  update(speedNorm: number, steerAbs: number, charge: number, airborne: boolean): void {
+  update(
+    speedNorm: number,
+    steerAbs: number,
+    charge: number,
+    airborne: boolean,
+    lip = 0,
+    gliding = false,
+  ): void {
     if (!this.ctx) return;
     const t = this.now();
     const air = airborne ? 0.55 : 1;
@@ -118,6 +152,13 @@ export class Audio {
     // La charge monte d'une tierce mineure (x 2^(3/12)).
     this.chargeOsc.frequency.setTargetAtTime(220 * Math.pow(2, (charge * 3) / 12), t, 0.05);
     this.chargeGain.gain.setTargetAtTime(charge * charge * 0.055, t, 0.08);
+
+    // La hauteur du repere monte d'une octave pile sur la crete.
+    this.lipOsc.frequency.setTargetAtTime(520 * (1 + lip), t, 0.04);
+    this.lipGain.gain.setTargetAtTime(lip * lip * 0.045, t, 0.05);
+
+    this.glideGain.gain.setTargetAtTime(gliding ? 0.11 : 0, t, 0.18);
+    this.glideFilter.frequency.setTargetAtTime(gliding ? 2400 + speedNorm * 1600 : 2400, t, 0.2);
   }
 
   private blip(
@@ -170,13 +211,22 @@ export class Audio {
     this.blip(base * 1.5, 0.34, 'sine', 0.11);
   }
 
-  jump(): void {
-    this.blip(300, 0.16, 'sine', 0.10, 620);
+  jump(timed = 0): void {
+    // Un saut bien time sonne plus haut et plus clair : le retour audio doit
+    // confirmer le timing avant meme qu'on voie la hauteur atteinte.
+    this.blip(300 + timed * 180, 0.16 + timed * 0.1, 'sine', 0.10 + timed * 0.07, 620 + timed * 520);
+    if (timed > 0.75) this.blip(880, 0.28, 'triangle', 0.09, 1320);
   }
 
-  land(impact: number): void {
-    this.blip(70, 0.18, 'sine', 0.20 * Math.min(1, 0.5 + impact));
+  glide(): void {
+    this.blip(520, 0.5, 'sine', 0.05, 780);
+  }
+
+  land(impact: number, quality = 0): void {
+    // Une reception propre claque moins fort et ouvre sur une note haute.
+    this.blip(70, 0.18, 'sine', 0.20 * Math.min(1, 0.5 + impact) * (1 - quality * 0.4));
     this.whoosh(0.25 * impact);
+    if (quality > 0.55) this.blip(660, 0.26, 'sine', 0.09, 990);
   }
 
 

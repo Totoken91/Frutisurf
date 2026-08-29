@@ -71,10 +71,10 @@ export class ShockRing {
     }
   }
 
-  spawn(at: Vector3, power: number, time: number): void {
+  spawn(at: Vector3, power: number, time: number, groundY = 0): void {
     const r = this.rings[this.cursor];
     this.cursor = (this.cursor + 1) % POOL;
-    r.mesh.position.set(at.x, 0.03, at.z);
+    r.mesh.position.set(at.x, groundY + 0.05, at.z);
     r.mesh.visible = true;
     r.birth = time;
     r.power = power;

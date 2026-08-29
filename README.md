@@ -12,8 +12,8 @@ Aucune interface. Aucun compteur. Juste la plaine, le surfeur et la glisse.
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
 <p align="center">
-  <img src="docs/hero.png" width="360" alt="Le surfeur MSN sur son CD" />
-  <img src="docs/hero-boost.png" width="360" alt="Pop de carve, gerbe d'herbe et trace en S" />
+  <img src="docs/hero.png" width="360" alt="Collines procedurales et surfeur MSN" />
+  <img src="docs/hero-boost.png" width="360" alt="En vol apres un saut time sur une crete" />
 </p>
 
 ## Lancer
@@ -29,7 +29,13 @@ npm run dev     # http://localhost:5173
 |---|---|---|---|
 | Diriger | `←` `→` / `A` `D` | glisser | stick gauche |
 | Sauter | `Espace` / `↑` | tap | `A` |
+| Planer | maintenir `Espace` après l'apex | garder le doigt appuyé | maintenir `A` |
 | Boost | `Maj` | deux doigts | `RT` |
+
+**Le relief** : le terrain est procédural et vallonné. Appuie sur saut **pile
+sur la crête** — un son monte d'une octave pour te le dire, il n'y a pas
+d'interface — et l'impulsion double. Garde la touche enfoncée après l'apex pour
+planer. Retombe dans une pente descendante : ça amortit et ça relance.
 
 **La boucle** : tiens un virage pour charger la carre — le disque se met sur la
 tranche, le spray s'intensifie, le son monte d'une tierce. Relâche au bon moment
@@ -49,11 +55,14 @@ npm run shot          # capture Playwright, a comparer a docs/reference.jpg
 requete externe, qui se pose n'importe où et s'ouvre tel quel sur un
 téléphone. La page n'a aucun mobilier — le jeu occupe tout l'écran.
 
-`npm run check` simule le contrôleur seul, sans rendu, et vérifie le critère
-de recette n°2 du doc 03 : *le carve enchaîné doit battre la ligne droite*.
-Actuellement **+33 %** sur 40 s, combo max 17. Si ce chiffre passe sous zéro,
-le jeu n'a plus de raison d'exister — c'est le garde-fou le plus important
-du dépôt.
+Les deux `check` simulent le contrôleur **sans rendu** : si le feeling dépend
+d'un effet visuel, c'est que les ressorts sont ratés.
+
+- `check` : le carve enchaîné doit battre la ligne droite. Actuellement **+52 %**.
+- `check:air` : sauter sur la crête doit battre sauter au hasard (**+63 %** de
+  vol par saut), planer doit allonger encore le vol (**+42 %**), et le terrain
+  seul ne doit pas envoyer en l'air plus de 30 % du temps en croisière — sinon
+  c'est un trampoline, plus une glisse.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 

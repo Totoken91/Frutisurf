@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { clamp, damp, Decay, lerp, smoothstep } from '../core/Spring';
 import { fbm2D } from '../core/Noise';
+import { terrainHeight } from '../world/Terrain';
 import type { Controller } from '../player/Controller';
 
 /**
@@ -30,9 +31,13 @@ export class CameraRig {
   update(dt: number, c: Controller, time: number): void {
     const sn = c.speedNorm;
 
-    // La camera RECULE et descend quand ca accelere.
-    const offY = lerp(3.3, 2.9, sn);
-    const offZ = lerp(9.6, 11.4, sn);
+    // La camera RECULE et descend quand ca accelere ; en plane elle recule
+    // encore et prend de la hauteur pour donner a voir la ligne de vol.
+    const glide = c.gliding ? 1 : 0;
+    // Un peu plus haut qu'avant le relief : d'une camera rasante on ne voit
+    // pas les collines, donc on ne peut pas les jouer.
+    const offY = lerp(4.1, 3.6, sn) + glide * 1.2 + Math.min(c.y - c.groundY, 8) * 0.18;
+    const offZ = lerp(9.6, 11.4, sn) + glide * 1.6;
 
     const targetX = c.x + c.steer.value * 1.35;
     const targetY = c.y + offY;
@@ -41,8 +46,14 @@ export class CameraRig {
     // Ressort quasi critique : elle suit sans flotter.
     const k = 7.5;
     this.pos.x = damp(this.pos.x, targetX, k, dt);
-    this.pos.y = damp(this.pos.y, targetY, k * 1.15, dt);
+    // L'axe vertical est BEAUCOUP plus mou que les deux autres : suivre le
+    // relief au pixel pres donnerait une camera qui tressaute sur chaque bosse.
+    this.pos.y = damp(this.pos.y, targetY, k * 0.42, dt);
     this.pos.z = damp(this.pos.z, targetZ, k * 1.6, dt);
+
+    // Garde-fou : la camera ne rentre jamais dans une colline derriere le surfeur.
+    const clearance = terrainHeight(this.pos.x, this.pos.z) + 1.6;
+    if (this.pos.y < clearance) this.pos.y = clearance;
 
     this.shake.step(dt);
     this.fovPunch.step(dt);
@@ -60,7 +71,8 @@ export class CameraRig {
     );
 
     // Elle regarde DANS le virage, pas devant elle.
-    this.look.set(c.x + c.steer.value * 2.3, c.y + 1.15, c.z - 9.0);
+    // On vise un peu plus bas en plane : on veut voir ou on va retomber.
+    this.look.set(c.x + c.steer.value * 2.3, c.y + 1.15 - glide * 1.3, c.z - 9.0);
     this.camera.lookAt(this.look);
 
     // Le roulis : le parametre le plus sous-estime du jeu video.
@@ -77,7 +89,7 @@ export class CameraRig {
 
   /** Placement immediat, sans transitoire (demarrage, reset). */
   snap(c: Controller): void {
-    this.pos.set(c.x, c.y + 3.3, c.z + 9.6);
+    this.pos.set(c.x, c.y + 4.1, c.z + 9.6);
     this.camera.position.copy(this.pos);
     this.roll = 0;
     this.fov = 62;

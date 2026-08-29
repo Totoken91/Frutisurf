@@ -100,6 +100,73 @@ grande vitesse ne se *ressent* pas. Avec 0.28 rad, ça devient physique.
 `fov` qui monte compresse les bords de l'écran vers l'extérieur : c'est le
 « speed warp ». Combiné au radial blur, c'est ce qui fait qu'on sent le vent.
 
+## 4 bis. Le relief et le saut timé
+
+Le terrain est procédural : une somme de cinq sinus (`world/Terrain.ts`), donc
+reproductible à l'identique côté CPU et GPU, et **dérivable analytiquement** —
+on obtient la pente et la courbure sans échantillonner.
+
+Les amplitudes ne sont pas choisies à l'œil mais **calées sur deux grandeurs
+physiques** :
+
+| grandeur | formule | ce qu'elle décide |
+|---|---|---|
+| pente | `a·f` | l'inclinaison ressentie, ~11° typique |
+| courbure | `a·f²` | à partir de quand une crête ne peut plus retenir le disque |
+
+Une crête éjecte le surfeur quand `courbure · v² > g · adhérence`. C'est ce
+seuil qui fait qu'on **reste au sol en croisière et qu'on décolle en boost**,
+sans aucun scénario écrit : la vitesse seule change le comportement.
+
+> `adhérence = 1.8` représente la prise du disque sur l'herbe. À 1.0 (physique
+> pure) le relief envoyait en l'air un quart du temps en croisière : on ne
+> glissait plus, on rebondissait.
+
+### La fenêtre de timing
+
+```
+                    lipFactor
+    montée            ▁▃▅███▅▃▁            descente
+  ─────────────────┬───────────┬─────────────────
+                   │  fenêtre  │
+                   │           │
+   appuyer ici → saut mou      saut mou ← appuyer là
+                   └─ ici : +115 % d'impulsion ─┘
+```
+
+`lipFactor` combine **deux** conditions, jamais une seule : le terrain doit être
+bombé (courbure négative) **et** à peu près plat (pente proche de zéro). Avec la
+seule convexité, on récompenserait aussi le milieu d'une pente descendante.
+
+Le gabarit mesure la courbure sur ±7 m. Ce n'est pas arbitraire : à cette portée
+il capte les collines roulables (84 m et 42 m de longueur d'onde) et **filtre la
+texture de 21 m**. On veut timer un sommet, pas chaque caillou.
+
+Le saut hérite en plus de la vitesse verticale que la montée donnait déjà, donc
+appuyer *juste avant* le sommet paie aussi : la fenêtre reste indulgente.
+
+### Le repère est SONORE
+
+Il n'y a plus d'interface. Le signal qui dit *quand appuyer* est un son : une
+sinusoïde qui monte d'une octave à l'approche du sommet et retombe après. C'est
+diégétique, ça n'occupe aucun pixel, et ça s'apprend en trois collines.
+
+### Le plané
+
+Maintenir le saut **après l'apex** (jamais pendant la montée — ça donnerait un
+saut mou au lieu d'un envol suivi d'un vol) :
+
+- gravité à 30 %, puis retour progressif à 100 % en ~2 s ;
+- la vitesse est maintenue, ce qui rend la ligne aérienne compétitive face au
+  carve au sol ;
+- le buddy se cabre, la caméra recule, prend de la hauteur et vise plus bas —
+  on veut voir **où on va retomber**.
+
+### La réception
+
+Atterrir dans la pente descendante amortit et relance ; à plat ou en montée, ça
+casse. C'est ce qui pousse à choisir *où* retomber, pas seulement *quand* sauter.
+
 ## 5. Le saut
 
 ```
@@ -154,6 +221,19 @@ absolu casse la fluidité du carve.
 
 ## 9. Critères de recette
 
+Deux vérifications automatiques tiennent ces critères (`npm run check` et
+`npm run check:air`). Elles simulent le contrôleur **sans rendu** : si le
+feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
+
+`check:air` fait rouler quatre pilotes sur le même terrain — un qui ne saute
+jamais, un qui saute au hasard, un qui saute sur la crête, un qui plane — et
+compare le **vol par saut**, pas le vol total : un bon planeur croise moins de
+crêtes, donc son total peut baisser alors que chaque saut est meilleur.
+
+Le pilote qui ne saute jamais est le garde-fou anti-trampoline : si le terrain
+seul envoie en l'air plus de 30 % du temps en croisière, ce n'est plus un jeu
+de glisse.
+
 La glisse est validée quand :
 
 1. On peut jouer 60 s sans toucher au saut et **s'amuser quand même**.
@@ -163,3 +243,5 @@ La glisse est validée quand :
    **Si elle ne l'est pas, le problème est dans les ressorts, pas dans les effets.**
 4. Un joueur qui lâche les touches ne meurt pas et ne s'ennuie pas.
 5. Le pop de carve donne envie de le refaire immédiatement.
+6. Sauter sur la crête bat nettement sauter au hasard (**+63 %** de vol par saut).
+7. Planer allonge encore le vol (**+42 %**) sans rendre le sol inutile.

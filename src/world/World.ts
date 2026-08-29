@@ -19,12 +19,14 @@ import type { Quality } from '../core/Engine';
  * le joueur ne s'eloigne jamais de l'origine, c'est le monde qui recule.
  */
 export class World {
-  readonly ground = new Ground();
+  readonly ground: Ground;
   readonly clouds: Clouds;
   readonly city = new City();
   readonly lights = new Group();
 
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
+    const dense = quality !== 'low';
+    this.ground = new Ground(dense);
     this.clouds = new Clouds(quality === 'high' ? 46 : 26);
 
     scene.environment = createEnvironment(renderer);
@@ -49,7 +51,7 @@ export class World {
   }
 
   update(origin: Vector3, camPos: Vector3, time: number, speedN: number): void {
-    this.ground.update(camPos, origin.x, origin.z, time, speedN);
+    this.ground.update(camPos, origin, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);
   }

@@ -1,4 +1,4 @@
-import { Group, Object3D } from 'three';
+import { Group, Object3D, Quaternion, Vector3 } from 'three';
 import { Buddy } from './Buddy';
 import { Disc, DISC_RADIUS } from './Disc';
 
@@ -30,9 +30,22 @@ export class Surfer {
     parent.add(this.disc.halo);
   }
 
-  update(time: number, charge: number, speedN: number, airHeight: number): void {
+  private static readonly PLANE_N = new Vector3(0, 0, 1);
+  private haloQ = new Quaternion();
+
+  update(
+    time: number,
+    charge: number,
+    speedN: number,
+    airHeight: number,
+    groundY: number,
+    normal: Vector3,
+  ): void {
     this.disc.update(time, charge, speedN, airHeight);
-    this.disc.halo.position.set(this.rig.position.x, 0.02, this.rig.position.z);
+    this.disc.halo.position.set(this.rig.position.x, groundY + 0.04, this.rig.position.z);
+    // La normale du plan est +Z avant rotation : on l'amene sur celle du sol.
+    this.haloQ.setFromUnitVectors(Surfer.PLANE_N, normal);
+    this.disc.halo.quaternion.copy(this.haloQ);
   }
 }
 

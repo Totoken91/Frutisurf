@@ -175,8 +175,9 @@ export class Disc {
         }
       `,
     });
+    // Pas de rotation figee : le halo s'aligne chaque frame sur la normale du
+    // terrain (cf. Surfer.update). A plat sur une pente, il traverserait le sol.
     const halo = new Mesh(new PlaneGeometry(DISC_RADIUS * 4.4, DISC_RADIUS * 4.4), this.haloMat);
-    halo.rotation.x = -Math.PI / 2;
     halo.renderOrder = -50;
     this.halo = halo;
   }

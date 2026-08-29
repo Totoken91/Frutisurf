@@ -1,0 +1,122 @@
+/**
+ * Le relief.
+ *
+ * Une seule source de verite pour la hauteur du sol : la meme liste de couches
+ * sert au CPU (physique) et au GPU (deplacement des sommets). Le chunk GLSL est
+ * GENERE depuis ces constantes, jamais recopie a la main — sinon les deux
+ * versions derivent au premier ajustement et le surfeur se met a flotter ou a
+ * s'enfoncer dans la colline.
+ *
+ * Des sinus plutot qu'un bruit : reproductibles a l'identique des deux cotes,
+ * et surtout DERIVABLES analytiquement. On obtient la pente et la normale sans
+ * echantillonner, ce qui rend la detection de crete exacte.
+ */
+
+interface Layer {
+  /** amplitude en metres */
+  a: number;
+  /** frequence le long de l'axe de deplacement */
+  fz: number;
+  /** frequence laterale — casse les cretes en lignes droites */
+  fx: number;
+  /** phase */
+  p: number;
+  /**
+   * Distance a laquelle la couche s'efface. Les hautes frequences disparaissent
+   * les premieres : la grille se detend avec la distance et sans ca elles
+   * crenellent. C'est du frequency clamping, pas de la triche visuelle.
+   */
+  fade: readonly [number, number];
+}
+
+/**
+ * Amplitudes calees sur la PENTE et la COURBURE, pas a vue.
+ *
+ *  - pente a*f : ~10 deg typique, 27 deg au pire cas ou tout s'aligne ;
+ *  - courbure a*f2 : au-dela de g/v2 la crete ne peut plus retenir le disque
+ *    et on decolle tout seul. Les deux couches courtes franchissent ce seuil
+ *    vers 30-35 m/s, ce qui fait apparaitre les envols naturels avec la vitesse.
+ *
+ * Le premier jet visait l'amplitude a l'oeil : 1.15 m sur 80 m de long, soit
+ * une pente de 1.4 %, invisible depuis une camera a 10 m de recul.
+ */
+const LAYERS: readonly Layer[] = [
+  // lambda 480 m — la houle de fond, elle donne le grand rythme du paysage.
+  { a: 6.0, fz: 0.01309, fx: 0.0049, p: 0.0, fade: [2600, 3600] },
+  // lambda 190 m — les vallons.
+  { a: 3.6, fz: 0.03307, fx: -0.0124, p: 1.73, fade: [1500, 2400] },
+  // lambda 84 m — le relief roulable.
+  { a: 2.3, fz: 0.0748, fx: 0.0263, p: 3.91, fade: [800, 1400] },
+  // lambda 42 m — LES collines a sauter. Longueur d'onde raccourcie de 61 a
+  // 42 m : a 61 m la bosse etait trop etalee pour se VOIR depuis une camera
+  // rasante, et on ne peut pas timer ce qu'on ne voit pas.
+  { a: 1.05, fz: 0.1496, fx: -0.0524, p: 5.24, fade: [420, 700] },
+  // lambda 21 m — trop court pour viser, mais ca anime la glisse et ca lance.
+  // Amplitude volontairement basse : cette couche apporte peu de PENTE mais
+  // enormement de COURBURE (a*f2), donc beaucoup d'envols subis pour peu de
+  // relief visible. A 0.26 elle envoyait en l'air un quart du temps en croisiere.
+  { a: 0.16, fz: 0.2992, fx: 0.1024, p: 2.08, fade: [180, 320] },
+];
+
+/** Amplitude cumulee : sert a caler la camera et les garde-fous. */
+export const TERRAIN_MAX = LAYERS.reduce((s, l) => s + l.a, 0);
+
+/** Hauteur du sol. Pleine resolution : c'est la reference physique. */
+export function terrainHeight(x: number, z: number): number {
+  let h = 0;
+  for (const l of LAYERS) h += l.a * Math.sin(l.fz * z + l.fx * x + l.p);
+  return h;
+}
+
+/** Gradient analytique (dh/dx, dh/dz). */
+export function terrainGradient(x: number, z: number, out: { dx: number; dz: number }): void {
+  let dx = 0;
+  let dz = 0;
+  for (const l of LAYERS) {
+    const c = Math.cos(l.fz * z + l.fx * x + l.p);
+    dx += l.a * l.fx * c;
+    dz += l.a * l.fz * c;
+  }
+  out.dx = dx;
+  out.dz = dz;
+}
+
+/**
+ * Chunk GLSL genere depuis LAYERS.
+ *
+ * `uOrigin` est la position du joueur : le fondu des couches se mesure depuis
+ * lui, jamais depuis la camera, pour que le sol sous ses pieds soit toujours a
+ * pleine resolution et corresponde exactement a `terrainHeight`.
+ */
+export function terrainGLSL(): string {
+  const terms = LAYERS.map(
+    (l) =>
+      `  h += ${l.a.toFixed(4)} * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
+      ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));`,
+  ).join('\n');
+
+  const grads = LAYERS.map(
+    (l) =>
+      `  { float c = cos(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
+      ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));` +
+      ` g += vec2(${(l.a * l.fx).toFixed(8)} * c, ${(l.a * l.fz).toFixed(8)} * c); }`,
+  ).join('\n');
+
+  return /* glsl */ `
+// --- GENERE depuis src/world/Terrain.ts : ne pas editer a la main ---
+float terrainHeightAt(vec2 p, float d){
+  float h = 0.0;
+${terms}
+  return h;
+}
+vec2 terrainGradAt(vec2 p, float d){
+  vec2 g = vec2(0.0);
+${grads}
+  return g;
+}
+vec3 terrainNormalAt(vec2 p, float d){
+  vec2 g = terrainGradAt(p, d);
+  return normalize(vec3(-g.x, 1.0, -g.y));
+}
+`;
+}

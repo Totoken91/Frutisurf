@@ -120,7 +120,27 @@ Shader custom. La règle : **ce n'est pas un miroir, c'est un réseau de diffrac
 - Le dessous n'est pas noir : il capte le vert du sol en additif.
 
 ### Plaine
-Shader custom sur un plan, pas de géométrie.
+Shader custom sur une grille en éventail déplacée par `world/Terrain.ts`.
+
+> **Écart assumé à la référence.** L'image source montre une plaine
+> parfaitement plate à horizon rectiligne. Le relief a été demandé après coup :
+> l'horizon ondule désormais. Tout le reste du traitement est conservé.
+
+Trois termes ont été ajoutés pour rendre les collines **lisibles** — c'est de
+la lisibilité de jeu, pas de la décoration : on ne peut pas timer un saut sur
+une crête qu'on ne voit pas.
+
+1. Versants **face à la caméra** plus clairs que les versants de dos. Le terme
+   le plus efficace sur un relief doux. Ancré en espace monde, donc il ne pulse
+   pas quand le joueur monte ou descend — un tint d'altitude relatif au joueur
+   ferait respirer tout le paysage.
+2. Teinte d'altitude absolue, discrète.
+3. Ombrage directionnel franc, sur la normale réelle du terrain.
+
+La longueur d'onde des collines jouables a été ramenée de 61 m à 42 m pour la
+même raison : à 61 m la bosse était trop étalée pour se voir depuis une caméra
+rasante.
+
 - Gradient de valeur piloté par la distance : `--grass-horizon` → `--grass-near`.
   **Clair au loin, sombre au près.** (Règle n°1 du doc 00.)
 - **Stries radiales** : bruit anisotrope étiré vers le point de fuite, pas un damier.

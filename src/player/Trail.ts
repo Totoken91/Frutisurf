@@ -120,7 +120,18 @@ export class Trail {
     this.last.copy(p);
   }
 
-  update(p: Vector3, dt: number, speedN: number, charge: number, airborne: boolean): void {
+  /**
+   * @param groundAt hauteur du sol : les echantillons interpoles doivent s'y
+   *        recaler, sinon le ruban coupe droit a travers les collines.
+   */
+  update(
+    p: Vector3,
+    dt: number,
+    speedN: number,
+    charge: number,
+    airborne: boolean,
+    groundAt?: (x: number, z: number) => number,
+  ): void {
     this.mat.uniforms.uCharge.value = charge;
 
     // Vieillissement.
@@ -133,6 +144,7 @@ export class Trail {
     let guard = 0;
     while (this.last.distanceTo(p) >= SAMPLE_DIST && guard++ < SEGMENTS) {
       this.last.lerp(p, SAMPLE_DIST / this.last.distanceTo(p));
+      if (!airborne && groundAt) this.last.y = groundAt(this.last.x, this.last.z) + 0.07;
       this.pts.pop();
       this.ages.pop();
       this.width.pop();
