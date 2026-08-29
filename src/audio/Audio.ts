@@ -7,7 +7,7 @@
  * Tout demarre au premier geste utilisateur (politique autoplay des navigateurs).
  */
 
-/** Gamme pentatonique : les notes ne peuvent pas sonner faux. */
+/** Gamme pentatonique : les notes du pop ne peuvent pas sonner faux. */
 const PENTA = [0, 2, 4, 7, 9];
 
 function noiseBuffer(ctx: AudioContext, seconds: number, pink: boolean): AudioBuffer {
@@ -179,12 +179,6 @@ export class Audio {
     this.whoosh(0.25 * impact);
   }
 
-  bubble(combo: number): void {
-    const semi = PENTA[combo % PENTA.length] + 12;
-    const f = 660 * Math.pow(2, semi / 12);
-    this.blip(f, 0.22, 'sine', 0.10);
-    this.blip(f * 2.01, 0.12, 'sine', 0.05);
-  }
 
   setMuted(m: boolean): void {
     this.muted = m;

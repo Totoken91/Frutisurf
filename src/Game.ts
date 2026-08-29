@@ -11,9 +11,7 @@ import { Controller } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
-import { Hud } from './hud/Hud';
 import { World } from './world/World';
-import type { BubbleHit } from './world/Bubbles';
 
 const STEP = 1 / 120;
 
@@ -29,14 +27,12 @@ export class Game {
   readonly spray: Spray;
   readonly trail = new Trail();
   readonly rings = new ShockRing();
-  readonly hud: Hud;
   readonly audio = new Audio();
 
   private acc = 0;
   private last = performance.now();
   private time = 0;
   private origin = new Vector3();
-  private hits: BubbleHit[] = [];
   private fpsAcc = 0;
   private fpsCount = 0;
   private contact = new Vector3();
@@ -81,13 +77,12 @@ export class Game {
     this.engine.onResize = (w, h) => this.post.resize(w, h);
     this.trail.reset(this.contactPoint());
 
-    this.hud = new Hud(document.getElementById('hud')!);
-    const begin = (): void => {
+    // Plus d'ecran de depart : l'audio s'arme au premier geste, c'est tout
+    // ce qu'imposait la politique autoplay.
+    this.input.onFirstGesture = () => {
       this.state.started = true;
       this.audio.start();
     };
-    this.hud.onStart = begin;
-    this.input.onFirstGesture = begin;
   }
 
   private contactPoint(): Vector3 {
@@ -125,13 +120,11 @@ export class Game {
         this.controller.hitstop -= STEP;
       } else {
         this.controller.step(STEP, this.input);
-        this.collect();
       }
       this.acc -= STEP;
     }
 
     this.controller.writeState(this.state);
-    this.hud.update(this.state, real);
 
     // La camera tourne en temps reel : elle doit rester fluide meme si la
     // simulation est gelee.
@@ -143,7 +136,6 @@ export class Game {
     this.world.update(
       this.origin,
       this.engine.camera.position,
-      real,
       this.time,
       this.controller.speedNorm,
     );
@@ -212,14 +204,4 @@ export class Game {
     s.update(this.time, c.carveCharge, c.speedNorm, c.y);
   }
 
-  private collect(): void {
-    const c = this.controller;
-    const center = new Vector3(c.x, c.y + 1.0, c.z);
-    this.world.bubbles.query(center, 1.5, this.hits);
-    for (const h of this.hits) {
-      this.world.bubbles.pop(h.index, this.time);
-      c.collectBubble();
-      this.audio.bubble(c.combo);
-    }
-  }
 }

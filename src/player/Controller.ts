@@ -41,7 +41,6 @@ export class Controller {
   combo = 0;
   comboTimer = 0;
   score = 0;
-  bubbles = 0;
   distance = 0;
 
   /** Gel de la simulation apres un impact. Le rendu, lui, continue. */
@@ -162,13 +161,6 @@ export class Controller {
     this.events.onPop?.(c, this.combo);
   }
 
-  collectBubble(): void {
-    this.bubbles += 1;
-    this.comboTimer = Math.max(this.comboTimer, 1.6);
-    this.score += 60 * (1 + this.combo * 0.5);
-    this.bonus.add(1.8);
-  }
-
   /** Ecriture de l'etat partage — seul le controleur y touche. */
   writeState(s: GameState): void {
     s.speed = Math.min(60, this.speed + this.bonus.value);
@@ -179,7 +171,6 @@ export class Controller {
     s.comboTimer = this.comboTimer;
     s.score = this.score;
     s.distance = this.distance;
-    s.bubbles = this.bubbles;
     s.airborne = this.airborne;
     s.popFlash = lerp(s.popFlash, 0, 0.12);
   }

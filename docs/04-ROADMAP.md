@@ -7,12 +7,25 @@
 | # | Jalon | Contenu | Critère de sortie | État |
 |---|---|---|---|---|
 | 0 | **Prep** | Docs 00-04, scaffold, palette, dépendances | `npm run dev` affiche un canvas | ✅ |
-| 1 | **Le monde** | Ciel, plaine + stries, nuages, ville, poissons, bulles | Arrêt sur image comparable à la référence, sans personnage | ✅ |
+| 1 | **Le monde** | Ciel, plaine + stries, nuages, ville | Arrêt sur image comparable à la référence, sans personnage | ✅ |
 | 2 | **Le sujet** | Buddy verre, CD irisé, halo de contact | Le buddy se détache du fond vert au test du plissement d'yeux | ✅ |
 | 3 | **La glisse** | Contrôleur, caméra, carve, saut, boost, hitstop | Recette du doc 03 §9 : jouable et agréable **sans aucun effet** | ✅ |
 | 4 | **Le juice** | Spray, trail, speed lines, anneaux | Le pop de carve donne envie de le refaire | ✅ |
-| 5 | **HUD + post** | Panneaux Aero, bloom, aberration, vignette | Le HUD est indiscernable de celui de la référence | ✅ |
-| 6 | **Finition** | Audio, qualité adaptative, tactile, écran titre | 60 fps stables, comparaison finale à la référence | ✅ |
+| 5 | **Post-process** | Bloom, flou radial, lignes de vitesse, aberration, vignette | Le rendu tient la comparaison au pixel avec la référence | ✅ |
+| 6 | **Finition** | Audio, qualité adaptative, tactile | 60 fps stables, comparaison finale à la référence | ✅ |
+
+## Retiré du périmètre
+
+**Interface, poissons volants et bulles** ont été supprimés après le premier
+jalon complet, à la demande de l'auteur du projet. La scène ne garde que le
+ciel, la plaine, les nuages, la ville et le surfeur.
+
+Conséquences assumées : plus de collecte ni de score affiché — le combo ne se
+lit plus que dans la saturation de l'image. `GameState` survit uniquement pour
+le post-processing et l'audio.
+
+L'analyse de référence ([`00`](00-REFERENCE-ANALYSIS.md)) décrit toujours la
+faune et le HUD : c'est le relevé de l'image source, pas la spec du rendu.
 
 ## Écarté volontairement
 
@@ -30,7 +43,7 @@ Le sillage reste lisible autrement — la trace de carre du ruban au sol.
 
 | Risque | Impact | Parade |
 |---|---|---|
-| `transmission` coûte cher | Chute de framerate | Un seul objet transmissif (le buddy) ; les bulles simulent le verre en shader |
+| `transmission` coûte cher | Chute de framerate | Seul le buddy est transmissif (tête + buste) |
 | Les verts sortent du gamut sRGB | Postérisation, aplats sales | ACES + exposure 1.15, et on désature légèrement avant le bloom |
 | L'herbe instanciée fait du pop | Casse l'immersion | Fondu d'échelle sur les 20 % de fin de zone, jamais de coupe franche |
 | La glisse est molle | **Échec du projet** | Jalon 3 validé *avant* tout effet visuel — les effets ne doivent jamais compenser des ressorts ratés |

@@ -1,17 +1,19 @@
 # 🌐 FRUTIGER SURFER
 
-> Un bonhomme MSN en verre qui surfe sur un CD à travers des plaines d'herbe électrique,
-> vers une ville de cristal, sous un ciel où nagent des poissons.
+> Un bonhomme MSN en verre qui surfe sur un CD à travers des plaines d'herbe
+> électrique, vers une ville de cristal.
 
 Une expérience WebGL temps réel qui reconstruit — et fait vivre — l'esthétique
-**Frutiger Aero** : verre, gloss, bulles, nature + technologie, bloom, et cette
-lumière de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
+**Frutiger Aero** : verre, gloss, nature + technologie, bloom, et cette lumière
+de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
+
+Aucune interface. Aucun compteur. Juste la plaine, le surfeur et la glisse.
 
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
 <p align="center">
   <img src="docs/hero.png" width="360" alt="Le surfeur MSN sur son CD" />
-  <img src="docs/hero-boost.png" width="360" alt="Pop de carve a 114 km/h" />
+  <img src="docs/hero-boost.png" width="360" alt="Pop de carve, gerbe d'herbe et trace en S" />
 </p>
 
 ## Lancer
@@ -53,6 +55,17 @@ du dépôt.
 ```bash
 SHOT_DRIVE="wait:500;KeyZ:50;down:ShiftLeft;wait:4000;down:ArrowRight;wait:1500" npm run shot
 ```
+
+## Le personnage
+
+<p align="center">
+  <img src="docs/buddy-vs-reference.png" width="620"
+       alt="Comparaison cote a cote : reference a gauche, rendu a droite" />
+</p>
+
+Silhouette et dégradé relevés au pixel sur la référence, puis calés par
+comparaison côte à côte — c'est ce montage qui a servi de juge, pas l'œil nu.
+Le détail du raisonnement est dans [`docs/01`](docs/01-ART-DIRECTION.md) §3.
 
 ## Documentation
 

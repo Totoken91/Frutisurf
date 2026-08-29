@@ -1,0 +1,19 @@
+/* Base minimale : plus aucune interface, le rendu occupe tout l'ecran. */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #15cee8;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}

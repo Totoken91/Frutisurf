@@ -11,7 +11,6 @@ export interface GameState {
   comboTimer: number;
   score: number;
   distance: number;
-  bubbles: number;
   airborne: boolean;
   boosting: boolean;
   popFlash: number;
@@ -28,7 +27,6 @@ export const createState = (): GameState => ({
   comboTimer: 0,
   score: 0,
   distance: 0,
-  bubbles: 0,
   airborne: false,
   boosting: false,
   popFlash: 0,

@@ -22,9 +22,14 @@ import { vec3 } from '../core/Palette';
  * C'est gratuit, et ca fait exactement ce que fait la reference — le CD
  * capte le vert de la plaine par en dessous et le cyan par au-dessus.
  */
-export const DISC_RADIUS = 1.55;
-const HOLE = 0.19;
-const THICK = 0.035;
+/**
+ * Rapport releve sur la reference : le CD fait 1.34 fois le demi-buste.
+ * Le premier jet etait a 1.94 et transformait le disque en soucoupe.
+ */
+export const DISC_RADIUS = 1.34 * 0.80;
+/** Proportions d'un vrai disque optique : trou 12.5 %, moyeu clair 20 %. */
+const HOLE = DISC_RADIUS * 0.125;
+const THICK = 0.028;
 
 function discGeometry(): LatheGeometry {
   const pts = [
@@ -94,34 +99,42 @@ export class Disc {
             : mix(uGrassHor, uGrassNear, clamp(-Rv.y * 1.6, 0.0, 1.0));
 
           // Sillons concentriques : ils modulent la nettete du reflet.
-          float grooves = sin(r * 780.0) * 0.5 + 0.5;
+          float grooves = sin(r * 620.0) * 0.5 + 0.5;
 
-          // Diffraction : 1.6 cycle azimutal donne de larges arcs de CD ; 3 cycles
-          // faisaient un anneau de fete foraine.
-          // Le terme en ndv est ce qui fait glisser l'arc-en-ciel
-          // quand la camera bouge — sans lui, l'iris serait peint sur le disque.
-          float hue = fract(ang / TAU * 1.6 + ndv * 1.7 + rn * 0.55 + uTime * 0.05);
-          vec3 iri = hue2rgb(hue);
+          // Diffraction. Sur la reference elle est PASTEL, pas saturee : le
+          // disque balaie teal -> argent -> lavande, il ne fait pas l'arc-en-
+          // ciel de fete foraine du premier jet.
+          float hue = fract(ang / TAU * 1.15 + ndv * 1.25 + rn * 0.30 + uTime * 0.04);
+          vec3 iri = mix(vec3(1.0), hue2rgb(hue), 0.42);
 
-          // Zone donnees vs moyeu plastique transparent.
-          float hub = smoothstep(0.10, 0.20, rn);
+          // Moyeu plastique transparent, puis zone donnees.
+          float hub = smoothstep(0.05, 0.17, rn);
 
-          // Base sombre : un CD n'est brillant que la ou il diffracte. Une
-          // base pale noierait l'arc-en-ciel dans du blanc.
-          vec3 base = env * 0.42 + uSilver * 0.16;
-          vec3 rainbow = iri * (0.45 + 0.95 * grooves) * hub;
-          vec3 c = base + rainbow * (0.75 + 0.75 * (1.0 - ndv));
+          // Base argent : un CD reste clair, c'est un miroir pique de couleur.
+          vec3 c = mix(uSilver * 0.62, uSilver * 1.12, ndv);
+          c = mix(c, env, 0.34);
+          c *= mix(vec3(1.0), iri, hub * (0.55 + 0.45 * grooves));
 
-          // Eclat speculaire franc : le point blanc qui vend le disque optique.
-          c += vec3(1.0) * pow(1.0 - abs(ndv), 7.0) * 0.55;
+          // Anneau de moyeu clair et trou central sombre.
+          c = mix(uSilver * 1.28, c, hub);
+          float hole = smoothstep(0.0, 0.03, rn);
+          c = mix(uGrassNear * 0.30, c, hole);
 
-          // Moyeu plastique clair, comme sur un vrai disque.
-          c = mix(uSilver * 0.9, c, hub);
+          // Arete exterieure incandescente : le liseré blanc de la reference.
+          c += vec3(1.0) * smoothstep(0.90, 1.0, rn) * 0.30;
+          // Eclat speculaire rasant.
+          c += vec3(1.0) * pow(1.0 - abs(ndv), 7.0) * 0.28;
+
+          // Sur la reference la grande zone teal sombre est sur un COTE, pas
+          // au centre : c'est un reflet d'environnement, pas une ombre. Le
+          // moyeu, lui, reste clair.
+          float sector = 0.5 + 0.5 * cos(ang + 2.4);
+          c *= 1.0 - 0.40 * smoothstep(0.25, 1.0, sector) * hub;
 
           // Le disque blanchit quand le carve se charge.
           c = mix(c, vec3(1.0), uCharge * 0.35);
 
-          float a = mix(0.55, 0.96, hub);
+          float a = mix(0.42, 0.97, hub) * mix(0.35, 1.0, hole);
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

@@ -43,17 +43,12 @@ Toute couleur du projet doit venir d'ici ou être justifiée contre §5.
 --city-lit        #C8E4EC
 --city-deep       #2DA7C3
 
-/* HUD AERO */
+/* Ces bleus Aero ne servent plus au rendu depuis le retrait de l'interface.
+   Ils restent la comme relevé de la référence. */
 --aero-deep       #0C57C9
 --aero-blue       #1063D7
 --aero-cyan       #26D4EB
 --aero-frost      #CBF1F0
---aero-gel-top    rgba(255,255,255,.55)
---aero-gel-bot    rgba(255,255,255,.04)
-
-/* ACCENT — budget total ≤ 2 % de l'écran */
---warm-accent     #9F7B6A
---violet-deep     #233659
 ```
 
 ## 2. Lumière
@@ -72,24 +67,48 @@ Le contact au sol se lit par un **halo vert additif** sous le disque, pas par un
 
 ## 3. Matériaux
 
-### Buddy MSN — verre épais
+### Buddy MSN — verre coloré
+
+Silhouette relevée au pixel sur la référence, puis calée au comparatif côte à
+côte (`scripts/` + le montage de `docs/reference.jpg`). Trois points que
+l'intuition rate :
+
+- le buste **n'est pas une cloche** : ses flancs sont quasi verticaux sur le
+  tiers inférieur et la **base est plate et pleine**, pas rétrécie ;
+- la tête **pose sur l'épaule** en la mordant d'environ 0,11 × la demi-largeur.
+  Suspendue, on obtient un bonhomme de neige ; noyée, une quille ;
+- chaque volume porte **son propre dégradé vertical** `#0A8FE8` → `#6FF2FB`.
+  C'est le marqueur le plus reconnaissable de l'icône Windows Live.
+
+**La teinte est portée par un terme additif, pas par le lobe diffus.** Avec une
+key à 2.6 et un tone mapper, une couleur saturée passée dans l'éclairage de
+scène ressort délavée. Le diffus est ramené à 0.22 et ne sert qu'à donner une
+réponse sourde à la lumière.
+
 `MeshPhysicalMaterial` :
 ```
 color            #1C9FE4
-transmission     0.92     ← il faut voir l'herbe à travers
-thickness        1.4      ← épaisseur volumétrique, pas une bulle vide
+transmission     0.18     ← la référence est bien plus OPAQUE qu'un verre creux :
+                            le vert ne traverse qu'en lisière et sous la base
+thickness        0.7
 ior              1.42
 roughness        0.06
 clearcoat        1.0
 clearcoatRoughness 0.02
-iridescence      0.35
-iridescenceIOR   1.6
-attenuationColor #0E7FC9  ← teinte accumulée dans l'épaisseur
-attenuationDistance 2.2
-envMapIntensity  1.6
+iridescence      0.22
+iridescenceIOR   1.5
+attenuationColor #4CC8F0
+attenuationDistance 3.2
+envMapIntensity  0.45   ← plus haut, tout le ciel blanc revient dans le verre
 ```
-Plus un **rim shader additif** par-dessus (Fresnel `pow(1 - dot(N,V), 2.4)` → `--buddy-rim`).
-Le rim est ce qui détache le buddy du fond vert. Sans lui il disparaît.
+Plus, injectés par `onBeforeCompile` : le dégradé, un **rim de Fresnel** (sans
+lui le buddy disparaît sur le vert), une **arête basse incandescente** (la
+lumière du sol entre par la base plate), un **assombrissement du flanc gauche**
+qui donne le relief, et un voile spéculaire haut-gauche resserré.
+
+> Le bas du dégradé est volontairement sous `#8BFFFE` : à cette valeur il
+> dépassait le seuil de bloom (luminance 0.84 > 0.80) et se répandait en halo
+> blanc sur toute la moitié inférieure.
 
 ### CD — diffraction
 Shader custom. La règle : **ce n'est pas un miroir, c'est un réseau de diffraction.**
@@ -133,7 +152,7 @@ Aucun détail de façade : à cette distance on ne lit que des silhouettes.
 3. SpeedLines     stries radiales, alpha ∝ vitesse            → le vent
 4. ChromaticAber  0.0006 au repos → 0.0035 en boost           → le punch
 5. Vignette       0.28, douce                                  → recentre
-6. SMAA                                                        → bords de HUD nets
+6. SMAA                                                        → bords nets
 ```
 
 Les points 2 à 5 sont fusionnés dans un seul effet (`fx/SurfEffect.ts`) :

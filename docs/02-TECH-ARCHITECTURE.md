@@ -8,7 +8,7 @@
 | **TypeScript** | Le contrôleur de glisse a une douzaine d'états couplés ; typer évite les bugs de feeling silencieux |
 | **Vite** | HMR instantané — on va itérer des centaines de fois sur des constantes de ressort |
 | **postprocessing** (pmndrs) | Chaîne d'effets fusionnée en un pass. Meilleur bloom que le `UnrealBloomPass` de Three, et SMAA inclus |
-| **Pas de framework UI** | Le HUD est du DOM + CSS. React coûterait des frames pour zéro bénéfice |
+| **Aucune interface** | Ni HUD ni DOM de jeu : l'écran est entièrement rendu. `style.css` ne fait qu'un reset et plein-écran du canvas |
 | **Zéro asset binaire** | Textures (nuages, bruit, herbe), sons et géométries générés au boot. Le repo reste léger et rien ne casse au déploiement |
 
 ## 2. Carte des modules
@@ -27,9 +27,7 @@ src/
 │   ├── Environment.ts       PMREM ciel+herbe pour les réflexions du verre
 │   ├── Clouds.ts            champ de billboards
 │   ├── Ground.ts            plaine infinie (shader)
-│   ├── City.ts              skyline de cristal
-│   ├── FishSchool.ts        poissons volants instanciés
-│   └── Bubbles.ts           bulles irisées (décor + collectables)
+│   └── City.ts              skyline de cristal
 ├── player/
 │   ├── Buddy.ts             le bonhomme MSN en verre
 │   ├── Disc.ts              le CD + shader de diffraction
@@ -41,9 +39,6 @@ src/
 │   ├── SurfEffect.ts        radial blur + speed lines + aberration + vignette
 │   ├── ShockRing.ts         anneaux d'impact
 │   └── CameraRig.ts         ressort, FOV, roll, bruit, shake
-├── hud/
-│   ├── Hud.ts               binding état → DOM
-│   └── hud.css              verre Aero
 ├── audio/
 │   └── Audio.ts             synthèse WebAudio
 ├── world/World.ts           assemblage du décor + lumières
@@ -86,8 +81,9 @@ Le surfeur ne s'éloigne jamais de l'origine. C'est le **monde qui recule**.
 - `worldZ` cumule la distance parcourue (double précision, pour le score).
 - Tous les décors sont modulo-repliés sur une période le long de Z.
 - La plaine est un plan fixe ; c'est son shader qui fait défiler l'UV.
-- Les brins d'herbe, bulles et poissons sont recyclés en tête de zone dès qu'ils
-  passent derrière la caméra.
+- Les nuages sont repliés modulo une période le long de Z, donc recyclés en
+  tête de zone dès qu'ils passent derrière la caméra ; la ville reste à
+  distance constante avec une parallaxe latérale.
 
 Ça évite la dérive de précision float32 et supprime tout budget de streaming.
 
@@ -97,26 +93,28 @@ Cible : **60 fps en 1080p sur un GPU intégré de milieu de gamme**.
 
 | Poste | Budget | Stratégie |
 |---|---|---|
-| Draw calls | ≤ 40 | Instancing pour herbe / poissons / bulles |
+| Draw calls | ≤ 20 | Instancing pour les nuages, la ville et le spray |
 | Triangles | ≤ 180 k | L'herbe domine ; densité pilotée par le niveau de qualité |
 | Passes de post | 1 | Chaîne fusionnée par `postprocessing` |
-| Transmission | 1 seul objet | `transmission` force un render target supplémentaire — **le buddy uniquement**, les bulles utilisent un faux verre en shader |
+| Transmission | 2 meshes | `transmission` force un render target supplémentaire — **le buddy uniquement** (tête + buste) |
 | Textures | 0 fichier | Générées en canvas au boot |
 
-Trois niveaux de qualité auto-détectés (densité d'herbe, résolution du bloom, nombre
-de bulles), avec repli automatique si le temps moyen d'image dépasse 20 ms sur 2 s.
+Trois niveaux de qualité auto-détectés (nombre de nuages, nombre de particules de
+spray, noyau du bloom, SMAA), avec repli automatique si le temps moyen d'image
+dépasse 20 ms sur 2 s.
 
 ## 6. État partagé
 
-Un seul objet `GameState` en lecture pour le HUD et l'audio :
+Un seul objet `GameState`, lu par le post-processing et l'audio :
 
 ```ts
 { speed, steer, lean, carveCharge, combo, score, distance,
-  airborne, boosting, quality, fps }
+  airborne, boosting, popFlash, fps, started }
 ```
 
-Personne n'écrit dedans à part le contrôleur. Le HUD lit à 20 Hz (pas 120 : c'est du
-DOM, et l'œil ne lit pas un compteur plus vite que ça).
+Personne n'écrit dedans à part le contrôleur. Il n'y a plus d'interface : cet
+état ne sert qu'au post-processing (le combo pilote l'intensité du bloom) et à
+l'audio.
 
 ## 7. Commandes
 

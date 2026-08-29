@@ -7,10 +7,8 @@ import {
   WebGLRenderer,
 } from 'three';
 import { col } from '../core/Palette';
-import { Bubbles } from './Bubbles';
 import { City } from './City';
 import { Clouds } from './Clouds';
-import { FishSchool } from './FishSchool';
 import { Ground } from './Ground';
 import { createEnvironment } from './Environment';
 import { createSky, SUN_DIR } from './Sky';
@@ -24,23 +22,16 @@ export class World {
   readonly ground = new Ground();
   readonly clouds: Clouds;
   readonly city = new City();
-  readonly fish: FishSchool;
-  readonly bubbles: Bubbles;
   readonly lights = new Group();
 
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
-    const dense = quality === 'high';
-    this.clouds = new Clouds(dense ? 46 : 26);
-    this.fish = new FishSchool(dense ? 26 : 16);
-    this.bubbles = new Bubbles(dense ? 44 : 26);
+    this.clouds = new Clouds(quality === 'high' ? 46 : 26);
 
     scene.environment = createEnvironment(renderer);
     scene.add(createSky());
     scene.add(this.ground.mesh);
     scene.add(this.city.group);
     scene.add(this.clouds.mesh);
-    scene.add(this.fish.mesh);
-    scene.add(this.bubbles.mesh);
 
     // Key : les highlights speculaires du verre.
     const key = new DirectionalLight(0xffffff, 2.6);
@@ -57,11 +48,9 @@ export class World {
     scene.add(this.lights);
   }
 
-  update(origin: Vector3, camPos: Vector3, dt: number, time: number, speedN: number): void {
+  update(origin: Vector3, camPos: Vector3, time: number, speedN: number): void {
     this.ground.update(camPos, origin.x, origin.z, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);
-    this.fish.update(origin, dt, time);
-    this.bubbles.update(origin, dt, time);
   }
 }

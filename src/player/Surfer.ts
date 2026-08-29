@@ -18,8 +18,10 @@ export class Surfer {
 
   constructor(parent: Object3D) {
     this.disc.mesh.position.y = 0;
-    // Le buddy repose sur la face superieure du disque.
-    this.buddy.group.position.y = 0.03;
+    // Le buddy LEVITE au-dessus du disque : sur la reference il y a un vide
+    // franc entre la base plate et le CD, et c'est ce vide qui laisse lire
+    // a la fois l'arete basse incandescente et l'ellipse complete du disque.
+    this.buddy.group.position.y = 0.20;
 
     this.tilt.add(this.disc.group, this.buddy.group);
     this.rig.add(this.tilt);

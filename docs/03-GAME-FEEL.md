@@ -74,9 +74,10 @@ Le **hitstop** : on gèle la simulation 45 ms au moment du pop pendant que le re
 continue. Le cerveau lit ça comme un impact. C'est la technique de Smash Bros et de
 Hollow Knight, et ça marche exactement pareil ici.
 
-Enchaîner les carves gauche-droite maintient le combo. Le combo multiplie le score et
-**sature progressivement l'image** (bloom +, aberration +, saturation +). À combo 10
-l'écran est presque trop beau. C'est la récompense.
+Enchaîner les carves gauche-droite maintient le combo. Le combo
+**sature progressivement l'image** (bloom +, aberration +). À combo 10 l'écran
+est presque trop beau. C'est la seule récompense, et elle suffit : il n'y a
+aucun compteur à l'écran.
 
 ## 4. Caméra
 
@@ -137,8 +138,6 @@ pour ça que c'est bon.
 - **Charge de carve** : sinus dont la hauteur monte d'une tierce mineure sur la charge.
 - **Pop** : whoosh (bruit + enveloppe rapide + sweep de filtre) + quinte juste.
 - **Atterrissage** : sinus grave 70 Hz, decay 180 ms.
-- **Bulle collectée** : petite cloche FM, hauteur montante avec le combo (gamme pentatonique,
-  ça ne peut pas sonner faux).
 
 Tout démarre au premier geste utilisateur (politique autoplay).
 
@@ -149,7 +148,6 @@ Tout démarre au premier geste utilisateur (politique autoplay).
 | Diriger | `←` `→` / `A` `D` | glisser à l'écran | stick gauche |
 | Sauter | `Espace` / `↑` | tap | `A` |
 | Boost | `Maj` | deux doigts | `RT` |
-| Pause | `Échap` / `P` | bouton HUD | `Start` |
 
 Le tactile est **relatif** (delta de glissement), pas absolu — un joystick virtuel
 absolu casse la fluidité du carve.
