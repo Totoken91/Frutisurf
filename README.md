@@ -11,7 +11,7 @@ Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
 <p align="center">
   <img src="docs/hero.png" width="360" alt="Le surfeur MSN sur son CD" />
-  <img src="docs/hero-boost.png" width="360" alt="Carve a pleine vitesse" />
+  <img src="docs/hero-boost.png" width="360" alt="Pop de carve a 114 km/h" />
 </p>
 
 ## Lancer
