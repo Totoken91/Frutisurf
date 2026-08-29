@@ -1,0 +1,22 @@
+{
+  "name": "frutiger-surfer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Un bonhomme MSN en verre qui surfe sur un CD a travers des plaines Frutiger Aero",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "shot": "node scripts/shot.mjs"
+  },
+  "dependencies": {
+    "postprocessing": "^6.36.4",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

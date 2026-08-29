@@ -1,0 +1,37 @@
+/**
+ * Etat partage, lu par le HUD et l'audio. Seul le Controller ecrit dedans.
+ * docs/02-TECH-ARCHITECTURE.md §6.
+ */
+export interface GameState {
+  speed: number;
+  steer: number;
+  lean: number;
+  carveCharge: number;
+  combo: number;
+  comboTimer: number;
+  score: number;
+  distance: number;
+  bubbles: number;
+  airborne: boolean;
+  boosting: boolean;
+  popFlash: number;
+  fps: number;
+  started: boolean;
+}
+
+export const createState = (): GameState => ({
+  speed: 0,
+  steer: 0,
+  lean: 0,
+  carveCharge: 0,
+  combo: 0,
+  comboTimer: 0,
+  score: 0,
+  distance: 0,
+  bubbles: 0,
+  airborne: false,
+  boosting: false,
+  popFlash: 0,
+  fps: 60,
+  started: false,
+});
