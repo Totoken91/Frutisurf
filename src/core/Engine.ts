@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping,
+  NeutralToneMapping,
   PerspectiveCamera,
   Scene,
   SRGBColorSpace,
@@ -41,8 +41,10 @@ export class Engine {
       alpha: false,
     });
     this.renderer.outputColorSpace = SRGBColorSpace;
-    this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    // Neutral (Khronos PBR Neutral) au lieu d'ACES : ACES desature violemment
+    // les cyans et verts quasi hors-gamut de la reference et rend l'image pastel.
+    this.renderer.toneMapping = NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.setPixelRatio(this.pixelRatio());
 
     this.camera = new PerspectiveCamera(62, 1, 0.1, 2600);

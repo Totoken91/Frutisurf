@@ -6,9 +6,9 @@ import { Color } from 'three';
  * Ne pas inventer de couleur ailleurs dans le projet.
  */
 export const HEX = {
-  skyZenith: 0x0fb8de,
+  skyZenith: 0x12d6ee,
   skyMid: 0x15cee8,
-  skyHorizon: 0x7fe6f2,
+  skyHorizon: 0x5fe0f2,
   cloudCore: 0xffffff,
   cloudShadow: 0xb2d2eb,
 
@@ -61,8 +61,14 @@ export function colClone(key: PaletteKey): Color {
   return new Color(HEX[key]);
 }
 
-/** Vec3 lineaire pretes a envoyer en uniform. */
+/**
+ * Triplet lineaire pret a envoyer en uniform.
+ *
+ * ColorManagement etant actif, `new Color(hex)` convertit DEJA du sRGB vers
+ * l'espace de travail lineaire. Rappeler convertSRGBToLinear ici convertirait
+ * une seconde fois : image sombre et virant au bleu. Ne pas le rajouter.
+ */
 export function vec3(key: PaletteKey): [number, number, number] {
-  const c = colClone(key).convertSRGBToLinear();
+  const c = colClone(key);
   return [c.r, c.g, c.b];
 }
