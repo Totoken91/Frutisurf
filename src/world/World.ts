@@ -35,8 +35,10 @@ export class World {
     this.ground = new Ground(dense);
     // L'atlas est genere au boot pixel par pixel : sa resolution est le seul
     // poste de chargement du jeu. 768 sur machine confortable, 512 sinon.
+    // Effectifs revus a la baisse : a 72 nuages le ciel etait sature et le
+    // banc d'horizon masquait completement la ville.
     this.clouds = new Clouds(
-      quality === 'high' ? 72 : quality === 'medium' ? 56 : 38,
+      quality === 'high' ? 44 : quality === 'medium' ? 34 : 24,
       quality === 'low' ? 512 : 768,
     );
     this.boosters = new Boosters(dense ? 6 : 5);
@@ -56,7 +58,7 @@ export class World {
     key.position.copy(SUN_DIR).multiplyScalar(100);
 
     // Hemisphere : le rebond VERT du sol dans le buddy. Indispensable.
-    const hemi = new HemisphereLight(col('skyMid').getHex(), 0x3bff7a, 1.5);
+    const hemi = new HemisphereLight(col('skyMid').getHex(), col('grassMid').getHex(), 1.5);
 
     // Fill : debouche le contre-jour sans tuer le rim.
     const fill = new DirectionalLight(col('buddyHot').getHex(), 0.6);

@@ -332,6 +332,45 @@ Deux verrous : une vitesse verticale minimale de 3 m/s pour qu'un décollage
 naturel compte, et 0,35 s d'interdiction après chaque réception. Résultat : 85
 décollages au lieu de 1633, et des vols d'une seconde où une figure tient.
 
+## 4 sexies. La largeur du terrain, et le pouce
+
+### « Ça se joue sur une fine tranche, comme sur des rails »
+
+Le couloir faisait ±14 m : deux longueurs de disque de chaque côté, et toute la
+trajectoire tenait dans une bande plus étroite que l'écran. Il fait **±34 m**.
+La plaine redevient une plaine — on peut couper large, laisser tomber un anneau
+pour en viser un autre, et revenir.
+
+Trois réglages suivent, sinon un terrain plus large n'est qu'un terrain où l'on
+rate davantage :
+
+- semis des anneaux élargi de ±8,5 à **±18 m**, celui des colonnes de ±12 à ±24 ;
+- autorité latérale relevée (0,42 → **0,52** au sol, 0,56 → 0,64 en l'air) : il
+  faut pouvoir traverser la nouvelle largeur entre deux anneaux ;
+- un anneau sur quatre revient **près du centre**. Une alternance stricte
+  gauche-droite-gauche finit par se jouer toute seule, et c'est exactement la
+  sensation de rail qu'on voulait supprimer.
+
+Le pilote automatique du test enfile toujours 110 anneaux en 217 s sur ce
+terrain élargi : la liberté n'a pas coûté la lisibilité.
+
+### « Les déplacements latéraux sont difficiles au téléphone »
+
+Le manche tactile demandait **34 % de la largeur d'écran** pour aller en butée,
+et faisait dériver son point de référence de 6 % à chaque événement. Deux
+conséquences, toutes deux mauvaises au pouce :
+
+1. maintenir un virage exigeait de glisser **sans arrêt**, puisque la référence
+   rattrapait le doigt ;
+2. inverser demandait de reparcourir toute la course dans l'autre sens.
+
+Le manche est maintenant **collant** : l'ancre ne dérive pas, mais elle est
+poussée dès qu'on dépasse la course. Le doigt reste donc toujours à exactement
+une course de la butée opposée. Un virage se tient sans bouger le pouce, et
+s'inverse instantanément. Course ramenée à **20 %** de la largeur, courbe expo
+adoucie de 1,35 à 1,20 — combinée au manche collant, l'ancienne mangeait trop
+des petits déplacements, ceux dont on se sert le plus.
+
 ## 5. Le saut
 
 ```

@@ -67,12 +67,26 @@ export class Input {
       this.touchCount = e.touches.length;
       for (const t of Array.from(e.changedTouches)) {
         if (t.identifier !== this.touchId) continue;
-        const dx = t.clientX - this.touchX;
-        // 34 % de la largeur : plus de course sous le doigt = plus de finesse
-        // avant la butee. A 26 % on saturait en un rien de geste.
-        this.touchSteer = clamp(dx / (window.innerWidth * 0.34), -1, 1);
-        // rattrapage : la reference glisse avec le doigt, sinon on sature
-        this.touchX += dx * 0.06;
+
+        // --- Manche COLLANT.
+        //
+        // L'ancienne version demandait 34 % de la largeur d'ecran pour aller
+        // en butee, et faisait deriver le point de reference de 6 % par
+        // evenement. Deux consequences, toutes deux mauvaises au pouce :
+        // maintenir un virage exigeait de glisser SANS ARRET puisque la
+        // reference rattrapait le doigt, et inverser demandait de reparcourir
+        // toute la course dans l'autre sens.
+        //
+        // Ici l'ancre ne derive pas, mais elle est POUSSEE des qu'on depasse
+        // la course : le doigt reste donc toujours a exactement une course de
+        // la butee opposee. Un virage se tient sans bouger, et s'inverse
+        // instantanement.
+        const range = Math.max(60, window.innerWidth * 0.20);
+        let dx = t.clientX - this.touchX;
+        if (dx > range) this.touchX = t.clientX - range;
+        else if (dx < -range) this.touchX = t.clientX + range;
+        dx = clamp(t.clientX - this.touchX, -range, range);
+        this.touchSteer = dx / range;
       }
       e.preventDefault();
     };
@@ -157,8 +171,10 @@ export class Input {
 
     // Courbe expo douce : du controle fin autour du centre, la butee reste
     // atteignable. Sans elle le moindre tremblement de pouce fait un virage.
+    // Adoucie de 1,35 a 1,20 : combinee au manche collant, la courbe d'avant
+    // mangeait trop des petits deplacements, ceux dont on se sert le plus.
     const c = clamp(s, -1, 1);
-    this.steer = Math.sign(c) * Math.pow(Math.abs(c), 1.35);
+    this.steer = Math.sign(c) * Math.pow(Math.abs(c), 1.20);
 
     // Le doigt pose vaut MAINTIEN du saut, exactement comme la barre d'espace.
     // Sans ca le tactile n'arme jamais et ne saute jamais : le saut se

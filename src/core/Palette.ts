@@ -23,13 +23,21 @@ export const HEX = {
   cloudRim: 0xeaf8ff,
 
   /** Ligne d'arbres a la base de la ville : le vert le plus sombre du projet. */
-  treeLine: 0x1f7a49,
-  grassHorizon: 0x8cff84,
-  grassFar: 0x75fc85,
-  grassMid: 0x48fd76,
-  grassNear: 0x14d955,
-  grassShadow: 0x12a84e,
-  grassStreak: 0x6bff92,
+  treeLine: 0x2f6b23,
+
+  // --- L'herbe, en CHARTREUSE.
+  //
+  // La rampe precedente tirait vers l'emeraude (teinte 140 a 150 degres) : un
+  // vert bleute, tres sature, qui lisait "radioactif" plutot que "prairie".
+  // La reference est jaune-vert — teinte 80 a 95 degres. Le jaune dans le vert
+  // est ce qui donne la lumiere du soleil dans l'herbe ; sans lui, une plaine
+  // reste froide quelle que soit la saturation qu'on y met.
+  grassHorizon: 0xd8f286,
+  grassFar: 0xbdea58,
+  grassMid: 0x9ed93e,
+  grassNear: 0x76c22e,
+  grassShadow: 0x519222,
+  grassStreak: 0xc6ee62,
 
   buddyCore: 0x1c9fe4,
   buddyGlass: 0x35e4f9,

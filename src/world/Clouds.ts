@@ -237,18 +237,19 @@ export class Clouds {
       let z: number;
       let y: number;
       let s: number;
-      if (band < 0.30) {
-        // Banc d'horizon : quelques masses enormes, posees sur la ligne. Un
-        // tiers des nuages, pas la moitie : a 46 % elles formaient un mur
-        // continu qui masquait la ville et bouchait tout le fond.
+      if (band < 0.22) {
+        // Banc d'horizon : quelques masses enormes. Elles sont maintenant
+        // PLUS HAUTES qu'avant (leur base passe au-dessus des tours) et moins
+        // nombreuses : posees sur la ligne, elles effacaient la ville, qui est
+        // pourtant la seule chose que le joueur voit au loin.
         z = -rng.range(this.span * 0.62, this.span);
-        y = rng.range(120, 260);
-        s = rng.range(460, 860);
-      } else if (band < 0.82) {
+        y = rng.range(240, 400);
+        s = rng.range(420, 760);
+      } else if (band < 0.80) {
         // Couche mediane : le gros du ciel.
-        z = -rng.range(this.span * 0.24, this.span * 0.68);
-        y = rng.range(90, 260);
-        s = rng.range(230, 480);
+        z = -rng.range(this.span * 0.26, this.span * 0.68);
+        y = rng.range(180, 340);
+        s = rng.range(230, 460);
       } else {
         // Quelques nuages proches et hauts : ils passent au-dessus du joueur
         // et donnent la vitesse. Sans eux le ciel est une image fixe.
@@ -266,7 +267,7 @@ export class Clouds {
 
       misc[i * 3] = rng.int(0, 3);
       // Le banc lointain reste transparent : c'est un fond, pas un sujet.
-      misc[i * 3 + 1] = band < 0.30 ? rng.range(0.55, 0.78) : rng.range(0.82, 1.0);
+      misc[i * 3 + 1] = band < 0.22 ? rng.range(0.50, 0.72) : rng.range(0.82, 1.0);
       misc[i * 3 + 2] = rng.range(0, 100);
     }
 

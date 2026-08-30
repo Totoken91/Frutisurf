@@ -41,7 +41,7 @@ const NEAR = 90;
 const FAR = 620;
 /** Demi-largeur de semis. Plus resserre que les colonnes : un anneau doit
  *  rester atteignable meme quand on arrive de travers. */
-const SPREAD = 8.5;
+const SPREAD = 18;
 
 /**
  * Hauteur du centre au-dessus du sol.
@@ -269,10 +269,14 @@ export class Rings {
     const high = this.highStreak < 1 && r.next() < 0.38;
     this.highStreak = high ? this.highStreak + 1 : 0;
 
-    // Alternance douce : on garde le couloir lisible mais on impose un
-    // deplacement lateral entre deux anneaux.
+    // Alternance, mais pas metronomique : un anneau sur quatre revient pres du
+    // centre. Une alternance stricte gauche-droite-gauche finit par se jouer
+    // toute seule, et c'est exactement la sensation de rail qu'on veut eviter.
     this.side = -this.side;
-    const x = this.side * r.range(SPREAD * 0.15, SPREAD);
+    const centred = r.next() < 0.25;
+    const x = centred
+      ? r.range(-SPREAD * 0.22, SPREAD * 0.22)
+      : this.side * r.range(SPREAD * 0.30, SPREAD);
     ring.pos.set(x, terrainHeight(x, z) + (high ? HIGH_Y : LOW_Y), z);
     ring.high = high;
     ring.alive = true;

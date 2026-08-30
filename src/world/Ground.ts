@@ -146,12 +146,20 @@ export class Ground {
           //     plan, et un aplat pale sur les deux tiers du cadre.
           float f = 1.0 - exp(-dist / 175.0);
 
-          // --- Stries radiales : bruit ecrase ~70x le long de Z
-          float sway = sin(p.y * 0.006 + uTime * 0.18) * 3.5;
-          float s1 = fbm(vec2((p.x + sway) * 0.85, p.y * 0.012));
-          float s2 = fbm(vec2((p.x - sway * 0.6) * 3.1, p.y * 0.030));
-          float streak = s1 * 0.68 + s2 * 0.32;
-          streak = mix(0.5, streak, 1.15 + uSpeed * 0.55);
+          // --- Moucheture ISOTROPE.
+          //
+          //     L'ancien motif etait un bruit ecrase ~70x le long de Z : des
+          //     traits interminables dans l'axe de la course, qui en
+          //     perspective se lisaient comme des rayures verticales collees a
+          //     l'ecran. Un motif de fond d'ecran, pas une prairie.
+          //
+          //     Deux octaves de bruit aux MEMES frequences en x et en z : les
+          //     taches sont rondes, elles defilent avec le sol au lieu de
+          //     glisser dessus, et rien n'a plus de direction privilegiee.
+          float m1 = fbm(vec2(p.x * 0.062, p.y * 0.062));
+          float m2 = fbm(vec2(p.x * 0.021, p.y * 0.021));
+          float streak = m1 * 0.55 + m2 * 0.45;
+          streak = mix(0.5, streak, 1.10 + uSpeed * 0.45);
           streak = clamp(streak, 0.0, 1.0);
 
           // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan.
@@ -187,7 +195,7 @@ export class Ground {
           //    le flanc proche de chaque colline. Ancre en espace monde, donc
           //    il ne pulse pas quand le joueur monte ou descend — un tint
           //    d'altitude relatif au joueur ferait respirer tout le paysage.
-          c *= 0.80 + 0.36 * clamp(N.z, -1.0, 1.0);
+          c *= 0.88 + 0.24 * clamp(N.z, -1.0, 1.0);
 
           // 2. Teinte d'ALTITUDE. Le terme le plus rentable de tout le shader.
           //
@@ -197,14 +205,14 @@ export class Ground {
           //    HAUTEUR, elle, varie de treize metres d'un creux a une crete.
           //    En la lisant sur une plage serree, chaque vallon se colore et
           //    le relief se lit d'un coup d'oeil, comme sur une carte ombree.
-          c = mix(c * 0.78, c * 1.18, smoothstep(-6.0, 6.0, vWorld.y));
+          c = mix(c * 0.86, c * 1.14, smoothstep(-6.0, 6.0, vWorld.y));
 
           // 3. Ombrage directionnel, franc. Le soleil est bas et devant : les
           //    seuils sont cales sur cette plage-la, pas sur un zenith.
           // Plage RESSERREE autour de la valeur de travail : avec un soleil a
           // 19 degres et un sol presque plat, ndl vit entre 0,18 et 0,48. Une
           // rampe large sur [-0.28, 0.58] n'en exploitait qu'un tiers.
-          c *= 0.64 + 0.48 * smoothstep(0.10, 0.52, ndl);
+          c *= 0.78 + 0.34 * smoothstep(0.10, 0.52, ndl);
           // Les versants exposes accrochent un lisere clair sur la crete.
           c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5);
 
@@ -228,15 +236,15 @@ export class Ground {
           float lightPool = smoothstep(0.46, 0.86, sweep);
           float shade = smoothstep(0.50, 0.10, sweep);
           c = mix(c, mix(c, uStreak, 0.20) * 1.12, lightPool * 0.75);
-          c = mix(c, c * 0.84, shade * 0.55);
+          c = mix(c, c * 0.88, shade * 0.50);
 
-          // --- Bandes de tonte. Signature d'une pelouse entretenue, et le
-          //     detail qui separe une prairie d'un aplat vert : deux passages
-          //     de tondeuse en sens inverse ne renvoient pas la meme lumiere.
-          //     Tres large (28 m) et tres discret : lisible sans devenir un
-          //     motif de moquette.
-          float mow = sin(vWorld.x * 0.224 + sin(vWorld.z * 0.010) * 1.6) * 0.5 + 0.5;
-          c *= 1.0 + (smoothstep(0.35, 0.65, mow) - 0.5) * 0.11 * (1.0 - f * 0.55);
+          // --- Bandes de tonte, EN TRAVERS de la course.
+          //     Alignees sur x, elles dessinaient elles aussi des rayures
+          //     verticales a l'ecran. En travers, elles defilent vers le joueur
+          //     et servent au passage de lecture de vitesse. Ondulees pour ne
+          //     pas ressembler a un passage pieton.
+          float mow = sin(vWorld.z * 0.052 + sin(vWorld.x * 0.013) * 2.2) * 0.5 + 0.5;
+          c *= 1.0 + (smoothstep(0.35, 0.65, mow) - 0.5) * 0.09 * (1.0 - f * 0.6);
 
           // --- Sheen laque : il allume la bande d'horizon
           vec3 V = normalize(uCam - vWorld);

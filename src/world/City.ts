@@ -19,11 +19,14 @@ import { vec3 } from '../core/Palette';
  * une parallaxe laterale legere, sinon on finirait par lui rentrer dedans.
  */
 /**
- * Distance de la ville. Ramenee de 1700 a 1150 : au-dela de 1600 elle passait
- * DERRIERE le banc de nuages d'horizon et disparaissait completement du cadre.
- * Une promesse qu'on ne voit jamais n'est pas une promesse.
+ * Distance de la ville. 1700, puis 1150, maintenant 980.
+ *
+ * Au-dela de 1600 elle passait derriere le banc de nuages. A 1150 elle etait
+ * revenue dans le cadre mais restait un fantome : trop petite, trop delavee par
+ * la brume, et noyee dans un ciel devenu tres clair a cette hauteur. Une
+ * promesse qu'on ne voit jamais n'est pas une promesse.
  */
-const DISTANCE = 1150;
+const DISTANCE = 980;
 
 export class City {
   readonly group = new Group();
@@ -66,14 +69,20 @@ export class City {
 
           // Arete lumineuse : c'est ce qui fait lire "cristal" et pas "boite".
           float fres = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewDir))), 2.2);
-          c += uLit * fres * 0.55;
+          c += uLit * fres * 0.75;
+
+          // Une face sur deux prend le soleil de plein fouet. Sans contraste
+          // entre les faces, une tour de verre est un rectangle uniforme et la
+          // skyline entiere se lit comme un aplat.
+          float side = abs(vNormalW.x);
+          c *= 0.82 + 0.34 * side;
 
           // Ecrasement atmospherique : la ville est presque dans le ciel. A
           // 0,52 elle s'y dissolvait au point qu'on ne distinguait plus une
           // seule tour ; il en faut assez pour la reculer, pas pour l'effacer.
-          c = mix(c, uHaze, 0.36);
+          c = mix(c, uHaze, 0.20);
 
-          float a = 0.46 + fres * 0.40 + smoothstep(0.0, 0.9, vH) * 0.16;
+          float a = 0.72 + fres * 0.28;
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -93,8 +102,11 @@ export class City {
       const z = rng.range(-190, 190);
       // Tours fines et hautes ; les plus hautes au coeur de l'amas.
       const core = 1 - Math.min(1, Math.abs(x - 190) / 380);
-      const h = rng.range(24, 68) + core * rng.range(24, 120);
-      const w = rng.range(9, 22);
+      // Plus hautes et plus fines : a 980 m une tour de 60 m ne fait que
+      // quelques dizaines de pixels, et c'est la VERTICALITE qui fait lire
+      // une skyline, pas le nombre de boites.
+      const h = rng.range(34, 92) + core * rng.range(30, 170);
+      const w = rng.range(8, 19);
       m.makeScale(w, h, w * rng.range(0.7, 1.3));
       m.setPosition(x, h * 0.5, z);
       this.mesh.setMatrixAt(i, m);

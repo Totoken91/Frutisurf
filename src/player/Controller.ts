@@ -44,7 +44,15 @@ export interface SurfEvents {
   onTrick?: (turns: number, points: number) => void;
 }
 
-const CORRIDOR = 14;
+/**
+ * Demi-largeur du terrain de jeu.
+ *
+ * A 14 m on jouait sur une tranche : deux longueurs de disque de chaque cote,
+ * et toute la trajectoire tenait dans un couloir plus etroit que l'ecran. Ca se
+ * jouait comme un rail. A 34 m la plaine redevient une plaine — on peut couper
+ * large, laisser tomber un anneau pour en viser un autre, et revenir.
+ */
+const CORRIDOR = 34;
 const GRAVITY = -22;
 const JUMP_V = 7.4;
 /** Marge d'adherence du disque avant qu'une crete ne le decolle. */
@@ -442,7 +450,10 @@ export class Controller {
     // renoncer a corriger sa trajectoire. Sans ce frein, tenir la direction a
     // fond pour vriller expediait le surfeur hors du couloir en une seconde et
     // vriller devenait incompatible avec viser un anneau.
-    const grip = this.airborne ? 0.56 * (1 - 0.72 * this.spinLock) : 0.42;
+    // Autorite laterale relevee avec l'elargissement du couloir : il faut
+    // pouvoir traverser la nouvelle largeur entre deux anneaux, sinon un
+    // terrain plus large n'est qu'un terrain ou l'on rate davantage.
+    const grip = this.airborne ? 0.64 * (1 - 0.72 * this.spinLock) : 0.52;
     const lateral = st * effective * grip;
     this.x += lateral * dt;
     this.z -= effective * dt;

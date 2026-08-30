@@ -29,8 +29,8 @@ import { terrainHeight } from './Terrain';
  * passif.
  */
 
-/** Demi-largeur du couloir de jeu. Doit suivre CORRIDOR du Controller. */
-const SPREAD = 12;
+/** Demi-largeur de semis. Suit l'elargissement du couloir (CORRIDOR = 34). */
+const SPREAD = 24;
 /** Espacement entre deux plots consecutifs, le long du parcours. */
 const GAP_MIN = 52;
 const GAP_MAX = 88;

@@ -341,6 +341,62 @@ La ville, elle, est revenue de 1700 m à **1150 m** : au-delà de 1600 elle pass
 derrière le banc de nuages et disparaissait. Une promesse qu'on ne voit jamais
 n'est pas une promesse.
 
+## 7. La passe « retours de jeu »
+
+Quatre remarques du joueur, quatre problèmes réels.
+
+### « On ne voit pas la ville »
+
+Trois causes cumulées, corrigées ensemble : le banc de nuages d'horizon était
+posé **sur** la ligne (il est monté à 240-400 m, sa base passe désormais
+au-dessus des tours), la brume écrasait la skyline à 36 % (ramenée à 20 %), et
+les tours étaient trop courtes pour lire à un kilomètre. Elles sont plus hautes
+et plus fines — c'est la **verticalité** qui fait lire une skyline, pas le
+nombre de boîtes — et une face sur deux prend maintenant le soleil, sans quoi
+une tour de verre n'est qu'un rectangle uniforme.
+
+Distance ramenée de 1150 à **980 m**.
+
+### « Trop de nuages »
+
+44 au lieu de 72 en qualité haute, et le banc d'horizon ne représente plus que
+22 % de l'effectif au lieu de 30.
+
+### « Le motif vertical dans l'herbe est bizarre »
+
+Il l'était. Les stries étaient un bruit **écrasé 70×** le long de Z : des traits
+interminables dans l'axe de la course, qui en perspective se lisaient comme des
+rayures verticales collées à l'écran. Un motif de fond d'écran, pas une prairie.
+
+Remplacé par deux octaves aux **mêmes fréquences en x et en z** : les taches
+sont rondes, elles défilent avec le sol au lieu de glisser dessus, et rien n'a
+plus de direction privilégiée. Les bandes de tonte, elles aussi alignées sur x,
+ont été tournées **en travers** de la course — elles servent au passage de
+lecture de vitesse.
+
+### « Mauvaise teinte de vert : chartreuse, pas radioactif »
+
+La rampe tirait vers l'émeraude — teinte 140 à 150°, un vert **bleuté** très
+saturé. La chartreuse est jaune-vert, teinte 80 à 95°. Le jaune dans le vert est
+ce qui donne la lumière du soleil dans l'herbe ; sans lui, une plaine reste
+froide quelle que soit la saturation qu'on y met.
+
+Premier essai raté dans l'autre sens : trop sombre. Chartreuse veut dire
+jaune-vert **lumineux**, et une rampe basse combinée aux multiplicateurs
+d'ombrage rendait un kaki militaire. Valeurs remontées d'environ 25 % en clarté,
+coefficients d'ombrage resserrés en conséquence.
+
+| | Avant (émeraude) | Après (chartreuse) |
+|---|---|---|
+| ombre | `#12a84e` | `#519222` |
+| proche | `#14d955` | `#76c22e` |
+| médian | `#48fd76` | `#9ed93e` |
+| lointain | `#75fc85` | `#bdea58` |
+| horizon | `#8cff84` | `#d8f286` |
+
+Le rebond hémisphérique et les particules d'herbe lisent la même palette : la
+teinte du buddy et de la gerbe a suivi toute seule.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :
