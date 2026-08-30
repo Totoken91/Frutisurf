@@ -118,19 +118,33 @@ export class Ground {
         varying vec3 vWorld;
         varying vec3 vNormal;
         uniform vec3 uNear, uMid, uFar, uHorizon, uShadow, uStreak, uSun, uCam;
+        uniform vec3 uOrigin;
         uniform float uTime, uSpeed;
 
         ${GLSL_NOISE}
+        ${terrainGLSL()}
 
         void main(){
           // Coordonnees de texture repliees modulo la periode du bruit : la
           // position monde croit sans borne et finirait par perdre en precision.
           vec2 p = vec2(vWorld.x, mod(vWorld.z, 1000.0));
           float dist = length(vWorld.xz - uCam.xz);
-          vec3 N = normalize(vNormal);
 
-          // --- Profondeur normalisee : asymptotique, jamais de coupure franche
-          float f = 1.0 - exp(-dist / 95.0);
+          // --- Normale recalculee PAR PIXEL.
+          //
+          // La normale de sommet interpolee laissait des bandes horizontales
+          // franches en travers de la plaine : la grille est en eventail, ses
+          // rangees lointaines font des dizaines de metres de profondeur, et
+          // interpoler une normale sur un triangle aussi grand casse a chaque
+          // rangee. Le terrain etant analytique, son gradient l'est aussi : le
+          // recalculer ici coute quelques cosinus et rend un relief NET.
+          vec3 N = terrainNormalAt(vWorld.xz, length(vWorld.xz - uOrigin.xz));
+
+          // --- Profondeur normalisee : asymptotique, jamais de coupure franche.
+          //     A 95 m d'echelle, la plaine etait entierement noyee dans la
+          //     brume passe 150 m : plus aucune structure au-dela du premier
+          //     plan, et un aplat pale sur les deux tiers du cadre.
+          float f = 1.0 - exp(-dist / 175.0);
 
           // --- Stries radiales : bruit ecrase ~70x le long de Z
           float sway = sin(p.y * 0.006 + uTime * 0.18) * 3.5;
@@ -140,32 +154,27 @@ export class Ground {
           streak = mix(0.5, streak, 1.15 + uSpeed * 0.55);
           streak = clamp(streak, 0.0, 1.0);
 
-          // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan
-          vec3 c = mix(uNear, uMid, smoothstep(0.00, 0.34, f));
-          c = mix(c, uFar, smoothstep(0.30, 0.66, f));
-          c = mix(c, uHorizon, smoothstep(0.48, 0.94, f));
+          // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan.
+          //     C'est lui qui porte toute la profondeur de la plaine, donc il
+          //     doit rester le terme dominant — tout ce qui vient apres ne fait
+          //     que le moduler.
+          vec3 c = mix(uNear, uMid, smoothstep(0.02, 0.30, f));
+          c = mix(c, uFar, smoothstep(0.26, 0.60, f));
+          c = mix(c, uHorizon, smoothstep(0.46, 0.92, f));
 
           c = mix(mix(c, uShadow, 0.30), mix(c, uStreak, 0.55), streak);
 
           // --- Micro-detail de brins, uniquement dans le champ proche
-          float near = 1.0 - smoothstep(0.0, 0.42, f);
-          float blade = fbm(vec2(p.x * 2.2, p.y * 2.2));
-          c = mix(c, mix(c, uStreak, 0.30), blade * near * 0.30);
-          c *= 1.0 - near * 0.14 * fbm(vec2(p.x * 0.9, p.y * 0.9));
+          float near = 1.0 - smoothstep(0.0, 0.55, f);
+          // Touffes, pas brins : a 2,2 (45 cm de periode) le motif tombait
+          // sous le pixel des la deuxieme rangee et ne rendait qu'un bruit gris.
+          float blade = fbm(vec2(p.x * 0.42, p.y * 0.42));
+          c = mix(c, mix(c, uStreak, 0.34), blade * near * 0.46);
+          c *= 1.0 - near * 0.16 * fbm(vec2(p.x * 0.17, p.y * 0.17));
 
           // --- Bandes de defilement : la lecture de vitesse
           float band = sin(p.y * 0.201) * 0.5 + 0.5;
           c = mix(c, c * 1.16, band * (0.030 + uSpeed * 0.045) * (1.0 - f * 0.55));
-
-          // --- Grandes taches de prairie. La plaine etait d'un vert trop
-          //     uniforme : ces variations lentes (60-160 m) lui donnent de la
-          //     matiere sans ajouter un seul triangle, et elles survivent a la
-          //     distance la ou le micro-detail disparait.
-          // Nom volontaire : "patch" est un mot RESERVE en GLSL ES. Sous ce nom
-          // le shader ne compilait pas et le sol disparaissait entierement,
-          // laissant voir le dome de ciel a travers.
-          float meadow = fbm(vec2(p.x * 0.016, p.y * 0.011));
-          c = mix(c * 0.93, mix(c, uStreak, 0.22) * 1.05, smoothstep(0.32, 0.72, meadow));
 
           // --- Relief. Sans ces deux termes on ne voit pas ou est le sommet,
           //     donc on ne peut pas le timer : c'est de la lisibilite de jeu,
@@ -178,15 +187,56 @@ export class Ground {
           //    le flanc proche de chaque colline. Ancre en espace monde, donc
           //    il ne pulse pas quand le joueur monte ou descend — un tint
           //    d'altitude relatif au joueur ferait respirer tout le paysage.
-          c *= 0.86 + 0.26 * clamp(N.z, -1.0, 1.0);
+          c *= 0.80 + 0.36 * clamp(N.z, -1.0, 1.0);
 
-          // 2. Teinte d'altitude absolue, discrete : hauts plus clairs.
-          c = mix(c * 0.90, c * 1.08, smoothstep(-7.0, 7.0, vWorld.y));
+          // 2. Teinte d'ALTITUDE. Le terme le plus rentable de tout le shader.
+          //
+          //    Les pentes du terrain plafonnent vers 11 degres : la normale ne
+          //    s'ecarte presque jamais de la verticale, et un ombrage qui ne
+          //    depend que d'elle rend une plaine plate quoi qu'on fasse. La
+          //    HAUTEUR, elle, varie de treize metres d'un creux a une crete.
+          //    En la lisant sur une plage serree, chaque vallon se colore et
+          //    le relief se lit d'un coup d'oeil, comme sur une carte ombree.
+          c = mix(c * 0.78, c * 1.18, smoothstep(-6.0, 6.0, vWorld.y));
 
-          // 3. Ombrage directionnel, franc.
-          c *= 0.70 + 0.30 * smoothstep(-0.30, 0.90, ndl);
+          // 3. Ombrage directionnel, franc. Le soleil est bas et devant : les
+          //    seuils sont cales sur cette plage-la, pas sur un zenith.
+          // Plage RESSERREE autour de la valeur de travail : avec un soleil a
+          // 19 degres et un sol presque plat, ndl vit entre 0,18 et 0,48. Une
+          // rampe large sur [-0.28, 0.58] n'en exploitait qu'un tiers.
+          c *= 0.64 + 0.48 * smoothstep(0.10, 0.52, ndl);
           // Les versants exposes accrochent un lisere clair sur la crete.
-          c += uHorizon * 0.16 * smoothstep(0.50, 1.0, ndl) * (1.0 - f * 0.6);
+          c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5);
+
+          // --- 4. Grandes nappes de lumiere.
+          //
+          //     C'est le trait le plus present des references : la prairie
+          //     n'est jamais d'un vert uniforme, de larges plages claires la
+          //     traversent, comme des trouees entre des nuages. Ancrees en
+          //     monde et tres basse frequence (150 a 400 m), elles defilent
+          //     avec le paysage et donnent son echelle a la plaine.
+          //     Un seul champ basse frequence pour deux roles : les grandes
+          //     plages de lumiere ET les taches de prairie. Il y en avait deux,
+          //     de frequences voisines, qui se contrariaient — l'un eclaircissait
+          //     ou l'autre assombrissait — et le resultat etait un vert boueux
+          //     pour le prix de vingt octaves de bruit par pixel.
+          vec2 sweepUv = vec2(vWorld.x * 0.0042 + vWorld.z * 0.0016, vWorld.z * 0.0068);
+          float sweep = fbm(sweepUv);
+          // Dose asymetrique : on ASSOMBRIT plus qu'on n'eclaircit. Eclaircir
+          // fort delave le vert electrique qui fait l'identite du jeu, alors
+          // qu'une plage d'ombre lui redonne du contraste sans rien lui oter.
+          float lightPool = smoothstep(0.46, 0.86, sweep);
+          float shade = smoothstep(0.50, 0.10, sweep);
+          c = mix(c, mix(c, uStreak, 0.20) * 1.12, lightPool * 0.75);
+          c = mix(c, c * 0.84, shade * 0.55);
+
+          // --- Bandes de tonte. Signature d'une pelouse entretenue, et le
+          //     detail qui separe une prairie d'un aplat vert : deux passages
+          //     de tondeuse en sens inverse ne renvoient pas la meme lumiere.
+          //     Tres large (28 m) et tres discret : lisible sans devenir un
+          //     motif de moquette.
+          float mow = sin(vWorld.x * 0.224 + sin(vWorld.z * 0.010) * 1.6) * 0.5 + 0.5;
+          c *= 1.0 + (smoothstep(0.35, 0.65, mow) - 0.5) * 0.11 * (1.0 - f * 0.55);
 
           // --- Sheen laque : il allume la bande d'horizon
           vec3 V = normalize(uCam - vWorld);
@@ -199,10 +249,16 @@ export class Ground {
           // --- Brume d'horizon. Elle separe les plans lointains les uns des
           //     autres : sans elle, des collines a 300 m et a 900 m ont
           //     exactement la meme valeur et le relief s'aplatit.
-          c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.55, 0.99, f) * 0.30);
+          c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.50, 0.99, f) * 0.42);
+
+          // --- Contre-jour. Le soleil est devant : la derniere bande d'herbe
+          //     avant le ciel est traversee par la lumiere et s'allume. Sans
+          //     ce lisere, la plaine se termine par une decoupe de papier.
+          float toward = max(dot(normalize(vec3(vWorld.x, 0.0, vWorld.z) - vec3(uCam.x, 0.0, uCam.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0);
+          c += vec3(0.34, 0.46, 0.30) * smoothstep(0.68, 0.99, f) * pow(toward, 2.0) * 1.05;
 
           // Contact net avec le ciel.
-          c = mix(c, uHorizon, smoothstep(0.93, 1.0, f));
+          c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));
 
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>

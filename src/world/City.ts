@@ -1,13 +1,16 @@
 import {
   BoxGeometry,
+  DoubleSide,
   Group,
   InstancedMesh,
   Matrix4,
+  Mesh,
   NormalBlending,
+  PlaneGeometry,
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { Rng } from '../core/Noise';
+import { GLSL_NOISE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 
 /**
@@ -15,7 +18,12 @@ import { vec3 } from '../core/Palette';
  * On la garde a distance constante du joueur (astuce du matte painting) avec
  * une parallaxe laterale legere, sinon on finirait par lui rentrer dedans.
  */
-const DISTANCE = 1700;
+/**
+ * Distance de la ville. Ramenee de 1700 a 1150 : au-dela de 1600 elle passait
+ * DERRIERE le banc de nuages d'horizon et disparaissait completement du cadre.
+ * Une promesse qu'on ne voit jamais n'est pas une promesse.
+ */
+const DISTANCE = 1150;
 
 export class City {
   readonly group = new Group();
@@ -60,10 +68,12 @@ export class City {
           float fres = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewDir))), 2.2);
           c += uLit * fres * 0.55;
 
-          // Ecrasement atmospherique : la ville est presque dans le ciel.
-          c = mix(c, uHaze, 0.52);
+          // Ecrasement atmospherique : la ville est presque dans le ciel. A
+          // 0,52 elle s'y dissolvait au point qu'on ne distinguait plus une
+          // seule tour ; il en faut assez pour la reculer, pas pour l'effacer.
+          c = mix(c, uHaze, 0.36);
 
-          float a = 0.30 + fres * 0.42 + smoothstep(0.0, 0.9, vH) * 0.18;
+          float a = 0.46 + fres * 0.40 + smoothstep(0.0, 0.9, vH) * 0.16;
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -91,7 +101,75 @@ export class City {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.group.add(this.mesh);
+    this.group.add(this.treeline());
     this.group.renderOrder = -800;
+  }
+
+  /**
+   * La ligne d'arbres au pied de la ville.
+   *
+   * Sans elle, la plaine s'arretait net et les tours poussaient directement
+   * dans l'herbe : une decoupe de papier. Une bande d'arbres donne au regard
+   * un palier entre le vert du sol et le verre du fond, et c'est exactement ce
+   * que fait la reference — c'est meme la seule chose qui separe sa pelouse de
+   * son horizon.
+   *
+   * Un plan et un shader : la silhouette est decoupee au bruit dans le
+   * fragment. Modeliser des arbres a 1150 m serait payer des milliers de
+   * triangles pour trente pixels de haut.
+   */
+  private treeline(): Mesh {
+    const mat = new ShaderMaterial({
+      // ECRIT la profondeur, contrairement au reste du fond. La silhouette est
+      // decoupee au discard, donc le tampon ne recoit que les pixels pleins —
+      // et sans cette ecriture, le banc de nuages situe pourtant un kilometre
+      // plus loin se peignait par-dessus les arbres.
+      transparent: true,
+      depthWrite: true,
+      side: DoubleSide,
+      uniforms: {
+        uDark: { value: vec3('treeLine') },
+        uLit: { value: vec3('grassNear') },
+        uHaze: { value: vec3('skyHorizon') },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main(){
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uDark, uLit, uHaze;
+        varying vec2 vUv;
+        ${GLSL_NOISE}
+        void main(){
+          // Deux octaves : la premiere donne les bosquets, la seconde
+          // l'irregularite des cimes. Une seule ferait une haie taillee.
+          float crown = fbm(vec2(vUv.x * 26.0, 0.5)) * 0.62 + fbm(vec2(vUv.x * 96.0, 3.7)) * 0.38;
+          float top = 0.30 + crown * 0.62;
+          if (vUv.y > top) discard;
+
+          // Les cimes accrochent la lumiere, le pied reste dans l'ombre : sans
+          // ce degrade la bande lit comme un aplat noir pose sur l'herbe.
+          float lit = smoothstep(0.0, top, vUv.y);
+          vec3 c = mix(uDark, mix(uDark, uLit, 0.55), lit);
+          c = mix(c, uHaze, 0.30);
+          gl_FragColor = vec4(c, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }
+      `,
+    });
+    // Plantee bien DEVANT les tours, a 700 m du joueur. Posee au pied de la
+    // ville (1150 m) elle etait masquee en permanence par les cretes situees
+    // entre elle et la camera : le relief culmine a 13 m et depasse la ligne
+    // d'oeil, il faut donc s'en degager franchement pour exister.
+    const m = new Mesh(new PlaneGeometry(3000, 64), mat);
+    m.position.set(90, 16, 450);
+    m.renderOrder = -750;
+    m.frustumCulled = false;
+    return m;
   }
 
   update(origin: Vector3): void {

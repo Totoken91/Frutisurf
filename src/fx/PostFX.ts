@@ -32,11 +32,15 @@ export class PostFX {
     });
     this.composer.addPass(new RenderPass(scene, camera));
 
+    // Le bloom EST le gloss du projet, mais un rayon trop large avale ce
+    // qu'il est cense magnifier : a 0,72 l'etoile du soleil se noyait dans sa
+    // propre halo et ne rendait plus qu'une tache blanche. Seuil un peu plus
+    // haut, rayon plus court : les branches ressortent, l'herbe ne bave plus.
     this.bloom = new BloomEffect({
       intensity: 0.85,
-      luminanceThreshold: 0.80,
-      luminanceSmoothing: 0.22,
-      radius: 0.72,
+      luminanceThreshold: 0.86,
+      luminanceSmoothing: 0.16,
+      radius: 0.58,
       mipmapBlur: true,
       kernelSize: quality === 'low' ? KernelSize.MEDIUM : KernelSize.LARGE,
     });

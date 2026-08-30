@@ -7,6 +7,12 @@ Une expérience WebGL temps réel qui reconstruit — et fait vivre — l'esthé
 **Frutiger Aero** : verre, gloss, nature + technologie, bloom, et cette lumière
 de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
 
+Azur profond au zénith qui blanchit à l'horizon, cumulus volumétriques éclairés
+par une vraie normale, soleil en étoile dans le cadre, plaine dont le relief se
+lit par la hauteur et non par la pente, ligne d'arbres et skyline de cristal sur
+l'horizon. Le détail de chaque décision est dans
+[docs/01-ART-DIRECTION.md](docs/01-ART-DIRECTION.md) §6.
+
 **Une partie dure 30 secondes.** Chaque anneau de verre franchi t'en rend
 trois, chaque colonne de vitesse une, chaque tour complet en l'air presque une.
 Le sablier accélère : à toi de tenir. Le record est gardé, la relance est

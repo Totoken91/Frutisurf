@@ -242,6 +242,105 @@ vitesse et le boost. C'est ce qui fait que le boost **se voit** avant qu'on lise
 la jauge. Très discret à l'arrêt, sinon la plaine devient criarde quand il ne se
 passe rien.
 
+## 6. La passe « références Frutiger Aero »
+
+Deux références apportées en cours de route ont recadré toute la direction :
+une scène aquatique à globe de verre, et une pelouse électrique sous un ciel
+d'azur avec une skyline posée sur l'horizon. Elles disent toutes les deux la
+même chose, et ce n'est pas une question de palette.
+
+### Le ciel était plat
+
+Il était cyan du zénith à l'horizon. Sans écart de valeur entre le haut et le
+bas du cadre, un ciel ne fait aucune profondeur — et surtout, des nuages blancs
+n'ont plus rien sur quoi se détacher.
+
+Le dégradé a **quatre** étages désormais (azur profond → azur → cyan → blanc).
+Trois suffisaient tant que tout restait cyan ; avec un écart aussi large, trois
+arrêts laissaient une bande dure au milieu du cadre.
+
+Et la bande blanche d'horizon est **resserrée** : étalée jusqu'à 10° d'élévation,
+elle délavait le ciel à la hauteur exacte où vivent les cumulus. Des nuages
+blancs sur un ciel blanc, il n'en restait qu'un contour. Elle ne tient plus que
+les deux premiers degrés.
+
+La montée vers l'azur profond est calée sur le **cadre**, pas sur la géométrie :
+le haut de l'image plafonne vers 22° d'élévation, donc un zénith qui n'arrive
+qu'au zénith ne se voit jamais.
+
+### Le soleil n'était pas dans l'image
+
+Il était à 46° d'élévation et 30° d'azimut. En portrait, le champ vertical fait
+62° mais l'horizontal n'en fait que 37 — un soleil à 30° d'azimut ne peut
+structurellement pas entrer dans le cadre. On n'en voyait qu'une lueur de coin.
+
+À **13° d'azimut et 19° d'élévation** il brûle dans l'image, avec six branches
+longues, six courtes décalées et une traînée anamorphique. Les branches sont
+construites dans le plan tangent au soleil : calculées en espace écran, elles
+tourneraient avec le roulis de la caméra.
+
+Conséquence voulue : la plaine passe en **contre-jour**, les crêtes prennent un
+liseré et les flancs se séparent enfin.
+
+### Les nuages étaient du carton découpé
+
+Un empilement de gaussiennes, un dégradé vertical en guise d'ombrage, silhouette
+parfaitement ronde. Trois changements, dans l'ordre d'importance :
+
+1. **L'ombrage vient d'une normale, pas d'une hauteur.** Le champ de densité est
+   accumulé dans un tampon flottant, on en prend le gradient, et on éclaire ce
+   faux relief avec la vraie direction du soleil. Chaque lobe récupère sa joue
+   claire et son creux sombre — du volume sans une ligne de rendu volumétrique.
+   La lumière est orientée **vers l'observateur** : rasante, elle donnait un
+   `ndl` de 0,31 sur tout le plat, donc des cumulus gris de bout en bout.
+2. **Le noyau de densité déborde de 80 % du rayon nominal.** Coupé net au rayon,
+   chaque lobe restait une bulle isolée : l'atlas rendait un chapelet de bulles.
+   Deux lobes ne fusionnent que si leurs queues se recouvrent largement.
+3. **Un liseré argenté** là où le nuage est mince, plus fort du côté du soleil.
+   Sur une fenêtre étroite : allumé sur tout le pourtour, l'ensemble virait au
+   dessin au néon.
+
+Trois plans au lieu d'un : un banc massif sur l'horizon (30 % des nuages, pas
+50 — à moitié ils formaient un mur qui bouchait la ville), une couche médiane,
+quelques nuages proches et hauts qui donnent la vitesse.
+
+### La plaine était plate
+
+Les pentes du terrain plafonnent vers 11° : la normale ne s'écarte presque
+jamais de la verticale, et un ombrage qui n'en dépend que rend une plaine plate
+quoi qu'on fasse. C'est la **hauteur** qui varie — treize mètres d'un creux à
+une crête. Lue sur une plage serrée (±6 m), elle colore chaque vallon et le
+relief se lit d'un coup d'œil, comme sur une carte ombrée. C'est le terme le
+plus rentable de tout le shader.
+
+La normale est aussi **recalculée par pixel** depuis le terrain analytique. La
+normale de sommet interpolée laissait des bandes horizontales franches : la
+grille est en éventail, ses rangées lointaines font des dizaines de mètres de
+profondeur, et interpoler une normale sur un triangle aussi grand casse à
+chaque rangée.
+
+S'y ajoutent de grandes **nappes de lumière** basse fréquence (150 à 400 m) et
+des **bandes de tonte** de 28 m. La dose est asymétrique : on assombrit plus
+qu'on n'éclaircit, parce qu'éclaircir délave le vert électrique qui fait
+l'identité du jeu.
+
+### L'horizon n'existait pas
+
+La plaine s'arrêtait net et les tours poussaient dans l'herbe : une découpe de
+papier. Une **ligne d'arbres** donne au regard un palier entre le vert du sol et
+le verre du fond — c'est la seule chose qui sépare la pelouse de la référence de
+son horizon.
+
+Un plan, une silhouette découpée au bruit dans le fragment. Deux détails l'ont
+rendue visible : elle **écrit la profondeur** (sans quoi le banc de nuages situé
+un kilomètre plus loin se peignait par-dessus), et elle est plantée à 700 m et
+non au pied de la ville — le relief culmine à 13 m et dépasse la ligne d'œil, il
+faut s'en dégager franchement pour exister.
+
+La ville, elle, est revenue de 1700 m à **1150 m** : au-delà de 1600 elle passait
+derrière le banc de nuages et disparaissait. Une promesse qu'on ne voit jamais
+n'est pas une promesse.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :

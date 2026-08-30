@@ -9,80 +9,199 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
-import { Rng } from '../core/Noise';
+import { Rng, valueNoise2D } from '../core/Noise';
 import { vec3 } from '../core/Palette';
+import { SUN_DIR } from './Sky';
 
 /**
- * Cumulus en billboards. La reference a des nuages PLATS et decoupes, pas des
- * volumetriques : fond plat, dessus bombe, typologie fond d'ecran.
- * Atlas 2x2 genere au boot, un seul draw call, billboard autour de Y
- * (un billboard complet roulerait avec la camera et trahirait le truc).
+ * Les cumulus. C'est le poste qui fait ou defait le Frutiger Aero.
+ *
+ * La premiere version dessinait des pastilles : un empilement de gaussiennes,
+ * un degrade vertical en guise d'ombrage, silhouette parfaitement ronde. A
+ * cote des references c'etait du carton decoupe — un cumulus n'a pas un
+ * dessus clair et un dessous sombre, il a des LOBES, chacun avec sa propre
+ * face eclairee et sa propre ombre portee sur le lobe d'a cote.
+ *
+ * Trois changements, dans l'ordre d'importance :
+ *
+ *  1. L'ombrage vient d'une NORMALE, pas d'une hauteur. On accumule le champ
+ *     de densite dans un tampon flottant, on en prend le gradient, et on
+ *     eclaire ce faux relief avec la vraie direction du soleil. Chaque lobe
+ *     recupere sa joue claire et son creux sombre : le nuage prend du volume
+ *     sans une seule ligne de rendu volumetrique.
+ *  2. Des sous-lobes fractals et une deformation de contour au bruit. Une
+ *     silhouette parfaitement circulaire trahit le procede a tous les coups.
+ *  3. Un LISERE argente la ou le nuage est mince. C'est le detail signature
+ *     des references : le bord ne fond pas dans le ciel, il s'allume.
+ *
+ * Et cote champ, trois plans au lieu d'un seul : un banc massif pose sur
+ * l'horizon, une couche mediane, quelques nuages proches et hauts. C'est
+ * l'etagement qui donne la distance, pas la taille des sprites.
  */
-function makeCloudAtlas(): CanvasTexture {
-  const S = 512;
+
+interface Lobe {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/**
+ * Noyau de densite d'un lobe. Polynomial : trois fois plus rapide qu'une
+ * exponentielle, meme galbe.
+ *
+ * Le support s'etend a 1,8 fois le rayon nominal, et c'est le point CRITIQUE.
+ * Une premiere version coupait net au rayon : chaque lobe restait une bulle
+ * isolee, la somme ne formait aucune masse, et l'atlas rendait un chapelet de
+ * bulles au lieu d'un cumulus. Deux lobes ne se fondent l'un dans l'autre que
+ * si leurs queues se recouvrent largement.
+ */
+function blob(d2: number): number {
+  const s = d2 * 0.30;
+  if (s >= 1) return 0;
+  const t = 1 - s;
+  return t * t * t;
+}
+
+function makeCloudAtlas(res: number): CanvasTexture {
+  const S = res;
+  const H = S >> 1; // cote d'une cellule de l'atlas 2x2
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const ctx = cv.getContext('2d')!;
   const img = ctx.createImageData(S, S);
   const d = img.data;
   const rng = new Rng(20240524);
+  const field = new Float32Array(H * H);
 
-  // 4 variantes dans un atlas 2x2
+  // Lumiere dans l'espace de la texture. v croit vers le BAS, d'ou le signe.
+  //
+  // Elle est volontairement orientee VERS L'OBSERVATEUR (z dominant). Une
+  // lumiere rasante donnait un ndl de 0,31 sur toutes les zones plates, donc
+  // un cumulus gris de bout en bout — des nuages d'orage. Avec z dominant, le
+  // plat est PLEINEMENT eclaire et seuls les flancs qui se detournent et les
+  // plis entre lobes s'assombrissent : blanc eclatant, creux bleutes.
+  const lx = 0.40;
+  const ly = -0.48;
+  const lz = 0.78;
+
   for (let q = 0; q < 4; q++) {
-    const ox = (q % 2) * (S / 2);
-    const oy = Math.floor(q / 2) * (S / 2);
-    const H = S / 2;
+    const ox = (q % 2) * H;
+    const oy = ((q / 2) | 0) * H;
 
-    // Cumulus en chou-fleur : une rangee de lobes a la base + un ou deux
-    // etages au-dessus. Une seule rangee donnerait une pastille horizontale.
-    const lobes: Array<{ x: number; y: number; r: number }> = [];
-    const nBase = rng.int(4, 6);
+    // --- Silhouette : une rangee de gros lobes a la base, un ou deux etages
+    //     au-dessus, puis des sous-lobes accroches sur chaque gros lobe.
+    const lobes: Lobe[] = [];
+    // Rangee de base : elle porte la MASSE et la ligne de flottaison.
+    const nBase = rng.int(5, 7);
     for (let i = 0; i < nBase; i++) {
       const t = nBase === 1 ? 0.5 : i / (nBase - 1);
       const spread = Math.sin(Math.PI * t);
       lobes.push({
-        x: 0.20 + t * 0.60 + rng.range(-0.04, 0.04),
-        y: 0.64 - spread * 0.06,
-        r: 0.085 + spread * rng.range(0.035, 0.075),
+        x: 0.15 + t * 0.70 + rng.range(-0.03, 0.03),
+        y: 0.65 - spread * 0.08,
+        r: 0.105 + spread * rng.range(0.05, 0.095),
       });
     }
+    // Etage superieur : les tours. C'est lui qui donne la hauteur du cumulus.
     const nUp = rng.int(2, 4);
     for (let i = 0; i < nUp; i++) {
       const t = nUp === 1 ? 0.5 : i / (nUp - 1);
       lobes.push({
-        x: 0.30 + t * 0.40 + rng.range(-0.06, 0.06),
-        y: 0.44 + rng.range(-0.05, 0.05),
-        r: 0.095 + rng.range(0.0, 0.075),
+        x: 0.27 + t * 0.46 + rng.range(-0.06, 0.06),
+        y: 0.44 + rng.range(-0.05, 0.04),
+        r: 0.11 + rng.range(0.0, 0.085),
       });
     }
-    // Sommet occasionnel : casse la symetrie.
-    if (rng.next() < 0.7) {
-      lobes.push({ x: rng.range(0.36, 0.64), y: rng.range(0.26, 0.34), r: rng.range(0.08, 0.13) });
+    if (rng.next() < 0.85) {
+      lobes.push({ x: rng.range(0.34, 0.66), y: rng.range(0.24, 0.33), r: rng.range(0.10, 0.16) });
+    }
+    // Sous-lobes. GROS et peu nombreux : le premier reglage en mettait deux a
+    // trois par lobe majeur, a 40 % de leur rayon. Resultat, du pop-corn — une
+    // grappe de petites bosses qui detruisait la silhouette d'ensemble au lieu
+    // de l'enrichir. Un cumulus se lit d'abord a sa MASSE ; le detail ne doit
+    // jamais concurrencer le contour general.
+    const major = lobes.length;
+    for (let i = 0; i < major; i++) {
+      if (rng.next() < 0.45) continue;
+      const l = lobes[i];
+      const a = rng.range(0, Math.PI * 2);
+      const dr = l.r * rng.range(0.45, 0.70);
+      lobes.push({
+        x: l.x + Math.cos(a) * dr,
+        y: l.y + Math.sin(a) * dr * 0.6,
+        r: l.r * rng.range(0.58, 0.82),
+      });
     }
 
+    // --- Passe 1 : le champ de densite.
+    const seed = rng.range(0, 500);
     for (let y = 0; y < H; y++) {
+      const v = y / H;
       for (let x = 0; x < H; x++) {
         const u = x / H;
-        const v = y / H;
-        let field = 0;
-        for (const l of lobes) {
+        let f = 0;
+        for (let i = 0; i < lobes.length; i++) {
+          const l = lobes[i];
           const dx = (u - l.x) / l.r;
           const dy = (v - l.y) / l.r;
-          field += Math.exp(-(dx * dx + dy * dy) * 1.15);
+          f += blob(dx * dx + dy * dy);
         }
-        // Base franche : on coupe net sous la ligne de flottaison.
-        const floorCut = 1 - Math.max(0, (v - 0.74) / 0.06);
-        let a = Math.min(1, Math.max(0, (field - 0.52) * 5.0)) * Math.max(0, floorCut);
+        // Deformation du contour : sans elle, chaque bord reste un arc de
+        // cercle parfait et l'oeil lit la construction geometrique.
+        // Deformation BASSE frequence seulement. A 22 cycles la texture
+        // grumelait le contour au lieu de l'irregulariser.
+        f += (valueNoise2D(u * 5.5 + seed, v * 5.5) - 0.5) * 0.30;
+        f += (valueNoise2D(u * 12.0 + seed, v * 12.0) - 0.5) * 0.09;
+        field[y * H + x] = f;
+      }
+    }
+
+    // --- Passe 2 : normale par differences finies, puis eclairage.
+    for (let y = 0; y < H; y++) {
+      const v = y / H;
+      for (let x = 0; x < H; x++) {
+        const i0 = y * H + x;
+        const f = field[i0];
+
+        // Base franche : un cumulus a un fond PLAT, c'est ce qui le distingue
+        // d'un cumulonimbus ou d'un simple paquet de coton.
+        const floorCut = 1 - Math.max(0, (v - 0.76) / 0.05);
+        let a = Math.min(1, Math.max(0, (f - 0.36) * 2.2)) * Math.max(0, floorCut);
         a = a * a * (3 - 2 * a);
 
-        // Rouge = terme d'eclairage, alpha = couverture. La couleur est
-        // recomposee dans le shader (cf. commentaire ci-dessus).
-        const lit = Math.min(1, Math.max(0, (0.72 - v) * 2.6 + 0.55));
-        const i = ((oy + y) * S + (ox + x)) * 4;
-        d[i] = lit * 255;
-        d[i + 1] = 255;
-        d[i + 2] = 255;
-        d[i + 3] = a * 255;
+        const xm = x > 0 ? field[i0 - 1] : f;
+        const xp = x < H - 1 ? field[i0 + 1] : f;
+        const ym = y > 0 ? field[i0 - H] : f;
+        const yp = y < H - 1 ? field[i0 + H] : f;
+        // Le gradient du champ EST la pente du relief apparent. On l'inverse :
+        // le champ monte vers l'interieur du nuage, la surface s'y bombe.
+        // Amplitude du relief apparent. Reglee entre deux ecueils : a 3,2 avec
+        // des sous-lobes serres, chaque bosse devenait dure et le nuage
+        // ressemblait a un cerveau ; a 1,4 l'interieur redevenait un aplat.
+        let nx = (xm - xp) * 2.6;
+        let ny = (ym - yp) * 2.6;
+        const nz = 1.0;
+        const inv = 1 / Math.hypot(nx, ny, nz);
+        nx *= inv;
+        ny *= inv;
+        const nzn = nz * inv;
+
+        const ndl = nx * lx + ny * ly + nzn * lz;
+        // Eclairage enveloppant : un nuage est un milieu diffusant, sa face a
+        // l'ombre reste claire. Un Lambert brut le rendrait sale.
+        let lit = ndl * 0.80 + 0.28;
+        // Occlusion verticale : le dessous d'un cumulus est toujours plus
+        // sombre que son sommet, meme la ou la normale dit le contraire — la
+        // lumiere du ciel n'y arrive plus. C'est ce terme qui pose le nuage.
+        lit *= 0.82 + 0.18 * (1 - v);
+        lit = Math.min(1, Math.max(0, lit));
+
+        const j = ((oy + y) * S + (ox + x)) * 4;
+        d[j] = lit * 255;
+        // Vert = epaisseur normalisee, lue par le shader pour le lisere.
+        d[j + 1] = Math.min(1, Math.max(0, (f - 0.34) * 1.5)) * 255;
+        d[j + 2] = 255;
+        d[j + 3] = a * 255;
       }
     }
   }
@@ -96,9 +215,9 @@ function makeCloudAtlas(): CanvasTexture {
 export class Clouds {
   readonly mesh: Mesh;
   private mat: ShaderMaterial;
-  readonly span = 2400;
+  readonly span = 2600;
 
-  constructor(count = 46) {
+  constructor(count = 64, res = 768) {
     const base = new PlaneGeometry(1, 1);
     const geo = new InstancedBufferGeometry();
     geo.index = base.index;
@@ -112,19 +231,42 @@ export class Clouds {
     const rng = new Rng(77);
 
     for (let i = 0; i < count; i++) {
-      // Les nuages se concentrent sur la bande d'horizon, pas au zenith.
-      const z = -rng.range(140, this.span);
-      const depth = -z / this.span;
-      off[i * 3] = rng.range(-1500, 1500);
-      off[i * 3 + 1] = rng.range(30, 130) + depth * 55;
+      // Trois plans. La proportion compte plus que les tailles : c'est le banc
+      // d'horizon qui donne l'echelle du monde, et il doit dominer.
+      const band = i / count;
+      let z: number;
+      let y: number;
+      let s: number;
+      if (band < 0.30) {
+        // Banc d'horizon : quelques masses enormes, posees sur la ligne. Un
+        // tiers des nuages, pas la moitie : a 46 % elles formaient un mur
+        // continu qui masquait la ville et bouchait tout le fond.
+        z = -rng.range(this.span * 0.62, this.span);
+        y = rng.range(120, 260);
+        s = rng.range(460, 860);
+      } else if (band < 0.82) {
+        // Couche mediane : le gros du ciel.
+        z = -rng.range(this.span * 0.24, this.span * 0.68);
+        y = rng.range(90, 260);
+        s = rng.range(230, 480);
+      } else {
+        // Quelques nuages proches et hauts : ils passent au-dessus du joueur
+        // et donnent la vitesse. Sans eux le ciel est une image fixe.
+        z = -rng.range(180, this.span * 0.30);
+        y = rng.range(210, 430);
+        s = rng.range(120, 280);
+      }
+      off[i * 3] = rng.range(-1900, 1900);
+      off[i * 3 + 1] = y;
       off[i * 3 + 2] = z;
 
-      const s = rng.range(110, 300) * (0.55 + depth * 0.85);
       scl[i * 2] = s;
-      scl[i * 2 + 1] = s * rng.range(0.62, 0.82);
+      // Cumulus plus large que haut, toujours. Un carre lit comme un ballon.
+      scl[i * 2 + 1] = s * rng.range(0.50, 0.70);
 
       misc[i * 3] = rng.int(0, 3);
-      misc[i * 3 + 1] = rng.range(0.78, 1.0);
+      // Le banc lointain reste transparent : c'est un fond, pas un sujet.
+      misc[i * 3 + 1] = band < 0.30 ? rng.range(0.55, 0.78) : rng.range(0.82, 1.0);
       misc[i * 3 + 2] = rng.range(0, 100);
     }
 
@@ -137,13 +279,15 @@ export class Clouds {
       depthWrite: false,
       fog: false,
       uniforms: {
-        uMap: { value: makeCloudAtlas() },
+        uMap: { value: makeCloudAtlas(res) },
         uTime: { value: 0 },
         uOrigin: { value: new Vector3() },
         uSpan: { value: this.span },
         uHorizon: { value: vec3('skyHorizon') },
         uCore: { value: vec3('cloudCore') },
         uShadow: { value: vec3('cloudShadow') },
+        uRim: { value: vec3('cloudRim') },
+        uSun: { value: SUN_DIR.clone() },
       },
       vertexShader: /* glsl */ `
         attribute vec3 iOffset;
@@ -154,6 +298,7 @@ export class Clouds {
         varying vec2 vUv;
         varying float vOpacity;
         varying float vDepth;
+        varying vec3 vDir;
 
         void main(){
           // Repli du champ devant la camera : les nuages ne s'epuisent jamais.
@@ -179,27 +324,48 @@ export class Clouds {
 
           vDepth = clamp((uOrigin.z - o.z) / uSpan, 0.0, 1.0);
           vOpacity = iMisc.y;
+          vDir = normalize(pos - cameraPosition);
 
           gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: /* glsl */ `
         uniform sampler2D uMap;
-        uniform vec3 uHorizon, uCore, uShadow;
+        uniform vec3 uHorizon, uCore, uShadow, uRim, uSun;
         varying vec2 vUv;
         varying float vOpacity;
         varying float vDepth;
+        varying vec3 vDir;
 
         void main(){
           vec4 t = texture2D(uMap, vUv);
           if (t.a < 0.01) discard;
-          // Blanc franc sur les sommets, teinte froide sous les lobes.
-          vec3 c = mix(uShadow, uCore, t.r);
-          // Les nuages lointains se dissolvent dans la brume d'horizon.
-          c = mix(c, uHorizon, vDepth * 0.42);
-          float a = t.a * vOpacity * (1.0 - vDepth * 0.22);
+
+          // Ombrage volumetrique precalcule dans le canal rouge, mais durci
+          // ici : la courbe compte autant que le calcul. Un melange lineaire
+          // entre ombre et lumiere donne un nuage laiteux.
+          float lit = smoothstep(0.10, 0.96, t.r);
+          vec3 c = mix(uShadow, uCore, lit);
+
+          // --- Lisere argente. La ou le nuage est MINCE (canal vert bas mais
+          // couverture encore franche), la lumiere le traverse. C'est le
+          // detail qui separe un cumulus d'une tache blanche.
+          // Fenetre ETROITE : le premier reglage allumait un lisere sur tout
+          // le pourtour de chaque nuage, et l'ensemble virait au dessin au
+          // neon. Un lisere ne se voit que sur les quelques pixels ou le nuage
+          // est vraiment mince.
+          float thin = (1.0 - smoothstep(0.02, 0.20, t.g)) * smoothstep(0.12, 0.60, t.a);
+          // Plus fort du cote du soleil : un contre-jour ne s'allume pas
+          // uniformement sur tout le pourtour.
+          float back = max(dot(normalize(vDir), normalize(uSun)), 0.0);
+          c += uRim * thin * (0.10 + back * 0.85);
+
+          // Les nuages lointains se dissolvent dans la brume d'horizon. A 50 %
+          // le banc du fond devenait invisible : il n'a plus de blanc a lui.
+          c = mix(c, uHorizon, vDepth * 0.30);
+          float a = t.a * vOpacity * (1.0 - vDepth * 0.20);
           // Fondu d'apparition en fond de zone : jamais de pop.
-          a *= smoothstep(1.0, 0.86, vDepth);
+          a *= smoothstep(1.0, 0.88, vDepth);
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

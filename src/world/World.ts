@@ -33,7 +33,12 @@ export class World {
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
     const dense = quality !== 'low';
     this.ground = new Ground(dense);
-    this.clouds = new Clouds(quality === 'high' ? 46 : 26);
+    // L'atlas est genere au boot pixel par pixel : sa resolution est le seul
+    // poste de chargement du jeu. 768 sur machine confortable, 512 sinon.
+    this.clouds = new Clouds(
+      quality === 'high' ? 72 : quality === 'medium' ? 56 : 38,
+      quality === 'low' ? 512 : 768,
+    );
     this.boosters = new Boosters(dense ? 6 : 5);
     this.rings = new Rings(dense ? 8 : 6);
 

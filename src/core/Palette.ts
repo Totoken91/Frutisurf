@@ -6,12 +6,24 @@ import { Color } from 'three';
  * Ne pas inventer de couleur ailleurs dans le projet.
  */
 export const HEX = {
-  skyZenith: 0x12d6ee,
-  skyMid: 0x15cee8,
-  skyHorizon: 0x5fe0f2,
+  // Le ciel a ete REPRIS sur les references Frutiger Aero apportees par la
+  // suite : elles ont toutes la meme signature, un azur profond et sature au
+  // zenith qui blanchit franchement vers l'horizon. La version d'avant etait
+  // cyan de haut en bas, donc plate : sans ecart de valeur entre le haut et le
+  // bas du cadre, le ciel ne fait pas de profondeur et les nuages n'ont rien
+  // sur quoi se detacher.
+  skyZenith: 0x0d6fe0,
+  skyHigh: 0x1c9ce9,
+  skyMid: 0x4cc4f2,
+  skyHorizon: 0xc6ecfa,
   cloudCore: 0xffffff,
-  cloudShadow: 0xb2d2eb,
+  /** Sous-face des lobes : bleu franc, pas gris. Un cumulus n'a pas d'ombre neutre. */
+  cloudShadow: 0x7db0dc,
+  /** Lisere argente sur les bords fins, la ou la lumiere traverse le nuage. */
+  cloudRim: 0xeaf8ff,
 
+  /** Ligne d'arbres a la base de la ville : le vert le plus sombre du projet. */
+  treeLine: 0x1f7a49,
   grassHorizon: 0x8cff84,
   grassFar: 0x75fc85,
   grassMid: 0x48fd76,
