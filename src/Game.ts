@@ -73,7 +73,7 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
     this.world = new World(this.engine.scene, this.engine.renderer, this.engine.quality);
-    this.surfer = new Surfer(this.engine.scene);
+    this.surfer = new Surfer(this.engine.scene, this.engine.quality === 'low');
     this.input = new Input(canvas);
 
     this.spray = new Spray(this.engine.quality === 'low' ? 380 : 760);
@@ -424,14 +424,26 @@ export class Game {
     this.yaw += (targetYaw - this.yaw) * Math.min(1, dt * (c.airborne ? 22 : 9));
     s.rig.rotation.y = this.yaw;
 
-    // Banking : le haut du buddy part DANS le virage.
-    s.tilt.rotation.z = -c.lean.value;
+    // Le roulis n'est plus porte par le groupe commun : le disque et le buddy
+    // ont chacun le leur, avec des raideurs differentes (cf. Surfer.animate).
+    s.animate(dt, {
+      lean: c.lean.value,
+      steer: c.steer.value,
+      speedN: c.speedNorm,
+      airborne: c.airborne,
+      vy: c.vy,
+      time: this.time,
+    });
+
     // En l'air le disque pique du nez ; en plane il se cabre pour porter.
     const airPitch = c.gliding ? -0.24 : c.airborne ? 0.18 : 0;
     s.tilt.rotation.x += (airPitch - s.tilt.rotation.x) * Math.min(1, dt * 7);
 
-    // Rotation propre du CD : elle monte avec la vitesse et la charge.
-    s.disc.group.rotation.y += (2.2 + c.speedNorm * 5.0 + c.carveCharge * 4.0) * (1 / 60);
+    // Rotation propre du CD : elle monte avec la vitesse et la charge. Ecrite
+    // APRES animate(), qui ne touche qu'aux axes x et z du disque.
+    // Multipliee par dt et non par 1/60 : la vitesse de rotation ne doit pas
+    // dependre de la cadence d'affichage.
+    s.disc.group.rotation.y += (2.2 + c.speedNorm * 5.0 + c.carveCharge * 4.0) * dt;
 
     // Squash & stretch. Au sol, l'elan du saut COMPRIME le buddy : c'est le
     // seul retour visuel qui dit qu'on est en train d'armer.

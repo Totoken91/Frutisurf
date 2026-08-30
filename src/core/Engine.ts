@@ -5,6 +5,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
 } from 'three';
+import { col } from './Palette';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -57,6 +58,26 @@ export class Engine {
       alpha: false,
     });
     this.renderer.outputColorSpace = SRGBColorSpace;
+
+    // --- LA couleur qui manquait.
+    //
+    // Le joueur signalait des flashs noirs que la sonde n'a jamais reproduits :
+    // deux mille images sur le profil telephone, avec rafales de
+    // redimensionnement, rotations, passages en arriere-plan et une perte de
+    // contexte provoquee — zero image noire. Le rendu ne devient donc jamais
+    // noir. Ce qui devient noir, c'est le FOND DU TAMPON.
+    //
+    // Par defaut la couleur d'effacement est le noir, et le contexte est cree
+    // en `alpha: false`, donc le canvas est OPAQUE : le fond CSS cyan pose plus
+    // tot ne pouvait structurellement jamais se voir. Des qu'une image ne
+    // recouvre pas tout l'ecran — contexte perdu et re-cree, tampon
+    // reattribue apres un changement de taille, trou du compositeur entre deux
+    // images — c'est ce noir-la qui s'affiche.
+    //
+    // La couleur d'effacement correcte n'a jamais ete le noir : c'est le ciel.
+    // Le dome le recouvre en temps normal, donc ca ne coute rien, et le jour ou
+    // il manque on voit du ciel au lieu d'un trou.
+    this.renderer.setClearColor(col('skyHorizon'), 1);
     // Neutral (Khronos PBR Neutral) au lieu d'ACES : ACES desature violemment
     // les cyans et verts quasi hors-gamut de la reference et rend l'image pastel.
     this.renderer.toneMapping = NeutralToneMapping;

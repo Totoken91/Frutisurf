@@ -182,7 +182,8 @@ npm run check          # le carve doit payer plus qu'une ligne droite
 npm run check:air      # élan, timing, plané, économie de boost
 npm run check:input    # clavier ET tactile arment puis déclenchent le saut
 npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
-npm run check:flicker  # aucune frame noire sur une partie complète
+npm run check:flicker         # aucune frame noire sur une partie complète
+npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 ```
 
 ## 8. Aucune frame noire
@@ -201,6 +202,33 @@ Quatre mécanismes peuvent noircir un canvas WebGL. Les quatre sont fermés :
 | Perte de contexte GPU | sans `preventDefault`, le navigateur ne restaure jamais le contexte | `webglcontextlost` / `webglcontextrestored` gérés ; la boucle saute le rendu tant que le contexte est perdu |
 | Changement de qualité | `setPixelRatio` redimensionne le tampon, le composer restait à l'ancienne taille | le repli de qualité repasse par `apply(true)` |
 
-Et un filet de sécurité qui couvre tout le reste : `#stage` porte un fond CSS
-cyan. Chaque fois que le compositeur peint le canvas sans son tampon WebGL, il
-peint du ciel, plus du noir.
+### La vraie cause : la couleur d'effacement
+
+Ces quatre fermetures n'ont pas suffi — le joueur voyait toujours des flashs
+noirs. `npm run check:flicker:mobile` a tranché : il se fait passer pour un
+iPhone (donc `detectQuality()` renvoie `low`, un tout autre pipeline : pas de
+SMAA, bloom en noyau moyen, atlas de nuages en 512), joue dans une fenêtre
+minuscule pour monter en cadence, et agresse pendant deux minutes — rafales de
+redimensionnement, rotations, passages en arrière-plan, perte de contexte
+provoquée.
+
+**Deux mille images, zéro image noire, zéro image sombre.** Le rendu ne devient
+donc jamais noir. Ce qui devient noir, c'est **le fond du tampon**.
+
+Par défaut la couleur d'effacement d'un `WebGLRenderer` est le noir, et le
+contexte est créé en `alpha: false` — le canvas est donc **opaque**, et le fond
+CSS cyan posé au tour précédent ne pouvait structurellement jamais se voir.
+Chaque fois qu'une image ne recouvre pas tout l'écran — contexte perdu puis
+recréé, tampon réattribué après un changement de taille, trou du compositeur
+entre deux images — c'est ce noir-là qui s'affiche.
+
+La couleur d'effacement correcte n'a jamais été le noir : **c'est le ciel**. Le
+dôme le recouvre en temps normal, donc le changement ne coûte rien, et le jour
+où il manque on voit du ciel au lieu d'un trou.
+
+En complément, le chemin téléphone a été allégé pour rendre la perte de
+contexte moins probable : la **transmission** du verre est désactivée en
+qualité `low`. Elle coûtait un rendu de scène complet par image — three.js
+redessine tout l'opaque dans une cible dédiée pour que le verre ait quelque
+chose à réfracter — pour un apport marginal à 0,18. Elle est remplacée par une
+simple opacité.

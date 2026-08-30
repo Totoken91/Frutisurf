@@ -371,6 +371,40 @@ s'inverse instantanément. Course ramenée à **20 %** de la largeur, courbe exp
 adoucie de 1,35 à 1,20 — combinée au manche collant, l'ancienne mangeait trop
 des petits déplacements, ceux dont on se sert le plus.
 
+## 4 septies. Deux corps, deux animations
+
+Tant que le buddy et le disque partageaient exactement la même rotation, ils ne
+formaient qu'un seul objet rigide : un bibelot qu'on déplace, pas un personnage
+qui surfe. Ils ont désormais chacun leurs ressorts, et ce sont les **écarts de
+raideur** qui font tout — des raideurs égales redonneraient un bloc, quel que
+soit le nombre de ressorts empilés.
+
+| | Raideur ω | Amplitude | Rôle |
+|---|---|---|---|
+| roulis du disque | 19 | ×0,68 | la carre mord, tout de suite |
+| roulis du buddy | 7,5 | ×0,62 | il part en retard et se redresse après |
+| appui latéral | 9 | 0,085 | il s'appuie vers l'**extérieur** du virage |
+| ballant vertical | 12 | ±0,10 | il encaisse les chocs un temps après le disque |
+
+Le disque bascule **plus** que le buddy, pas moins : c'est la carre qui mord, le
+rider reste relativement droit au-dessus. L'inverse donnait un bonhomme penché
+sur une planche à plat, ce qui se lit comme une chute.
+
+L'appui latéral va vers l'extérieur, comme un passager en voiture. Vers
+l'intérieur, il aurait l'air de piloter le disque au lieu d'être porté par lui.
+
+S'y ajoute une **précession** sur le disque, deux sinusoïdes de fréquences
+volontairement incommensurables (3,10 et 2,27) : à fréquences proches, le motif
+se répète à l'œil au bout de quelques secondes et trahit la boucle.
+
+L'écart vertical entre les deux volumes n'est pas décoratif — il **fixe le
+roulis maximal du disque**. À 1,1 de rayon et 26° de bascule, le bord haut
+atteint 0,48 : au-delà, la carre traverse le personnage. C'est ce calcul qui a
+fixé l'écart à 0,55 et le roulis à 0,68.
+
+L'ensemble est agrandi d'un sixième : le sujet occupait trop peu de place à
+l'écran pour qu'on lise ces décalages.
+
 ## 5. Le saut
 
 ```

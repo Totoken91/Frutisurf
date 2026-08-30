@@ -100,14 +100,20 @@ function bodyProfile(): Vector2[] {
  * normalise sur la hauteur LOCALE de chaque volume, pour que la tete et le
  * buste balaient chacun toute la plage azur -> cyan, comme sur la reference.
  */
-function glassMaterial(yMin: number, yMax: number): MeshPhysicalMaterial {
+function glassMaterial(yMin: number, yMax: number, lowPower: boolean): MeshPhysicalMaterial {
   const m = new MeshPhysicalMaterial({
     color: 0xffffff, // neutralise : le degrade injecte pilote la couleur
     // La reference est bien plus OPAQUE qu'un verre creux : le vert ne
     // traverse qu'en lisiere et sous la base. Une transmission forte
     // effacait la couleur propre du personnage.
-    transmission: 0.18,
-    thickness: 0.7,
+    // La transmission coute UN RENDU DE SCENE COMPLET par image : three.js
+    // redessine tout l'opaque dans une cible dediee pour que le verre ait
+    // quelque chose a refracter. Sur telephone c'est le poste le plus cher du
+    // jeu — et a 0,18 son apport est marginal. On l'echange contre une simple
+    // opacite, qui garde la translucidite sans la passe.
+    transmission: lowPower ? 0 : 0.18,
+    opacity: lowPower ? 0.93 : 1,
+    thickness: lowPower ? 0 : 0.7,
     ior: 1.45,
     roughness: 0.05,
     metalness: 0,
@@ -198,12 +204,12 @@ export class Buddy {
   readonly body: Mesh;
   readonly head: Mesh;
 
-  constructor() {
-    this.body = new Mesh(new LatheGeometry(bodyProfile(), 72), glassMaterial(0, BODY_H));
+  constructor(lowPower = false) {
+    this.body = new Mesh(new LatheGeometry(bodyProfile(), 72), glassMaterial(0, BODY_H, lowPower));
 
     this.head = new Mesh(
       new SphereGeometry(HEAD_R, 56, 40),
-      glassMaterial(-HEAD_R, HEAD_R),
+      glassMaterial(-HEAD_R, HEAD_R, lowPower),
     );
     this.head.position.y = HEAD_Y;
 
