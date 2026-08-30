@@ -19,6 +19,7 @@ src/
 ├── core/
 │   ├── Engine.ts            renderer, scène, caméra, composer, resize, PMREM
 │   ├── Input.ts             clavier + tactile + gamepad → un axe unifié
+│   ├── Run.ts               structure de partie : chrono, record, relance
 │   ├── Spring.ts            ressorts amortis (le socle de tout le feeling)
 │   ├── Noise.ts             valeur/Perlin/FBM pour CPU et GLSL
 │   └── Palette.ts           la palette du doc 01, source unique de vérité
@@ -29,7 +30,8 @@ src/
 │   ├── Clouds.ts            champ de billboards
 │   ├── Ground.ts            grille en éventail déplacée par Terrain
 │   ├── City.ts              skyline de cristal
-│   └── Boosters.ts          colonnes de vitesse, semées en chaîne
+│   ├── Boosters.ts          colonnes de vitesse, semées en chaîne
+│   └── Rings.ts             anneaux de verre à franchir (bas et hauts)
 ├── player/
 │   ├── Buddy.ts             le bonhomme MSN en verre
 │   ├── Disc.ts              le CD + shader de diffraction
@@ -42,7 +44,7 @@ src/
 │   ├── ShockRing.ts         anneaux d'impact
 │   └── CameraRig.ts         ressort, FOV, roll, bruit, shake
 ├── hud/
-│   └── Gauges.ts            vitesse + jauge de boost (DOM)
+│   └── Hud.ts               chrono, score, record, jauges, popups, fin (DOM)
 ├── audio/
 │   └── Audio.ts             synthèse WebAudio
 ├── world/World.ts           assemblage du décor + lumières
@@ -172,8 +174,33 @@ l'audio.
 ## 7. Commandes
 
 ```bash
-npm run dev       # serveur HMR
-npm run build     # bundle de prod dans dist/
-npm run preview   # sert le bundle de prod
-npm run shot      # capture Playwright pour comparer à la référence
+npm run dev            # serveur HMR
+npm run build          # bundle de prod dans dist/
+npm run preview        # sert le bundle de prod
+npm run shot           # capture Playwright pour comparer à la référence
+npm run check          # le carve doit payer plus qu'une ligne droite
+npm run check:air      # élan, timing, plané, économie de boost
+npm run check:input    # clavier ET tactile arment puis déclenchent le saut
+npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
+npm run check:flicker  # aucune frame noire sur une partie complète
 ```
+
+## 8. Aucune frame noire
+
+Le joueur voyait « flicker noir parfois ». Un flash d'une seule frame ne se
+capture pas à la capture d'écran : `scripts/flicker-check.mjs` lit le tampon de
+dessin **après chaque rendu** (quatre pixels, luminance maximale) et signale
+toute frame dont le maximum est proche de zéro.
+
+Quatre mécanismes peuvent noircir un canvas WebGL. Les quatre sont fermés :
+
+| Cause | Ce qui se passait | Fermeture |
+|---|---|---|
+| NaN dans la chaîne de post | un seul pixel NaN, moyenné par le bloom à chaque mipmap, noircit **toute** l'image | pare-feu en dernière instruction de `SurfEffect` : toute comparaison avec NaN étant fausse, on retombe sur la texture d'entrée ; `atan(0,0)` et `normalize(vec3(0))` gardés à la source, `uCenter` borné côté CPU |
+| Rafales de redimensionnement | la barre d'adresse mobile émet dix `resize` d'affilée, chacun réallouait toutes les cibles du composer | `Engine.apply()` ignore les tailles inchangées, borne à 1 px minimum, et ne s'exécute qu'une fois par frame |
+| Perte de contexte GPU | sans `preventDefault`, le navigateur ne restaure jamais le contexte | `webglcontextlost` / `webglcontextrestored` gérés ; la boucle saute le rendu tant que le contexte est perdu |
+| Changement de qualité | `setPixelRatio` redimensionne le tampon, le composer restait à l'ancienne taille | le repli de qualité repasse par `apply(true)` |
+
+Et un filet de sécurité qui couvre tout le reste : `#stage` porte un fond CSS
+cyan. Chaque fois que le compositeur peint le canvas sans son tampon WebGL, il
+peint du ciel, plus du noir.

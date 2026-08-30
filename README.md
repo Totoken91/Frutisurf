@@ -7,9 +7,10 @@ Une expérience WebGL temps réel qui reconstruit — et fait vivre — l'esthé
 **Frutiger Aero** : verre, gloss, nature + technologie, bloom, et cette lumière
 de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
 
-Deux jauges a l'ecran, pas une de plus : la vitesse et le boost. Tout le
-reste du retour est diegetique — un son pour les cretes, la couleur pour la
-charge, l'image qui sature avec le combo.
+**Une partie dure 30 secondes.** Chaque anneau de verre franchi t'en rend
+trois, chaque colonne de vitesse une, chaque tour complet en l'air presque une.
+Le sablier accélère : à toi de tenir. Le record est gardé, la relance est
+instantanée.
 
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
@@ -32,7 +33,21 @@ npm run dev     # http://localhost:5173
 | Diriger | `←` `→` / `A` `D` | glisser le doigt posé | stick gauche |
 | Armer / sauter | maintenir puis **relâcher** `Espace` | **poser le doigt**, puis lever | `A` |
 | Planer | re-maintenir après l'apex | reposer le doigt en vol | `A` |
+| Vriller | direction à fond **en l'air** | glisser à fond en vol | stick à fond |
 | Boost | `Maj` | deux doigts | `RT` |
+| Rejouer | n'importe quelle touche | tap | `A` |
+
+**Les anneaux de verre** sont l'objectif. Les **cyans** sont plantés dans
+l'herbe : on les enfile en glissant, ils rendent 3 s. Les **violets** flottent à
+9 m : il faut un saut armé et bien timé, ils rendent 4 s et paient le double. La
+couleur te dit s'il faut sauter avant que tu aies jugé la hauteur.
+
+**Les vrilles** : tiens la direction à fond en l'air, un tour prend 0,65 s. Seuls
+les tours complets comptent, et ils paient en carré — deux tours valent quatre
+fois un tour. Mais vriller **étouffe le contrôle latéral** : le disque présente
+sa tranche, il ne mord plus l'air. Tourner, c'est renoncer à corriger sa
+trajectoire. Astuce : vrille **du côté** de l'anneau suivant, la figure et la
+visée vont alors dans le même sens.
 
 **Les colonnes ambre** plantées dans la plaine donnent une poussée immédiate et
 rechargent la jauge. Elles sont semées en slalom : les enchaîner demande de

@@ -248,6 +248,90 @@ recharge passive seule ne suit pas : elle sert de plancher pour ne jamais rester
 bloqué, pas de source. Mesuré à dépense égale, un pilote qui enchaîne les
 figures gagne **plus du double** de boost qu'un pilote qui roule tout droit.
 
+## 4 quinquies. La structure de partie
+
+Le jeu avait de la glisse, des figures et une jauge — mais **aucun objectif**.
+On roulait joliment sans jamais avoir de raison de tourner ici plutôt que là,
+et sans jamais pouvoir perdre. Or sans enjeu, pas de tension ; sans tension,
+aucune raison de relancer.
+
+### Le chrono, seul enjeu
+
+Une partie démarre avec **30 s**, plafonnées à 45 s. On ne meurt jamais d'un
+choc — rien ne casse la glisse, c'est le contrat artistique du projet. On meurt
+de ne plus avoir de temps.
+
+Le sablier **accélère** : ×1 au départ, ×2,4 au bout de 140 s. Sans cette
+montée, le pilote automatique du test tenait cinq minutes et se serait arrêté
+de fatigue ; le score cessait d'être une performance pour devenir une mesure de
+patience. La maîtrise allonge le run, elle ne le rend pas éternel.
+
+### Les anneaux
+
+Semés en chaîne devant le joueur, comme les colonnes, tous les 64 à 98 m. Deux
+hauteurs, et c'est tout le design :
+
+| | Centre | Rend | Vaut | Ce qu'il demande |
+|---|---|---|---|---|
+| Anneau bas | sol + 3,6 m | 3,0 s | 220 × mult | un déplacement latéral |
+| Anneau haut | sol + 9,0 m | 4,0 s | 400 × mult | lire le relief, armer, viser |
+
+L'anneau bas est **planté dans l'herbe** : son bas passe 1,8 m sous la surface.
+Posé juste au-dessus du sol, il aurait fallu un petit saut pour l'enfiler, et le
+rythme de base ne serait plus la glisse mais le saut. Enterré, on l'enfile en
+roulant, avec 3,3 m de marge latérale.
+
+Deux anneaux hauts d'affilée sont interdits : on ne peut pas réarmer un saut
+assez vite, et rater le second serait une punition subie et non méritée.
+
+Rater un anneau ne coûte **rien** d'autre que le temps qu'il aurait rendu — pas
+de buzzer, pas de combo cassé. Le son du raté est une note sourde, pas une
+faute : le chrono est déjà la punition.
+
+### Les vrilles
+
+Tenir la direction **à fond** en l'air fait tourner le disque, un tour en 0,65 s.
+Seuls les tours **complets** comptent, et ils paient en carré : un tour vaut 220,
+deux tours en valent 880. C'est ce qui pousse à chercher LE grand saut plutôt
+qu'à enchaîner des demi-sauts.
+
+Le même geste dirige et vrille. C'est voulu : viser sa réception et faire un
+tour deviennent le même arbitrage, une décision au lieu d'une touche de plus.
+Et vriller **du côté** de l'anneau suivant fait avancer les deux à la fois —
+c'est la ligne de jeu que le mécanisme récompense.
+
+Mais une vrille engagée **étouffe le contrôle latéral** (×0,28) : le disque
+présente sa tranche, il ne mord plus l'air. Sans ce frein, tenir la direction à
+fond expédiait le surfeur hors du couloir en une seconde et vriller devenait
+incompatible avec viser. Avec lui, tourner c'est renoncer à corriger.
+
+Chiffres mesurés par `npm run check:run`, quatre pilotes sur le même terrain :
+
+| Pilote | Survie | Anneaux | Tours | Score |
+|---|---|---|---|---|
+| passif (ne fait rien) | 27 s | 0 | 0 | 632 |
+| chasseur (vise les anneaux) | 170 s | 77 | 2 | 345 000 |
+| sauteur (même profil de saut, sans vrille) | 122 s | 45 | 4 | 98 000 |
+| vrilleur | 120 s | 27 | 63 | 295 000 |
+
+Le sauteur est le **témoin** : comparer le vrilleur au chasseur mélangerait
+deux différences (il saute plus ET il vrille) et ne dirait rien sur la valeur de
+la figure elle-même. À saut égal, vriller triple le score — au prix de 39
+anneaux ratés. C'est l'arbitrage qu'on voulait.
+
+### Le grelottement, corrigé au passage
+
+Le test de partie a mis au jour un défaut invisible à l'œil mais mortel pour les
+figures : **1633 « sauts » en 205 s, 66 ms de vol chacun**. Le décollage naturel
+se déclenchait pile au sommet, là où la pente est nulle, donc avec une vitesse
+verticale quasi nulle. Le surfeur grelottait sur chaque bosse dès que la vitesse
+montait, et toute vrille en cours repartait de zéro avant d'avoir tourné d'un
+dixième de tour.
+
+Deux verrous : une vitesse verticale minimale de 3 m/s pour qu'un décollage
+naturel compte, et 0,35 s d'interdiction après chaque réception. Résultat : 85
+décollages au lieu de 1633, et des vols d'une seconde où une figure tient.
+
 ## 5. Le saut
 
 ```
@@ -300,17 +384,20 @@ Tout démarre au premier geste utilisateur (politique autoplay).
 | Action | Clavier | Tactile | Gamepad |
 |---|---|---|---|
 | Diriger | `←` `→` / `A` `D` | glisser à l'écran | stick gauche |
-| Sauter | `Espace` / `↑` | tap | `A` |
+| Sauter | `Espace` / `↑` | tap (maintenir = armer) | `A` |
+| Vriller | direction à fond en l'air | glisser à fond en l'air | stick à fond |
 | Boost | `Maj` | deux doigts | `RT` |
+| Rejouer | n'importe quelle touche | tap | `A` |
 
 Le tactile est **relatif** (delta de glissement), pas absolu — un joystick virtuel
 absolu casse la fluidité du carve.
 
 ## 9. Critères de recette
 
-Deux vérifications automatiques tiennent ces critères (`npm run check` et
-`npm run check:air`). Elles simulent le contrôleur **sans rendu** : si le
-feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
+Quatre vérifications automatiques tiennent ces critères (`npm run check`,
+`check:air`, `check:input`, `check:run`). Les trois premières simulent le
+contrôleur **sans rendu** : si le feeling dépend d'un effet visuel, c'est que
+les ressorts sont ratés.
 
 `check:air` fait rouler quatre pilotes sur le même terrain — un qui ne saute
 jamais, un qui saute au hasard, un qui saute sur la crête, un qui plane — et

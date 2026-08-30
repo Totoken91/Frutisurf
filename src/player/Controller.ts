@@ -1,7 +1,6 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
 import { terrainHeight } from '../world/Terrain';
 import type { GameState } from '../core/GameState';
-import type { Input } from '../core/Input';
 
 /**
  * La physique de glisse. C'est le fichier le plus important du projet :
@@ -12,6 +11,22 @@ import type { Input } from '../core/Input';
  * desormais : le carve (charge laterale) et le relief (montee puis envol).
  */
 
+/** La part de l'Input que la physique lit. Permet de la geler proprement. */
+export interface SurfInput {
+  steer: number;
+  jumpHeld: boolean;
+  boostHeld: boolean;
+  consumeJump(): boolean;
+}
+
+/** Entree neutre : le surfeur finit sa course sans que le joueur la pilote. */
+export const IDLE_INPUT: SurfInput = {
+  steer: 0,
+  jumpHeld: false,
+  boostHeld: false,
+  consumeJump: () => false,
+};
+
 export interface SurfEvents {
   onPop?: (charge: number, combo: number) => void;
   /** @param timed qualite du timing sur la crete  @param wind charge d'elan */
@@ -21,6 +36,12 @@ export interface SurfEvents {
   /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
   onLipEnter?: () => void;
   onBooster?: (combo: number) => void;
+  /** Anneau franchi. @param high anneau haut, celui qui demande un saut. */
+  onRing?: (high: boolean, combo: number, points: number) => void;
+  /** Anneau manque : sert au retour sonore, aucune penalite. */
+  onRingMiss?: () => void;
+  /** Vrille validee a l'atterrissage. */
+  onTrick?: (turns: number, points: number) => void;
 }
 
 const CORRIDOR = 14;
@@ -28,6 +49,25 @@ const GRAVITY = -22;
 const JUMP_V = 7.4;
 /** Marge d'adherence du disque avant qu'une crete ne le decolle. */
 const GRIP = 1.8;
+
+/**
+ * Vitesse verticale minimale d'un decollage NATUREL.
+ *
+ * Sans ce seuil, le disque quittait le sol pile au sommet — la ou la pente est
+ * nulle, donc avec une vitesse verticale quasi nulle. Resultat mesure par le
+ * test de partie : 1633 "sauts" en 205 secondes, 66 ms de vol chacun. Le
+ * surfeur grelottait sur chaque bosse des que la vitesse montait, et toute
+ * vrille en cours repartait de zero avant d'avoir tourne d'un dixieme de tour.
+ * Sous ce seuil, le disque reste colle a l'herbe.
+ */
+const MIN_LAUNCH_VY = 3.0;
+
+/**
+ * Delai avant qu'une crete puisse redecoller le disque apres une reception.
+ * Le seuil de vitesse verticale seul ne suffisait pas : les bosses se suivent,
+ * et le surfeur repartait en l'air a la frame suivant le contact.
+ */
+const LAUNCH_COOLDOWN = 0.35;
 
 /**
  * Portee du gabarit qui detecte les cretes. A +/-7 m il mesure les collines
@@ -47,6 +87,19 @@ const LIP_CUE = 0.55;
 const COYOTE = 0.13;
 /** Un relachement juste avant l'atterrissage part des le contact. */
 const BUFFER = 0.16;
+
+/**
+ * Vrille aerienne. Le meme geste sert a se deplacer lateralement et a tourner :
+ * c'est volontaire. Viser sa reception et faire un tour deviennent le meme
+ * arbitrage, donc une decision au lieu d'une touche de plus.
+ */
+/** Un tour en 0,65 s a fond de manche : un saut arme normal en vaut un. */
+const SPIN_RATE = Math.PI * 2 * 1.55;
+/** Seuil de declenchement : un micro-mouvement de pouce ne doit pas vriller. */
+const SPIN_LOCK = 0.72;
+
+/** Duree du coup de boost automatique offert par une colonne. */
+const BURST = 1.15;
 
 /**
  * Economie du boost. Ce n'est plus une touche qu'on tient : c'est une
@@ -92,10 +145,24 @@ export class Controller {
   private bufferWind = 0;
   /** La portance ne se prend qu'UNE fois par vol (cf. commentaire plus bas). */
   private liftUsed = false;
+  private launchLock = 0;
 
   /** Jauge de boost, 0..1. Remplie par les figures, videe par le boost. */
   boost = 0.5;
   boosting = false;
+  /**
+   * Coup de boost automatique. Une colonne ramassee POUSSE tout de suite :
+   * remplir une jauge qu'il faut ensuite penser a depenser ne se sent pas au
+   * moment ou l'on prend le plot, et c'est cet instant-la qui doit payer.
+   */
+  private burst = 0;
+
+  /** Vrille accumulee en vol, en radians signes. */
+  spin = 0;
+  /** 0..1 : a quel point la vrille est engagee. Bride le controle lateral. */
+  spinLock = 0;
+  /** Tours complets valides au dernier atterrissage. */
+  lastTurns = 0;
 
   // --- Les deux ressorts qui font tout le feeling.
   readonly steer = new Spring(0, 14, 0.72);
@@ -109,6 +176,11 @@ export class Controller {
   distance = 0;
 
   hitstop = 0;
+  /**
+   * Fin de partie. Le surfeur FINIT sa course au lieu de se figer : couper le
+   * mouvement net donnerait l'impression d'un plantage, pas d'une arrivee.
+   */
+  braking = false;
   private bonus = new Decay(0.45);
   private carveSign = 0;
   private wasCarving = false;
@@ -120,7 +192,13 @@ export class Controller {
   }
 
   private cruise(): number {
+    if (this.braking) return 0;
     return 22 + Math.min(12, this.distance / 260);
+  }
+
+  /** Multiplicateur courant. Une seule formule pour tout le scoring. */
+  get mult(): number {
+    return 1 + this.combo * 0.35;
   }
 
   /**
@@ -131,10 +209,32 @@ export class Controller {
   collectBooster(): void {
     this.bonus.add(11);
     this.reward(0.24);
+    this.burst = BURST;
     this.combo += 1;
     this.comboTimer = 2.6;
-    this.score += 140 * (1 + this.combo * 0.3);
+    this.score += 140 * this.mult;
     this.events.onBooster?.(this.combo);
+  }
+
+  /**
+   * Anneau franchi. L'anneau haut paie presque le double : il demande de lire
+   * le relief, d'armer un saut et de viser, la ou l'anneau au sol ne demande
+   * qu'un deplacement lateral.
+   */
+  collectRing(high: boolean): number {
+    this.bonus.add(high ? 15 : 9);
+    this.reward(high ? 0.34 : 0.20);
+    this.combo += 1;
+    this.comboTimer = 3.0;
+    const points = Math.round((high ? 400 : 220) * this.mult);
+    this.score += points;
+    this.hitstop = Math.max(this.hitstop, high ? 0.05 : 0.03);
+    this.events.onRing?.(high, this.combo, points);
+    return points;
+  }
+
+  missRing(): void {
+    this.events.onRingMiss?.();
   }
 
   /** Les figures rechargent le boost. C'est la seule facon d'en gagner vite. */
@@ -171,7 +271,7 @@ export class Controller {
     }
   }
 
-  step(dt: number, input: Input, boostAllowed = true): void {
+  step(dt: number, input: SurfInput, boostAllowed = true): void {
     this.probeTerrain();
 
     // --- Direction
@@ -199,15 +299,21 @@ export class Controller {
     this.wasCarving = carving;
 
     // --- Vitesse. Le boost consomme la jauge ; a sec, la touche ne fait rien.
-    this.boosting = boostAllowed && input.boostHeld && this.boost > BOOST_MIN;
-    if (this.boosting) this.boost = Math.max(0, this.boost - BOOST_DRAIN * dt);
-    else this.boost = Math.min(1, this.boost + BOOST_REGEN * dt);
+    // Le coup de boost d'une colonne est GRATUIT : il ne vide pas la jauge,
+    // sinon ramasser un plot couterait la ressource qu'il vient d'offrir.
+    if (this.burst > 0) this.burst -= dt;
+    const forced = this.burst > 0;
+    this.boosting = forced || (boostAllowed && input.boostHeld && this.boost > BOOST_MIN);
+    if (this.boosting && !forced) this.boost = Math.max(0, this.boost - BOOST_DRAIN * dt);
+    else if (!this.boosting) this.boost = Math.min(1, this.boost + BOOST_REGEN * dt);
     const target = this.cruise() + (this.boosting ? 13 : 0);
     this.speed += (target - this.speed) * (1 - Math.exp(-2.4 * dt));
 
     // La pente tire ou retient. Coefficient sous la gravite reelle : on veut
     // que le relief se SENTE, pas qu'il dicte la course.
-    if (!this.airborne) this.speed = Math.max(9, this.speed - this.slopeTravel * 16 * dt);
+    if (!this.airborne) {
+      this.speed = Math.max(this.braking ? 0 : 9, this.speed - this.slopeTravel * 16 * dt);
+    }
 
     this.bonus.step(dt);
     const effective = Math.min(60, this.speed + this.bonus.value);
@@ -225,6 +331,7 @@ export class Controller {
     // juste avant de toucher, pour repartir des le contact.
     if (held) this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
     this.sinceGrounded = this.airborne ? this.sinceGrounded + dt : 0;
+    if (this.launchLock > 0) this.launchLock -= dt;
     if (this.bufferTimer > 0) this.bufferTimer -= dt;
 
     if (released) {
@@ -252,10 +359,11 @@ export class Controller {
         // A 1.0 (physique pure) le boost envoyait en l'air 46 % du temps : on
         // ne glissait plus, on rebondissait.
         const needed = -this.curvature * effective * effective;
-        if (needed > -GRAVITY * GRIP) {
+        const rise = this.slopeTravel * effective;
+        if (needed > -GRAVITY * GRIP && rise > MIN_LAUNCH_VY && this.launchLock <= 0) {
           this.airborne = true;
           this.jumpedThisAir = false;
-          this.vy = this.slopeTravel * effective;
+          this.vy = rise;
           this.airTime = 0;
           this.peakY = this.y;
           this.liftUsed = false;
@@ -266,6 +374,13 @@ export class Controller {
 
     if (this.airborne) {
       this.airTime += dt;
+
+      // Vrille. Elle ne part qu'a direction franchement tenue, et sa vitesse
+      // monte avec l'appui : on peut donc corriger sa trajectoire en l'air
+      // sans declencher un tour qu'on n'a pas demande.
+      const lock = clamp((Math.abs(st) - SPIN_LOCK) / (1 - SPIN_LOCK), 0, 1);
+      this.spinLock = lock;
+      if (lock > 0) this.spin += Math.sign(st) * SPIN_RATE * lock * dt;
 
       // Plane : uniquement a partir de l'apex. Declenche des la montee, ca
       // donnerait un saut mou au lieu d'un envol suivi d'un vol.
@@ -301,6 +416,7 @@ export class Controller {
         this.glideTime = 0;
         this.jumpHeldPrev = held;
         this.liftUsed = false;
+        this.launchLock = LAUNCH_COOLDOWN;
         this.land(effective);
 
         // Relachement anticipe : il part des le contact, sans nouvel appui.
@@ -315,11 +431,19 @@ export class Controller {
       this.y = this.groundY;
       this.vy = 0;
       this.glideTime = 0;
+      this.spinLock = 0;
     }
 
     // --- Deplacement. Le controle aerien est PLUS fort qu'au sol : en l'air
     // on n'a que ca pour viser sa reception ou rattraper une colonne.
-    const lateral = st * effective * (this.airborne ? 0.56 : 0.42);
+    //
+    // Mais une vrille engagee l'ETOUFFE : le disque presente sa tranche, il ne
+    // mord plus l'air. C'est l'arbitrage central des figures — tourner, c'est
+    // renoncer a corriger sa trajectoire. Sans ce frein, tenir la direction a
+    // fond pour vriller expediait le surfeur hors du couloir en une seconde et
+    // vriller devenait incompatible avec viser un anneau.
+    const grip = this.airborne ? 0.56 * (1 - 0.72 * this.spinLock) : 0.42;
+    const lateral = st * effective * grip;
     this.x += lateral * dt;
     this.z -= effective * dt;
     this.distance += effective * dt;
@@ -366,6 +490,27 @@ export class Controller {
 
   private land(speed: number): void {
     const impact = clamp(-this.vy / 14, 0, 1.6);
+
+    // --- Figures. On ne compte que les tours COMPLETS : une vrille a moitie
+    // faite ne rapporte rien, mais elle ne coute rien non plus. Punir un
+    // atterrissage de travers rendrait la vrille effrayante alors qu'on veut
+    // qu'elle devienne un reflexe.
+    const turns = Math.floor(Math.abs(this.spin) / (Math.PI * 2));
+    this.lastTurns = turns;
+    if (turns > 0) {
+      // Quadratique : deux tours valent quatre fois un tour. C'est ce qui
+      // pousse a chercher LE grand saut plutot qu'a enchainer des demi-sauts.
+      const points = Math.round(220 * turns * turns * this.mult);
+      this.combo += turns;
+      this.comboTimer = 3.2;
+      this.score += points;
+      this.bonus.add(6 * turns);
+      this.reward(0.16 * turns);
+      this.hitstop = Math.max(this.hitstop, 0.05);
+      this.events.onTrick?.(turns, points);
+    }
+    this.spin = 0;
+
     // Atterrir dans la pente descendante amortit et relance ; a plat ou en
     // montee, ca casse. C'est ce qui pousse a choisir OU retomber.
     const downhill = clamp(-this.slopeTravel * 4.5, 0, 1);
@@ -392,7 +537,7 @@ export class Controller {
     this.comboTimer = 2.6;
     this.bonus.add(9 * c);
     this.hitstop = Math.max(this.hitstop, 0.045);
-    this.score += 120 * c * (1 + this.combo * 0.5);
+    this.score += 120 * c * this.mult;
     // Le slalom est la figure la plus accessible : c'est elle qui doit
     // alimenter le boost au quotidien.
     this.reward(0.11 * c);
@@ -416,6 +561,50 @@ export class Controller {
     s.jumpWind = this.jumpWind;
     s.gliding = this.gliding;
     s.lipFactor = this.airborne ? 0 : this.lipFactor;
+    s.spinTurns = Math.abs(this.spin) / (Math.PI * 2);
+    s.mult = this.mult;
     s.popFlash = lerp(s.popFlash, 0, 0.12);
+  }
+
+  /** Remise a zero pour une nouvelle partie. Aucun etat ne doit survivre. */
+  reset(): void {
+    this.x = 0;
+    this.z = 0;
+    this.y = terrainHeight(0, 0);
+    this.groundY = this.y;
+    this.vy = 0;
+    this.airborne = false;
+    this.gliding = false;
+    this.glideTime = 0;
+    this.airTime = 0;
+    this.jumpWind = 0;
+    this.jumpHeldPrev = false;
+    this.sinceGrounded = 0;
+    this.jumpedThisAir = false;
+    this.bufferTimer = 0;
+    this.bufferWind = 0;
+    this.liftUsed = false;
+    this.launchLock = 0;
+    this.boost = 0.5;
+    this.boosting = false;
+    this.burst = 0;
+    this.spin = 0;
+    this.spinLock = 0;
+    this.lastTurns = 0;
+    this.steer.snap(0);
+    this.lean.snap(0);
+    this.speed = 18;
+    this.carveCharge = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.score = 0;
+    this.distance = 0;
+    this.hitstop = 0;
+    this.braking = false;
+    this.bonus.value = 0;
+    this.carveSign = 0;
+    this.wasCarving = false;
+    this.peakY = this.y;
+    this.lipFactor = 0;
   }
 }

@@ -1,0 +1,235 @@
+import type { GameState } from '../core/GameState';
+import type { Run } from '../core/Run';
+
+/**
+ * Toute l'interface, en DOM.
+ *
+ * DOM plutot que du rendu dans la scene : c'est net a toute densite de pixels,
+ * ca ne coute pas une passe, et surtout ca ne traverse PAS le post-traitement.
+ * Un chiffre qui prendrait le flou radial et l'aberration chromatique serait
+ * illisible exactement quand on en a le plus besoin, a pleine vitesse.
+ *
+ * Regle de lecture : trois zones fixes, et rien d'autre ne bouge.
+ *  - a gauche, l'etat de la machine (vitesse, boost) ;
+ *  - au centre, l'ENJEU (le chrono) ;
+ *  - a droite, la recompense (score, record).
+ * Tout le reste est transitoire et disparait : popups, banniere, multiplicateur.
+ */
+
+const NBSP = ' ';
+
+function money(v: number): string {
+  return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+}
+
+interface Pop {
+  el: HTMLElement;
+  until: number;
+}
+
+export class Hud {
+  private speedVal: HTMLElement;
+  private boostBar: HTMLElement;
+  private boostFill: HTMLElement;
+  private scoreEl: HTMLElement;
+  private bestEl: HTMLElement;
+  private clockEl: HTMLElement;
+  private clockBox: HTMLElement;
+  private multEl: HTMLElement;
+  private bannerEl: HTMLElement;
+  private popRoot: HTMLElement;
+  private overEl: HTMLElement;
+  private hintEl: HTMLElement;
+
+  private acc = 0;
+  private lastBoost = 0;
+  private gainTimer = 0;
+  private bannerTimer = 0;
+  private lastScoreShown = -1;
+  private lastClock = '';
+  private pops: Pop[] = [];
+  private free: HTMLElement[] = [];
+  private now = 0;
+
+  constructor(private root: HTMLElement) {
+    root.innerHTML = `
+      <div class="row">
+        <div class="col">
+          <div class="aero speed">
+            <span class="speedVal" data-el="speed">0</span>
+            <span class="speedUnit">KM/H</span>
+          </div>
+          <div class="aero boost" data-el="boost"><i data-el="fill"></i></div>
+        </div>
+        <div class="clock" data-el="clockBox"><span data-el="clock">30.0</span></div>
+        <div class="col right">
+          <div class="score" data-el="score">0</div>
+          <div class="best" data-el="best"></div>
+        </div>
+      </div>
+      <div class="mult" data-el="mult"></div>
+      <div class="banner" data-el="banner"></div>
+      <div class="pops" data-el="pops"></div>
+      <div class="hint" data-el="hint">
+        maintiens pour armer · relâche au sommet · 2 doigts = boost
+      </div>
+      <div class="over" data-el="over"></div>
+    `;
+    const pick = (n: string): HTMLElement => root.querySelector<HTMLElement>(`[data-el="${n}"]`)!;
+    this.speedVal = pick('speed');
+    this.boostBar = pick('boost');
+    this.boostFill = pick('fill');
+    this.scoreEl = pick('score');
+    this.bestEl = pick('best');
+    this.clockEl = pick('clock');
+    this.clockBox = pick('clockBox');
+    this.multEl = pick('mult');
+    this.bannerEl = pick('banner');
+    this.popRoot = pick('pops');
+    this.overEl = pick('over');
+    this.hintEl = pick('hint');
+  }
+
+  /** Le rappel de commandes s'efface des que le joueur a saute une fois. */
+  dismissHint(): void {
+    this.hintEl.classList.add('gone');
+  }
+
+  /**
+   * Points qui montent depuis le point du monde ou ils ont ete gagnes.
+   * La recompense doit apparaitre LA ou l'action a eu lieu, pas dans un coin :
+   * c'est ce qui relie le geste au gain sans que l'oeil quitte le jeu.
+   */
+  pop(text: string, x: number, y: number, kind = ''): void {
+    const el = this.free.pop() ?? document.createElement('div');
+    el.className = `pop ${kind}`;
+    el.textContent = text;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    this.popRoot.appendChild(el);
+    // Force le redemarrage de l'animation sur un element recycle.
+    void el.offsetWidth;
+    el.classList.add('go');
+    this.pops.push({ el, until: this.now + 1.0 });
+  }
+
+  /** Banniere centrale : figures et anneaux hauts. Rare, donc lisible. */
+  banner(title: string, sub = '', kind = ''): void {
+    this.bannerEl.className = `banner show ${kind}`;
+    this.bannerEl.innerHTML = `<b>${title}</b>${sub ? `<i>${sub}</i>` : ''}`;
+    this.bannerTimer = 1.15;
+  }
+
+  showOver(run: Run, distance: number): void {
+    const record = run.recordBeaten;
+    this.overEl.innerHTML = `
+      <div class="panel">
+        ${record ? '<div class="record">nouveau record</div>' : ''}
+        <div class="final">${money(run.finalScore)}</div>
+        <div class="stats">
+          <span>${money(distance)} m</span>
+          <span>${run.rings} anneaux</span>
+          <span>combo ×${run.bestCombo}</span>
+        </div>
+        <div class="bestline">record ${money(run.best)}</div>
+        <div class="again">tape pour rejouer</div>
+      </div>
+    `;
+    this.overEl.classList.add('show');
+    // On eteint tout le transitoire : le chrono a zero, le multiplicateur et le
+    // rappel de commandes n'ont plus rien a dire, et ils tirent l'oeil loin du
+    // seul chiffre qui compte a cet instant.
+    this.root.classList.add('ended');
+  }
+
+  hideOver(): void {
+    this.overEl.classList.remove('show');
+    this.root.classList.remove('ended');
+    this.bannerEl.className = 'banner';
+    this.lastScoreShown = -1;
+    this.multEl.textContent = '';
+  }
+
+  update(s: GameState, run: Run, dt: number): void {
+    this.now += dt;
+
+    if (this.gainTimer > 0) {
+      this.gainTimer -= dt;
+      if (this.gainTimer <= 0) this.boostBar.classList.remove('gain');
+    }
+    if (this.bannerTimer > 0) {
+      this.bannerTimer -= dt;
+      if (this.bannerTimer <= 0) this.bannerEl.classList.remove('show');
+    }
+    for (let i = this.pops.length - 1; i >= 0; i--) {
+      if (this.now < this.pops[i].until) continue;
+      const p = this.pops.splice(i, 1)[0];
+      p.el.remove();
+      if (this.free.length < 16) this.free.push(p.el);
+    }
+
+    // Le chrono est le seul element lu en continu : il se met a jour a chaque
+    // frame. Tout le reste passe par l'echantillonnage a 20 Hz plus bas.
+    const t = run.timeLeft;
+    const txt = t >= 10 ? t.toFixed(1) : t.toFixed(2);
+    if (txt !== this.lastClock) {
+      this.lastClock = txt;
+      this.clockEl.textContent = txt;
+    }
+    this.clockBox.classList.toggle('warn', t < 8 && run.phase === 'running');
+    this.clockBox.classList.toggle('crit', t < 4 && run.phase === 'running');
+    this.clockBox.classList.toggle('gain', run.gainFlash > 0.02);
+
+    this.acc += dt;
+    if (this.acc < 0.05) return;
+    const step = this.acc;
+    this.acc = 0;
+
+    // km/h plutot que m/s : 24 m/s se lit mieux comme "86".
+    this.speedVal.textContent = String(Math.round(s.speed * 3.6));
+    this.boostFill.style.width = `${s.boost * 100}%`;
+    this.boostBar.classList.toggle('spending', s.boosting);
+    this.boostBar.classList.toggle('empty', s.boost < 0.06);
+
+    const shown = Math.round(s.score);
+    if (shown !== this.lastScoreShown) {
+      this.lastScoreShown = shown;
+      this.scoreEl.textContent = money(shown);
+    }
+    this.scoreEl.classList.toggle('record', run.recordBeaten);
+    this.bestEl.textContent = run.best > 0 ? `record ${money(run.best)}` : '';
+
+    // Le multiplicateur n'apparait qu'a partir de x1,4 : affiche a x1 en
+    // permanence, il devient du decor et on cesse de le voir monter.
+    const m = s.mult;
+    if (m >= 1.35) {
+      const label = `×${m.toFixed(1)}`;
+      if (label !== this.multEl.textContent) {
+        this.multEl.textContent = label;
+        this.multEl.classList.remove('bump');
+        void this.multEl.offsetWidth;
+        this.multEl.classList.add('bump');
+      }
+      this.multEl.classList.add('on');
+    } else {
+      this.multEl.classList.remove('on');
+    }
+
+    // La vrille en cours se lit en l'air : sans compteur, on ne sait pas si le
+    // tour est boucle et on atterrit toujours a un cheveu du compte.
+    if (s.airborne && s.spinTurns > 0.25) {
+      this.bannerEl.className = 'banner show spin';
+      this.bannerEl.innerHTML = `<b>${Math.floor(s.spinTurns * 360 / 90) * 90}°</b>`;
+      this.bannerTimer = Math.max(this.bannerTimer, 0.2);
+    }
+
+    const gained = s.boost - this.lastBoost;
+    if (gained > 0.02 + step * 0.05 && this.gainTimer <= 0) {
+      this.boostBar.classList.remove('gain');
+      void this.boostBar.offsetWidth;
+      this.boostBar.classList.add('gain');
+      this.gainTimer = 0.34;
+    }
+    this.lastBoost = s.boost;
+  }
+}

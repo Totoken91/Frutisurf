@@ -12,6 +12,8 @@ export class Input {
   boostHeld = false;
 
   private jumpEdge = false;
+  /** Front montant de N'IMPORTE quelle action. Sert a relancer une partie. */
+  private anyEdge = false;
   /** Voir le commentaire dans update() : rattrape les appuis tres brefs. */
   private jumpLatch = false;
   private keys = new Set<string>();
@@ -39,6 +41,7 @@ export class Input {
     const kd = (e: KeyboardEvent) => {
       if (e.repeat) return;
       this.keys.add(e.code);
+      this.anyEdge = true;
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         this.jumpEdge = true;
         this.jumpLatch = true;
@@ -56,6 +59,7 @@ export class Input {
         this.touchX = t.clientX;
         this.jumpLatch = true;
       }
+      this.anyEdge = true;
       this.gesture();
       e.preventDefault();
     };
@@ -97,7 +101,10 @@ export class Input {
     this.el.addEventListener('touchmove', tm, { passive: false });
     this.el.addEventListener('touchend', te);
     this.el.addEventListener('touchcancel', te);
-    this.el.addEventListener('pointerdown', () => this.gesture());
+    this.el.addEventListener('pointerdown', () => {
+      this.anyEdge = true;
+      this.gesture();
+    });
 
     this.disposers.push(
       () => removeEventListener('keydown', kd),
@@ -142,7 +149,10 @@ export class Input {
     const gp = this.gamepad();
     if (gp) {
       if (s === 0) s = gp.steer;
-      if (gp.jump) this.jumpEdge = true;
+      if (gp.jump) {
+        this.jumpEdge = true;
+        this.anyEdge = true;
+      }
     }
 
     // Courbe expo douce : du controle fin autour du centre, la butee reste
@@ -171,6 +181,13 @@ export class Input {
       this.keys.has('ShiftRight') ||
       this.touchCount >= 2 ||
       !!gp?.boost;
+  }
+
+  /** Consomme le front montant "une action quelconque". */
+  consumeAny(): boolean {
+    const a = this.anyEdge;
+    this.anyEdge = false;
+    return a;
   }
 
   /** Consomme le front montant du saut. */

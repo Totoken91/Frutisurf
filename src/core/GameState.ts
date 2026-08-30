@@ -19,6 +19,10 @@ export interface GameState {
   jumpWind: number;
   gliding: boolean;
   lipFactor: number;
+  /** Tours de vrille en cours, en fraction de tour. Lu par le HUD en vol. */
+  spinTurns: number;
+  /** Multiplicateur de score courant. */
+  mult: number;
   popFlash: number;
   fps: number;
   started: boolean;
@@ -39,6 +43,8 @@ export const createState = (): GameState => ({
   jumpWind: 0,
   gliding: false,
   lipFactor: 0,
+  spinTurns: 0,
+  mult: 1,
   popFlash: 0,
   fps: 60,
   started: false,

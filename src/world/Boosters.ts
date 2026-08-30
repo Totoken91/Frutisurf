@@ -179,6 +179,17 @@ export class Boosters {
     pad.respawnAt = 0;
   }
 
+  /** Remise a zero complete : nouvelle partie. */
+  reseedAll(originZ: number): void {
+    this.lastSide = 1;
+    for (const p of this.pads) p.pos.z = 1e6;
+    for (let i = 0; i < this.pads.length; i++) {
+      this.seed(this.pads[i], originZ);
+      this.alphaAttr.setX(i, 1);
+    }
+    this.alphaAttr.needsUpdate = true;
+  }
+
   /** Ramasse un plot ; il repartira plus loin. */
   take(index: number, now: number): void {
     const p = this.pads[index];

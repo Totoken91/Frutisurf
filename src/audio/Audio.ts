@@ -150,9 +150,13 @@ export class Audio {
     type: OscillatorType,
     gain: number,
     sweepTo?: number,
+    /** Retard en secondes, planifie sur l'HORLOGE AUDIO. Un setTimeout
+     *  deriverait de plusieurs dizaines de millisecondes et casserait
+     *  l'arpege des vrilles. */
+    delay = 0,
   ): void {
     if (!this.ctx) return;
-    const t = this.now();
+    const t = this.now() + delay;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     o.type = type;
@@ -219,6 +223,48 @@ export class Audio {
     if (quality > 0.55) this.blip(660, 0.26, 'sine', 0.09, 990);
   }
 
+
+  /** Anneau franchi. L'anneau haut ouvre une octave plus haut : il se felicite. */
+  ring(high: boolean, combo: number): void {
+    const semi = PENTA[combo % PENTA.length] + (high ? 12 : 7);
+    const f = 392 * Math.pow(2, semi / 12);
+    this.blip(f, 0.18, 'triangle', 0.12);
+    this.blip(f * 1.5, 0.24, 'sine', 0.08);
+    if (high) this.blip(f * 2, 0.34, 'sine', 0.07, f * 3);
+  }
+
+  /**
+   * Anneau manque. Une note sourde et courte, jamais un buzzer : on n'a rien
+   * perdu, on a seulement laisse passer du temps. Un son de faute rendrait le
+   * jeu punitif alors qu'il ne l'est pas.
+   */
+  ringMiss(): void {
+    this.blip(165, 0.13, 'sine', 0.05, 110);
+  }
+
+  /** Vrille validee : une note par tour, qui monte. */
+  trick(turns: number): void {
+    for (let i = 0; i < Math.min(4, turns); i++) {
+      this.blip(523 * Math.pow(2, (i * 4) / 12), 0.16, 'triangle', 0.11, undefined, i * 0.07);
+    }
+  }
+
+  /** Compte a rebours des dernieres secondes. */
+  tick(urgent: boolean): void {
+    this.blip(urgent ? 1560 : 1040, 0.05, 'square', urgent ? 0.055 : 0.035);
+  }
+
+  /** Fin de partie : deux notes qui tombent, et le paysage sonore se referme. */
+  over(): void {
+    this.blip(392, 0.45, 'triangle', 0.13, 196);
+    this.blip(262, 0.8, 'sine', 0.10, 131, 0.14);
+    if (!this.ctx) return;
+    const t = this.now();
+    this.windGain.gain.setTargetAtTime(0.01, t, 0.4);
+    this.slideGain.gain.setTargetAtTime(0, t, 0.3);
+    this.chargeGain.gain.setTargetAtTime(0, t, 0.2);
+    this.glideGain.gain.setTargetAtTime(0, t, 0.3);
+  }
 
   setMuted(m: boolean): void {
     this.muted = m;

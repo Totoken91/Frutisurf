@@ -1,4 +1,4 @@
-/* Base minimale : plus aucune interface, le rendu occupe tout l'ecran. */
+/* Base minimale : le rendu occupe tout l'ecran, l'interface flotte dessus. */
 * { box-sizing: border-box; }
 
 html, body {
@@ -16,32 +16,49 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+  /* Filet de securite anti-flash noir : chaque fois que le compositeur peint
+     l'element sans son tampon WebGL (contexte perdu, changement de taille,
+     onglet qui revient au premier plan), c'est CETTE couleur qui s'affiche.
+     Sans elle, le defaut est le noir et la coupure se voit. */
+  background: #15cee8;
 }
 
 /*
- * Deux jauges, pas une de plus.
+ * L'interface.
  *
  * Le langage Aqua du projet tient a UNE chose : la cassure NETTE du highlight
  * au milieu de la pilule. Un degrade doux donnerait du plastique mat.
  *
- * Placement en haut a gauche : sur un telephone tenu en portrait, les pouces
- * occupent le bas de l'ecran et c'est aussi la que se joue la glisse.
+ * Trois zones fixes et rien d'autre qui bouge :
+ *   gauche  = l'etat de la machine (vitesse, boost) ;
+ *   centre  = l'ENJEU (le chrono) ;
+ *   droite  = la recompense (score, record).
+ * Tout le reste est transitoire. Le bas de l'ecran reste vide : c'est la que
+ * sont les pouces sur un telephone, et c'est la que se joue la glisse.
  */
 #hud {
   position: fixed;
-  top: 0;
-  left: 0;
-  padding: calc(12px + env(safe-area-inset-top)) 12px 0 calc(12px + env(safe-area-inset-left));
+  inset: 0;
   pointer-events: none;
   user-select: none;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+  -webkit-user-select: none;
   font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: clamp(12px, 3.2vw, 15px);
   color: #f2fbff;
   text-shadow: 0 1px 2px rgba(4, 40, 96, 0.6);
 }
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding:
+    calc(12px + env(safe-area-inset-top))
+    calc(12px + env(safe-area-inset-right)) 0
+    calc(12px + env(safe-area-inset-left));
+}
+.col { display: flex; flex-direction: column; gap: 7px; }
+.col.right { align-items: flex-end; text-align: right; }
 
 .aero {
   position: relative;
@@ -107,7 +124,6 @@ html, body {
   background: linear-gradient(180deg, #ffd9d0 0%, #ff7a5c 45%, #c2341a 100%);
   box-shadow: 0 0 9px rgba(255, 122, 92, 0.75);
 }
-/* En depense, elle pulse — sinon on ne voit pas qu'on consomme. */
 .boost.spending > i { animation: drain 0.42s ease-in-out infinite; }
 @keyframes drain { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
 
@@ -119,7 +135,228 @@ html, body {
   100% { box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 9px rgba(150, 255, 190, 0); }
 }
 
+/* --- score et record */
+.score {
+  font-size: clamp(22px, 6.4vw, 34px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+/* Passer le record se voit pendant le run, pas seulement a la fin : c'est ce
+   moment-la qui donne envie de tenir encore dix secondes. */
+.score.record {
+  color: #fff6d8;
+  text-shadow: 0 0 14px rgba(255, 214, 110, 0.85), 0 1px 2px rgba(4, 40, 96, 0.6);
+}
+.best {
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.78;
+}
+
+/* --- chrono. Le seul chiffre qu'on lit en continu, donc le plus gros. */
+.clock {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(30px, 9.5vw, 48px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 10px rgba(4, 40, 96, 0.55);
+  transition: color 0.2s ease;
+}
+.clock.warn { color: #ffe9a8; }
+.clock.crit {
+  color: #ffd0c2;
+  animation: crit 0.5s ease-in-out infinite;
+}
+@keyframes crit {
+  0%, 100% { text-shadow: 0 2px 10px rgba(4,40,96,.55); }
+  50%      { text-shadow: 0 0 18px rgba(255, 120, 90, 0.95), 0 2px 10px rgba(4,40,96,.55); }
+}
+/* Un gain de temps eclaire le chrono en vert : la recompense est lisible
+   AVANT d'avoir lu le nouveau nombre. */
+.clock.gain { color: #d8ffe6; text-shadow: 0 0 20px rgba(90, 255, 150, 0.9); }
+
+/* --- multiplicateur */
+.mult {
+  position: absolute;
+  top: calc(62px + env(safe-area-inset-top));
+  left: 50%;
+  font-size: clamp(15px, 4.6vw, 21px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #eafcff;
+  opacity: 0;
+  transform: translateX(-50%) scale(0.7);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.mult.on { opacity: 1; transform: translateX(-50%) scale(1); }
+.mult.bump { animation: bump 0.30s cubic-bezier(0.2, 1.3, 0.4, 1); }
+@keyframes bump {
+  0%   { transform: translateX(-50%) scale(1.55); color: #fff; }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* --- banniere de figure */
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%) scale(0.85);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.banner b {
+  display: block;
+  font-size: clamp(30px, 11vw, 58px);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 22px rgba(120, 240, 255, 0.85), 0 3px 10px rgba(4, 40, 96, 0.6);
+}
+.banner i {
+  display: block;
+  font-style: normal;
+  font-size: clamp(14px, 4.4vw, 20px);
+  font-weight: 800;
+  opacity: 0.92;
+  margin-top: 0.15em;
+}
+.banner.spin b { opacity: 0.72; font-size: clamp(24px, 8vw, 42px); }
+.banner.trick b { color: #fff3cf; text-shadow: 0 0 26px rgba(255, 208, 110, 0.9); }
+.banner.high b { color: #f0d8ff; text-shadow: 0 0 26px rgba(200, 107, 255, 0.9); }
+
+/* --- points volants */
+.pops { position: absolute; inset: 0; }
+.pop {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: clamp(15px, 4.6vw, 22px);
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  text-shadow: 0 0 12px rgba(90, 220, 255, 0.9), 0 2px 4px rgba(4, 40, 96, 0.7);
+}
+.pop.go { animation: popRise 0.95s cubic-bezier(0.15, 0.75, 0.3, 1) forwards; }
+.pop.big { font-size: clamp(20px, 6.4vw, 30px); color: #fff0ff; }
+.pop.time { color: #d8ffe6; text-shadow: 0 0 14px rgba(90, 255, 150, 0.9); }
+@keyframes popRise {
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
+  18%  { opacity: 1; transform: translate(-50%, -55%) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(0.95); }
+}
+
+/* --- rappel de commandes, efface au premier saut */
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  font-size: 0.86em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.72;
+  white-space: nowrap;
+  transition: opacity 0.5s ease;
+}
+.hint.gone { opacity: 0; }
+
+/* Fin de partie : tout le transitoire s'efface, il ne reste que le score. */
+#hud.ended .hint,
+#hud.ended .mult,
+#hud.ended .banner,
+#hud.ended .pops { opacity: 0; }
+#hud.ended .clock { opacity: 0.35; }
+
+/* --- fin de partie */
+.over {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 60, 110, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.28s ease;
+}
+.over.show { opacity: 1; visibility: visible; }
+.panel {
+  min-width: min(84vw, 420px);
+  padding: 1.4em 1.6em 1.2em;
+  border-radius: 22px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.14) 49%,
+      rgba(255, 255, 255, 0.00) 50%,
+      rgba(255, 255, 255, 0.10) 100%),
+    linear-gradient(180deg, rgba(63, 180, 238, 0.88) 0%, rgba(12, 87, 201, 0.92) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -18px 30px rgba(2, 26, 82, 0.38),
+    0 18px 46px rgba(4, 26, 74, 0.45);
+  animation: panelIn 0.34s cubic-bezier(0.2, 1.2, 0.35, 1);
+}
+@keyframes panelIn {
+  0%   { transform: scale(0.88) translateY(14px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.record {
+  font-size: 0.86em;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #fff3cf;
+  text-shadow: 0 0 16px rgba(255, 214, 110, 0.9);
+  margin-bottom: 0.35em;
+}
+.final {
+  font-size: clamp(38px, 13vw, 62px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 0.9em;
+  margin-top: 0.7em;
+  font-size: 0.86em;
+  font-weight: 700;
+  opacity: 0.9;
+}
+.bestline {
+  margin-top: 0.55em;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.72;
+}
+.again {
+  margin-top: 1.1em;
+  font-size: 0.9em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@keyframes breathe { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
   .boost > i { transition: none; }
-  .boost.spending > i, .boost.gain { animation: none; }
+  .boost.spending > i, .boost.gain,
+  .clock.crit, .mult.bump, .again, .panel { animation: none; }
+  .pop.go { animation-duration: 0.6s; }
 }

@@ -3,12 +3,13 @@ import { Audio } from './audio/Audio';
 import { Engine } from './core/Engine';
 import { createState } from './core/GameState';
 import { Input } from './core/Input';
+import { Run } from './core/Run';
 import { clamp } from './core/Spring';
 import { CameraRig } from './fx/CameraRig';
 import { PostFX } from './fx/PostFX';
-import { Gauges } from './hud/Gauges';
+import { Hud } from './hud/Hud';
 import { ShockRing } from './fx/ShockRing';
-import { Controller } from './player/Controller';
+import { Controller, IDLE_INPUT } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
@@ -18,6 +19,19 @@ import { World } from './world/World';
 
 const STEP = 1 / 120;
 
+/** Temps rendu par un anneau. Le haut paie plus : il demande un saut. */
+const RING_TIME = 3.0;
+const RING_TIME_HIGH = 4.0;
+/** Temps rendu par une colonne de vitesse. */
+const PAD_TIME = 1.1;
+/** Temps rendu par tour complet de vrille. */
+const TRICK_TIME = 0.9;
+
+/** Ramene un angle dans (-PI, PI]. */
+function wrapAngle(a: number): number {
+  return a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
+}
+
 export class Game {
   readonly engine: Engine;
   readonly world: World;
@@ -26,12 +40,13 @@ export class Game {
   readonly rig: CameraRig;
   readonly input: Input;
   readonly state = createState();
+  readonly run = new Run();
   readonly post: PostFX;
   readonly spray: Spray;
   readonly trail = new Trail();
-  readonly rings = new ShockRing();
+  readonly shock = new ShockRing();
   readonly audio = new Audio();
-  readonly gauges: Gauges;
+  readonly hud: Hud;
 
   private acc = 0;
   private last = performance.now();
@@ -46,6 +61,14 @@ export class Game {
   private trailPoint = new Vector3();
   private hits: BoosterHit[] = [];
   private probe = new Vector3();
+  private screen = new Vector3();
+  /** Position au pas de simulation precedent : sert au test d'anneau. */
+  private prevX = 0;
+  private prevY = 0;
+  private prevZ = 0;
+  /** Lacet visuel du surfeur, decouple de la vrille physique. */
+  private yaw = 0;
+  private lastTick = -1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -54,25 +77,26 @@ export class Game {
     this.input = new Input(canvas);
 
     this.spray = new Spray(this.engine.quality === 'low' ? 380 : 760);
-    this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.rings.group);
+    this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.shock.group);
 
     this.controller = new Controller({
       onPop: (charge, combo) => {
         this.rig.punch(0.35 * charge, 14 * charge);
         this.state.popFlash = charge;
         this.spray.burst(this.contactPoint(), Math.round(90 * charge), 0.9 + charge, this.time);
-        this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time, this.controller.groundY);
+        this.shock.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time, this.controller.groundY);
         this.audio.pop(charge, combo);
         this.buzz(18);
       },
       onJump: (timed, wind) => {
         this.audio.jump(timed, wind);
+        this.hud.dismissHint();
         if (timed > 0.35 || wind > 0.6) {
           // Recompense visible du saut bien time : gerbe, anneau, coup de FOV.
           const force = Math.max(timed, wind * 0.7);
           this.rig.punch(0.18 * force, 9 * force);
           this.spray.burst(this.contactPoint(), Math.round(55 * force), 0.8 + force, this.time);
-          this.rings.spawn(this.contactPoint(), 0.45 + force * 0.5, this.time, this.controller.groundY);
+          this.shock.spawn(this.contactPoint(), 0.45 + force * 0.5, this.time, this.controller.groundY);
           this.state.popFlash = Math.max(this.state.popFlash, timed * 0.8);
         }
       },
@@ -81,9 +105,29 @@ export class Game {
         this.rig.punch(0.20, 11);
         this.state.popFlash = Math.max(this.state.popFlash, 0.85);
         this.spray.burst(this.contactPoint(), 70, 1.3, this.time);
-        this.rings.spawn(this.contactPoint(), 0.9, this.time, this.controller.groundY);
+        this.shock.spawn(this.contactPoint(), 0.9, this.time, this.controller.groundY);
         this.audio.booster(combo);
         this.buzz(28);
+      },
+      onRing: (high, combo, points) => {
+        this.rig.punch(high ? 0.24 : 0.14, high ? 13 : 8);
+        this.state.popFlash = Math.max(this.state.popFlash, high ? 0.95 : 0.6);
+        this.spray.burst(this.contactPoint(), high ? 90 : 50, 1.2, this.time);
+        this.shock.spawn(this.contactPoint(), high ? 1.0 : 0.6, this.time, this.controller.groundY);
+        this.audio.ring(high, combo);
+        this.buzz(high ? 26 : 15);
+        if (high) this.hud.banner('ANNEAU HAUT', `+${points}`, 'high');
+      },
+      onRingMiss: () => this.audio.ringMiss(),
+      onTrick: (turns, points) => {
+        this.run.addTime(TRICK_TIME * turns);
+        this.hud.banner(`${turns * 360}°`, `+${points}`, 'trick');
+        this.timeGain(TRICK_TIME * turns);
+        this.audio.trick(turns);
+        this.rig.punch(0.22, 11);
+        this.state.popFlash = Math.max(this.state.popFlash, 0.9);
+        this.spray.burst(this.contactPoint(), 80, 1.25, this.time);
+        this.buzz(24);
       },
       onLand: (impact, quality) => {
         // Une reception propre dans la pente secoue moins et gicle plus :
@@ -95,7 +139,7 @@ export class Game {
           0.7 + impact,
           this.time,
         );
-        this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time, this.controller.groundY);
+        this.shock.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time, this.controller.groundY);
         this.audio.land(impact, quality);
         if (impact > 0.7) this.buzz(14);
       },
@@ -113,7 +157,7 @@ export class Game {
     this.engine.onResize = (w, h) => this.post.resize(w, h);
     this.trail.reset(this.contactPoint());
 
-    this.gauges = new Gauges(document.getElementById('hud')!);
+    this.hud = new Hud(document.getElementById('hud')!);
 
     // Pas d'ecran de depart : l'audio s'arme au premier geste, c'est tout
     // ce qu'imposait la politique autoplay.
@@ -133,6 +177,23 @@ export class Game {
     navigator.vibrate?.(ms);
   }
 
+  /**
+   * Point du monde -> pixels CSS. Les popups doivent naitre LA ou l'action a
+   * eu lieu ; un gain affiche dans un coin ne se relie pas au geste.
+   */
+  private popAt(world: Vector3, text: string, kind = ''): void {
+    this.screen.copy(world).project(this.engine.camera);
+    const behind = this.screen.z > 1 || !Number.isFinite(this.screen.x);
+    const x = behind ? innerWidth * 0.5 : (this.screen.x * 0.5 + 0.5) * innerWidth;
+    const y = behind ? innerHeight * 0.55 : (-this.screen.y * 0.5 + 0.5) * innerHeight;
+    this.hud.pop(text, clamp(x, 40, innerWidth - 40), clamp(y, 90, innerHeight - 80), kind);
+  }
+
+  /** Le temps gagne s'affiche AU CHRONO : c'est la qu'on le cherche des yeux. */
+  private timeGain(seconds: number): void {
+    this.hud.pop(`+${seconds.toFixed(1)}s`, innerWidth * 0.5, innerHeight * 0.11, 'time');
+  }
+
   private collectBoosters(): void {
     const c = this.controller;
     this.probe.set(c.x, c.y, c.z);
@@ -140,7 +201,31 @@ export class Game {
     for (const h of this.hits) {
       this.world.boosters.take(h.index, this.time);
       c.collectBooster();
+      this.run.addTime(PAD_TIME);
+      this.popAt(h.position, `+${Math.round(140 * c.mult)}`);
     }
+  }
+
+  /**
+   * Franchissement d'anneau. Teste sur le PLAN traverse pendant le pas, pas sur
+   * une proximite : a 45 m/s le surfeur avance de 0,4 m par pas et un test de
+   * sphere en laisserait passer un sur deux.
+   */
+  private checkRings(): void {
+    const c = this.controller;
+    const hit = this.world.rings.cross(this.prevX, this.prevY, this.prevZ, c.x, c.y, c.z);
+    if (!hit) return;
+    if (!hit.pass) {
+      c.missRing();
+      return;
+    }
+    this.popAt(hit.point, `+${Math.round((hit.high ? 400 : 220) * c.mult)}`, hit.high ? 'big' : '');
+    this.world.rings.take(hit.index);
+    c.collectRing(hit.high);
+    const gain = hit.high ? RING_TIME_HIGH : RING_TIME;
+    this.run.addTime(gain);
+    this.timeGain(gain);
+    this.run.rings += 1;
   }
 
   /** Normale du terrain sous le surfeur, pour poser tout ce qui touche le sol. */
@@ -148,6 +233,32 @@ export class Game {
     const c = this.controller;
     terrainGradient(c.x, c.z, this.grad);
     this.groundNormal.set(-this.grad.dx, 1, -this.grad.dz).normalize();
+  }
+
+  /** Nouvelle partie. Doit etre INSTANTANEE : c'est ce qui donne le "encore une". */
+  restart(): void {
+    this.controller.reset();
+    this.run.reset();
+    this.world.reset(this.controller.z);
+    this.rig.snap(this.controller);
+    this.trail.reset(this.contactPoint());
+    this.hud.hideOver();
+    this.state.popFlash = 0;
+    this.state.score = 0;
+    this.prevX = this.controller.x;
+    this.prevY = this.controller.y;
+    this.prevZ = this.controller.z;
+    this.yaw = 0;
+    this.lastTick = -1;
+    this.acc = 0;
+  }
+
+  private endRun(): void {
+    this.run.finalDistance = this.controller.distance;
+    this.controller.braking = true;
+    this.audio.over();
+    this.hud.showOver(this.run, this.controller.distance);
+    this.buzz(40);
   }
 
   start(): void {
@@ -169,6 +280,12 @@ export class Game {
     }
 
     this.input.update();
+    // Toujours consommer, meme en jeu : sinon un front garde en reserve
+    // relancerait la partie a la seconde ou elle se termine.
+    const acted = this.input.consumeAny();
+    if (acted && this.run.canRestart) this.restart();
+
+    const playing = this.run.phase === 'running';
 
     // Pas fixe pour la simulation : les ressorts a omega=14 ont besoin de
     // 120 Hz pour ne pas osciller en escalier sur un ecran 60 Hz.
@@ -179,8 +296,14 @@ export class Game {
       if (this.controller.hitstop > 0) {
         this.controller.hitstop -= STEP;
       } else {
-        this.controller.step(STEP, this.input);
-        this.collectBoosters();
+        this.prevX = this.controller.x;
+        this.prevY = this.controller.y;
+        this.prevZ = this.controller.z;
+        this.controller.step(STEP, playing ? this.input : IDLE_INPUT);
+        if (playing) {
+          this.collectBoosters();
+          this.checkRings();
+        }
       }
       this.acc -= STEP;
     }
@@ -189,8 +312,11 @@ export class Game {
     // ralenti : le jeu ne repond plus au temps reel mais a son propre retard.
     if (this.acc > STEP * 2) this.acc = STEP * 2;
 
+    if (this.run.step(real, this.controller.score, this.controller.combo)) this.endRun();
+    this.countdown();
+
     this.controller.writeState(this.state);
-    this.gauges.update(this.state, real);
+    this.hud.update(this.state, this.run, real);
 
     // La camera tourne en temps reel : elle doit rester fluide meme si la
     // simulation est gelee.
@@ -205,12 +331,27 @@ export class Game {
       this.engine.camera.position,
       this.time,
       this.controller.speedNorm,
+      real,
     );
 
     this.updateFx(real);
-    this.post.render(real);
+    // Rendre sur un contexte perdu ne produit rien et laisse le compositeur
+    // afficher un canvas vide : on saute la frame, le fond CSS prend le relais.
+    if (!this.engine.contextLost) this.post.render(real);
     this.engine.sampleFrame(real * 1000);
   };
+
+  /** Tic sec par seconde sur la fin du chrono. Il presse sans klaxonner. */
+  private countdown(): void {
+    if (this.run.phase !== 'running' || this.run.timeLeft >= 6) {
+      this.lastTick = -1;
+      return;
+    }
+    const s = Math.ceil(this.run.timeLeft);
+    if (s === this.lastTick) return;
+    this.lastTick = s;
+    this.audio.tick(s <= 3);
+  }
 
   private updateFx(dt: number): void {
     const c = this.controller;
@@ -233,7 +374,7 @@ export class Game {
       c.airborne,
       (x, z) => terrainHeight(x, z),
     );
-    this.rings.update(this.time);
+    this.shock.update(this.time);
 
     // Le point de fuite, pas le centre de l'ecran : quand on carve, tout
     // l'effet de vitesse pivote avec la trajectoire.
@@ -241,7 +382,7 @@ export class Game {
     this.vanish.project(this.engine.camera);
     this.post.surf.set(
       c.speedNorm,
-      this.input.boostHeld ? 1 : 0,
+      c.boosting ? 1 : 0,
       c.carveCharge,
       this.state.popFlash,
       this.vanish.x * 0.5 + 0.5,
@@ -275,6 +416,14 @@ export class Game {
     s.rig.rotation.x += (slopePitch - s.rig.rotation.x) * Math.min(1, dt * 9);
     s.rig.rotation.z += (slopeRoll - s.rig.rotation.z) * Math.min(1, dt * 9);
 
+    // Vrille. A l'atterrissage on replie l'angle dans (-PI, PI] AVANT de
+    // revenir a zero : sans ce repliement, un 720 se devisserait a l'envers
+    // sur deux tours entiers, ce qui se lit comme un bug.
+    if (!c.airborne) this.yaw = wrapAngle(this.yaw);
+    const targetYaw = c.airborne ? c.spin : 0;
+    this.yaw += (targetYaw - this.yaw) * Math.min(1, dt * (c.airborne ? 22 : 9));
+    s.rig.rotation.y = this.yaw;
+
     // Banking : le haut du buddy part DANS le virage.
     s.tilt.rotation.z = -c.lean.value;
     // En l'air le disque pique du nez ; en plane il se cabre pour porter.
@@ -293,5 +442,4 @@ export class Game {
 
     s.update(this.time, c.carveCharge, c.speedNorm, c.y - c.groundY, c.groundY, this.groundNormal);
   }
-
 }

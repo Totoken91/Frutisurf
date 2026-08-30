@@ -10,6 +10,7 @@ import {
 import { col } from '../core/Palette';
 import { City } from './City';
 import { Boosters } from './Boosters';
+import { Rings } from './Rings';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { createEnvironment } from './Environment';
@@ -25,6 +26,7 @@ export class World {
   readonly clouds: Clouds;
   readonly city = new City();
   readonly boosters: Boosters;
+  readonly rings: Rings;
   readonly lights = new Group();
   private sky: Mesh;
 
@@ -33,6 +35,7 @@ export class World {
     this.ground = new Ground(dense);
     this.clouds = new Clouds(quality === 'high' ? 46 : 26);
     this.boosters = new Boosters(dense ? 6 : 5);
+    this.rings = new Rings(dense ? 8 : 6);
 
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
@@ -41,6 +44,7 @@ export class World {
     scene.add(this.city.group);
     scene.add(this.clouds.mesh);
     scene.add(this.boosters.mesh);
+    scene.add(this.rings.veil, this.rings.group);
 
     // Key : les highlights speculaires du verre.
     const key = new DirectionalLight(0xffffff, 2.6);
@@ -57,7 +61,13 @@ export class World {
     scene.add(this.lights);
   }
 
-  update(origin: Vector3, camPos: Vector3, time: number, speedN: number): void {
+  /** Nouvelle partie : le parcours entier est reseme devant le joueur. */
+  reset(originZ: number): void {
+    this.boosters.reseedAll(originZ);
+    this.rings.reseedAll(originZ);
+  }
+
+  update(origin: Vector3, camPos: Vector3, time: number, speedN: number, dt: number): void {
     // Le dome de ciel SUIT la camera. Fixe a l'origine, son bord finissait par
     // traverser la camera (le ciel scintillait), puis on en sortait et tout
     // passait au noir — apres environ 70 s de jeu a vitesse de croisiere.
@@ -66,5 +76,6 @@ export class World {
     this.clouds.update(origin, time);
     this.city.update(origin);
     this.boosters.update(origin, time);
+    this.rings.update(origin, time, dt);
   }
 }

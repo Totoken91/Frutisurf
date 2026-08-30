@@ -163,7 +163,13 @@ export class Clouds {
 
           // Billboard autour de Y uniquement.
           vec3 toCam = cameraPosition - o;
-          vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), toCam));
+          // Un nuage exactement au-dessus (ou au-dessous) de la camera annule
+          // le produit vectoriel, et normalize(vec3(0)) rend NaN : le quad
+          // disparait. Repli sur un axe arbitraire, le billboard est de toute
+          // facon degenere dans ce cas.
+          vec3 axis = cross(vec3(0.0, 1.0, 0.0), toCam);
+          float axisLen = length(axis);
+          vec3 right = axisLen > 1e-4 ? axis / axisLen : vec3(1.0, 0.0, 0.0);
           vec3 pos = o + right * position.x * iScale.x + vec3(0.0, 1.0, 0.0) * position.y * iScale.y;
 
           // Quadrant de l'atlas

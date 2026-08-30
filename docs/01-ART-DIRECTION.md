@@ -216,6 +216,32 @@ Trois termes ajoutés pour sortir de l'aplat :
 > un **mot réservé en GLSL ES**. Sous ce nom le shader ne compilait pas et le
 > sol disparaissait entièrement, laissant voir le dôme de ciel à travers.
 
+### Anneaux de verre
+
+Un tore de 5,4 m de rayon, plus un voile intérieur presque transparent qui ne
+s'allume que sur son bord : le trou doit se **voir** de loin sans jamais masquer
+le paysage qu'on traverse.
+
+La teinte porte l'information de jeu : **cyan** au sol, **violet iridescent** en
+hauteur. La couleur dit qu'il faut sauter avant même qu'on ait jugé la hauteur à
+l'œil.
+
+Le premier jet mélangeait la couleur vers un bleu profond avant l'éclairage. Les
+anneaux sortaient **gris** sur la plaine verte, invisibles à trente mètres. Ils
+sont désormais peints à des valeurs volontairement au-dessus de 1 — la cible est
+un tampon demi-flottant, et c'est ce dépassement qui fait mordre le bloom.
+
+Un reflet court le long du tore : fixe, il ferait plastique. Au passage, l'anneau
+**gonfle** de 42 % en se dissolvant — l'expansion se lit en vision périphérique
+bien mieux qu'un changement de couleur, et on garde les yeux sur la suite.
+
+### Étalonnage à la vitesse
+
+La passe de post pousse le contraste (+18 %) et la saturation (+12 %) avec la
+vitesse et le boost. C'est ce qui fait que le boost **se voit** avant qu'on lise
+la jauge. Très discret à l'arrêt, sinon la plaine devient criarde quand il ne se
+passe rien.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :
