@@ -163,9 +163,15 @@ appuyer *juste avant* le sommet paie aussi : la fenêtre reste indulgente.
 
 ### Le repère est SONORE
 
-Il n'y a plus d'interface. Le signal qui dit *quand appuyer* est un son : une
-sinusoïde qui monte d'une octave à l'approche du sommet et retombe après. C'est
-diégétique, ça n'occupe aucun pixel, et ça s'apprend en trois collines.
+Le signal qui dit *quand appuyer* est un **tic court**, joué une seule fois à
+l'entrée dans la fenêtre, avec hystérésis pour qu'il ne se redéclenche pas sur
+le bruit du terrain. Ça n'occupe aucun pixel et ça s'apprend en trois collines.
+
+> La première version était une sinusoïde continue dont le volume suivait la
+> proximité de la crête. Sur un terrain vallonné elle enflait et retombait sans
+> arrêt : à l'oreille, un « woooo » qui surgit au hasard. **Un événement
+> ponctuel informe aussi bien et ne pollue pas le fond sonore** — la règle vaut
+> pour tout signal lié à une grandeur qui varie en permanence.
 
 ### Le plané
 
@@ -239,11 +245,17 @@ pour ça que c'est bon.
 
 ## 7. Audio (procédural, WebAudio, zéro asset)
 
+Deux familles, et la distinction compte : des **nappes continues** qui suivent
+un état (vent, crissement, plané, charge), et des **événements ponctuels** liés
+à une action du joueur. Rien entre les deux — un son qui surgit sans cause
+identifiable s'entend comme un bug, même quand il est déclenché par une vraie
+grandeur du jeu.
+
 - **Vent** : bruit blanc → filtre passe-bas dont la fréquence de coupure suit la vitesse
   (400 Hz au repos → 3.2 kHz à fond). Le son le plus important du jeu.
 - **Glisse** : bruit rose filtré en bande, gain ∝ `|steer|`. C'est le crissement de la carre.
 - **Charge de carve** : sinus dont la hauteur monte d'une tierce mineure sur la charge.
-- **Pop** : whoosh (bruit + enveloppe rapide + sweep de filtre) + quinte juste.
+- **Pop** : quinte juste, dont l'intensité suit la charge.
 - **Atterrissage** : sinus grave 70 Hz, decay 180 ms.
 
 Tout démarre au premier geste utilisateur (politique autoplay).

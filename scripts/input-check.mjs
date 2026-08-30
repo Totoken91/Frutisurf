@@ -27,10 +27,42 @@ async function boot(page) {
   await page.evaluate(() => { window.__game.controller.hitstop = 0; });
 }
 
-/** Ramene le surfeur au sol, a plat, pour repartir d'un etat connu. */
+/**
+ * Ramene le surfeur au sol dans un etat VRAIMENT connu.
+ *
+ * Remettre `airborne` a false ne suffit pas : a vitesse de croisiere une crete
+ * peut le relancer toute seule entre le reset et l'appui, et le test croit
+ * alors que l'entree n'a pas repondu. On casse la vitesse pour que le seuil de
+ * decollage naturel (courbure x v2) soit hors d'atteinte.
+ */
 const reset = (page) => page.evaluate(() => {
   const c = window.__game.controller;
   c.airborne = false; c.vy = 0; c.jumpWind = 0; c.y = c.groundY;
+  c.speed = 12;
+  c.bonus.value = 0;
+});
+
+/**
+ * Enregistre les decollages a la SOURCE.
+ *
+ * Lire `vy` un moment apres le relachement mesure ce qu'il en reste, pas
+ * l'impulsion : selon le framerate le surfeur est deja retombe, et le test
+ * devient instable sans que le jeu n'ait bouge. On s'accroche donc a
+ * l'evenement de saut, ou `vy` vaut exactement l'impulsion de depart.
+ */
+const armRecorder = (page) => page.evaluate(() => {
+  const c = window.__game.controller;
+  window.__jumps = [];
+  const prev = c.events.onJump;
+  c.events.onJump = (timed, wind) => {
+    window.__jumps.push({ timed: +timed.toFixed(2), wind: +wind.toFixed(2), vy: +c.vy.toFixed(2) });
+    prev?.(timed, wind);
+  };
+});
+const takeJumps = (page) => page.evaluate(() => {
+  const j = window.__jumps.slice();
+  window.__jumps.length = 0;
+  return j;
 });
 const peek = (page) => page.evaluate(() => {
   const c = window.__game.controller;
@@ -43,32 +75,39 @@ const peek = (page) => page.evaluate(() => {
 {
   const p = await b.newPage({ viewport: { width: 420, height: 720 } });
   await boot(p);
+  await armRecorder(p);
+
   // Tap court.
   await reset(p);
   await p.keyboard.down('Space');
   await p.waitForTimeout(70);
   await p.keyboard.up('Space');
-  await p.waitForTimeout(700);
-  const tapped = await peek(p);
+  await p.waitForTimeout(500);
+  const tapJumps = await takeJumps(p);
 
-  // Maintien long. On compare les DEUX plutot que de mesurer une duree absolue :
-  // sous rendu logiciel le framerate varie trop pour qu'un seuil ait un sens.
+  // Maintien long.
   await reset(p);
   await p.keyboard.down('Space');
   await p.waitForTimeout(1400);
   const armed = await peek(p);
   await p.keyboard.up('Space');
-  await p.waitForTimeout(700);
-  const flying = await peek(p);
+  await p.waitForTimeout(500);
+  const holdJumps = await takeJumps(p);
+
+  const tap = tapJumps[0];
+  const hold = holdJumps[0];
 
   // Un tap franc DOIT produire un saut, meme minuscule : sinon l'appui a ete
   // perdu entre deux frames et le joueur a l'impression que rien ne repond.
-  check('clavier : un tap saute quand meme', tapped.air || tapped.vy > 0,
-    `enVol=${tapped.air} vy=${tapped.vy}`);
-  check('clavier : maintenir arme', armed.held && armed.wind > tapped.wind, `elan=${armed.wind}`);
-  check('clavier : relacher decolle', flying.air && flying.vy > 0, `vy=${flying.vy}`);
-  check('clavier : l elan paie', flying.vy > tapped.vy * 1.25,
-    `tap vy=${tapped.vy} -> maintien vy=${flying.vy}`);
+  check('clavier : un tap saute quand meme', !!tap, tap ? `vy=${tap.vy} elan=${tap.wind}` : 'aucun saut');
+  check('clavier : maintenir arme', armed.held && armed.wind > 0.5, `elan=${armed.wind}`);
+  check('clavier : relacher decolle', !!hold && hold.vy > 0, hold ? `vy=${hold.vy}` : 'aucun saut');
+  // On assure sur l'ELAN DELIVRE, pas sur vy : l'impulsion finale inclut la
+  // pente du terrain au moment du relachement, qui varie d'un essai a l'autre.
+  // Que l'elan se traduise en hauteur est deja couvert, hors navigateur et de
+  // facon deterministe, par `check:air`.
+  check('clavier : l elan monte avec la duree', !!tap && !!hold && hold.wind > tap.wind + 0.4,
+    tap && hold ? `tap elan=${tap.wind} -> maintien elan=${hold.wind}` : 'donnees manquantes');
   await p.close();
 }
 
@@ -77,6 +116,8 @@ const peek = (page) => page.evaluate(() => {
   const ctx = await b.newContext({ ...devices['iPhone 13'], hasTouch: true, isMobile: true });
   const p = await ctx.newPage();
   await boot(p);
+  await armRecorder(p);
+  await reset(p);
 
   // Doigt pose et maintenu au centre, sans glisser.
   await p.touchscreen.tap(195, 400);
@@ -96,11 +137,13 @@ const peek = (page) => page.evaluate(() => {
   await p.waitForTimeout(1400);
   const armed = await peek(p);
   await p.evaluate(() => window.__t('touchend', 195, 400));
-  await p.waitForTimeout(700);
-  const flying = await peek(p);
+  await p.waitForTimeout(500);
+  const touchJumps = await takeJumps(p);
+  const tj = touchJumps[0];
 
-  check('tactile : maintenir arme', armed.held && armed.wind > 0.2, `elan=${armed.wind}`);
-  check('tactile : relacher decolle', flying.air && flying.vy > 0, `vy=${flying.vy}`);
+  check('tactile : maintenir arme', armed.held && armed.wind > 0.5, `elan=${armed.wind}`);
+  check('tactile : relacher decolle', !!tj && tj.vy > 0 && tj.wind > 0.8,
+    tj ? `vy=${tj.vy} elan=${tj.wind}` : 'aucun saut');
 
   // Le doigt repose en vol doit declencher le plane. On place directement le
   // surfeur a l'apex : sous rendu logiciel, attendre qu'il y arrive tout seul

@@ -72,7 +72,7 @@ export class Game {
           this.state.popFlash = Math.max(this.state.popFlash, timed * 0.8);
         }
       },
-      onGlideStart: () => this.audio.glide(),
+      onLipEnter: () => this.audio.lip(),
       onLand: (impact, quality) => {
         // Une reception propre dans la pente secoue moins et gicle plus :
         // le retour doit dire au joueur qu'il a bien choisi son point de chute.
@@ -229,7 +229,6 @@ export class Game {
       // tensions, un seul son qui monte, ca reste lisible.
       Math.max(c.carveCharge, c.jumpWind * 0.85),
       c.airborne,
-      c.airborne ? 0 : c.lipFactor,
       c.gliding,
     );
   }

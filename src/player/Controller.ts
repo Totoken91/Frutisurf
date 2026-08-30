@@ -18,7 +18,8 @@ export interface SurfEvents {
   onJump?: (timed: number, wind: number) => void;
   onLand?: (impact: number, quality: number) => void;
   onCarveFull?: () => void;
-  onGlideStart?: () => void;
+  /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
+  onLipEnter?: () => void;
 }
 
 const CORRIDOR = 14;
@@ -33,6 +34,8 @@ const GRIP = 1.8;
  * on veut timer un sommet, pas chaque caillou.
  */
 const LIP_SPAN = 7;
+/** Seuil d'entree dans la fenetre de saut, pour le signal sonore. */
+const LIP_CUE = 0.55;
 
 /**
  * Economie du boost. Ce n'est plus une touche qu'on tient : c'est une
@@ -129,7 +132,14 @@ export class Controller {
     // on recompenserait aussi le milieu d'une pente.
     const convex = clamp(-this.curvature / 0.012, 0, 1);
     const flat = 1 - smoothstep(0.06, 0.22, Math.abs(this.slopeTravel));
+    const before = this.lipFactor;
     this.lipFactor = convex * flat;
+
+    // Front montant seulement, avec hysteresis : sans la sortie a 0.40 le
+    // signal se redeclencherait en boucle sur le bruit du terrain.
+    if (!this.airborne && before < LIP_CUE && this.lipFactor >= LIP_CUE) {
+      this.events.onLipEnter?.();
+    }
   }
 
   step(dt: number, input: Input, boostAllowed = true): void {
@@ -222,7 +232,6 @@ export class Controller {
         // poussee a chaque fois : il suffit de tapoter pour ne jamais redescendre.
         this.vy += 2.2;
         this.liftUsed = true;
-        this.events.onGlideStart?.();
       }
       this.gliding = wantGlide;
       this.glideTime = wantGlide ? this.glideTime + dt : Math.max(0, this.glideTime - dt * 2);

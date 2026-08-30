@@ -38,8 +38,6 @@ export class Audio {
   private slideGain!: GainNode;
   private chargeOsc!: OscillatorNode;
   private chargeGain!: GainNode;
-  private lipOsc!: OscillatorNode;
-  private lipGain!: GainNode;
   private glideGain!: GainNode;
   private glideFilter!: BiquadFilterNode;
   private white!: AudioBuffer;
@@ -99,16 +97,6 @@ export class Audio {
     this.chargeOsc.connect(this.chargeGain).connect(this.master);
     this.chargeOsc.start();
 
-    // --- Repere de crete. Sans interface, c'est ce son qui dit quand sauter :
-    // il monte a l'approche du sommet et retombe des qu'on l'a depasse.
-    this.lipOsc = ctx.createOscillator();
-    this.lipOsc.type = 'sine';
-    this.lipOsc.frequency.value = 520;
-    this.lipGain = ctx.createGain();
-    this.lipGain.gain.value = 0;
-    this.lipOsc.connect(this.lipGain).connect(this.master);
-    this.lipOsc.start();
-
     // --- Nappe de plane : souffle aigu et calme, l'oppose du vent au sol.
     const glide = ctx.createBufferSource();
     glide.buffer = pink;
@@ -135,7 +123,6 @@ export class Audio {
     steerAbs: number,
     charge: number,
     airborne: boolean,
-    lip = 0,
     gliding = false,
   ): void {
     if (!this.ctx) return;
@@ -152,10 +139,6 @@ export class Audio {
     // La charge monte d'une tierce mineure (x 2^(3/12)).
     this.chargeOsc.frequency.setTargetAtTime(220 * Math.pow(2, (charge * 3) / 12), t, 0.05);
     this.chargeGain.gain.setTargetAtTime(charge * charge * 0.055, t, 0.08);
-
-    // La hauteur du repere monte d'une octave pile sur la crete.
-    this.lipOsc.frequency.setTargetAtTime(520 * (1 + lip), t, 0.04);
-    this.lipGain.gain.setTargetAtTime(lip * lip * 0.045, t, 0.05);
 
     this.glideGain.gain.setTargetAtTime(gliding ? 0.11 : 0, t, 0.18);
     this.glideFilter.frequency.setTargetAtTime(gliding ? 2400 + speedNorm * 1600 : 2400, t, 0.2);
@@ -183,32 +166,32 @@ export class Audio {
     o.stop(t + dur + 0.02);
   }
 
-  private whoosh(power: number): void {
-    if (!this.ctx) return;
-    const t = this.now();
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.white;
-    const f = this.ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.Q.value = 1.1;
-    f.frequency.setValueAtTime(600, t);
-    f.frequency.exponentialRampToValueAtTime(4200, t + 0.28);
-    const g = this.ctx.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.30 * power, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
-    src.connect(f).connect(g).connect(this.master);
-    src.start(t);
-    src.stop(t + 0.42);
-  }
 
   pop(charge: number, combo: number): void {
-    this.whoosh(0.6 + charge * 0.6);
+    // Pas de rafale de bruit ici : elle partait a chaque pop et a chaque
+    // reception, donc en permanence sur un terrain vallonne, et s'entendait
+    // comme un "woooo" surgissant au hasard. Les notes suffisent a marquer
+    // le coup, et elles restent musicales quand elles s'enchainent.
     // Quinte juste, transposee par le combo dans la pentatonique.
     const semi = PENTA[combo % PENTA.length] + 12 * Math.min(2, Math.floor(combo / PENTA.length));
     const base = 330 * Math.pow(2, semi / 12);
-    this.blip(base, 0.30, 'triangle', 0.16);
-    this.blip(base * 1.5, 0.34, 'sine', 0.11);
+    // La charge se lit maintenant dans l'intensite des notes, plus dans une
+    // rafale de bruit : un pop mou reste discret, un pop plein claque.
+    const gain = 0.09 + 0.09 * charge;
+    this.blip(base, 0.26 + charge * 0.10, 'triangle', gain);
+    this.blip(base * 1.5, 0.30 + charge * 0.10, 'sine', gain * 0.7);
+  }
+
+  /**
+   * Entree dans la fenetre de saut. Un tic court et sec, joue UNE fois.
+   *
+   * La version precedente etait un sinus continu dont le volume suivait la
+   * proximite de la crete : sur un terrain vallonne il enflait et retombait
+   * sans arret, et s'entendait comme un "woooo" surgissant au hasard. Un
+   * evenement ponctuel informe aussi bien et ne pollue pas le fond sonore.
+   */
+  lip(): void {
+    this.blip(1180, 0.055, 'sine', 0.05);
   }
 
   jump(timed = 0, wind = 0): void {
@@ -221,14 +204,10 @@ export class Audio {
     if (timed > 0.75) this.blip(880, 0.28, 'triangle', 0.09, 1320);
   }
 
-  glide(): void {
-    this.blip(520, 0.5, 'sine', 0.05, 780);
-  }
 
   land(impact: number, quality = 0): void {
     // Une reception propre claque moins fort et ouvre sur une note haute.
     this.blip(70, 0.18, 'sine', 0.20 * Math.min(1, 0.5 + impact) * (1 - quality * 0.4));
-    this.whoosh(0.25 * impact);
     if (quality > 0.55) this.blip(660, 0.26, 'sine', 0.09, 990);
   }
 
