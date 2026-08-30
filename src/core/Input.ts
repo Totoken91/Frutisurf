@@ -12,6 +12,8 @@ export class Input {
   boostHeld = false;
 
   private jumpEdge = false;
+  /** Voir le commentaire dans update() : rattrape les appuis tres brefs. */
+  private jumpLatch = false;
   private keys = new Set<string>();
   private touchId: number | null = null;
   private touchX = 0;
@@ -39,6 +41,7 @@ export class Input {
       this.keys.add(e.code);
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         this.jumpEdge = true;
+        this.jumpLatch = true;
         e.preventDefault();
       }
       this.gesture();
@@ -51,6 +54,7 @@ export class Input {
         const t = e.changedTouches[0];
         this.touchId = t.identifier;
         this.touchX = t.clientX;
+        this.jumpLatch = true;
       }
       this.gesture();
       e.preventDefault();
@@ -71,8 +75,8 @@ export class Input {
       this.touchCount = e.touches.length;
       for (const t of Array.from(e.changedTouches)) {
         if (t.identifier !== this.touchId) continue;
-        // tap court sans glissement = saut
-        if (Math.abs(this.touchSteer) < 0.12) this.jumpEdge = true;
+        // Le doigt leve RELACHE le saut ; c'est le Controller qui decide quoi
+        // en faire selon l'elan accumule. Plus de detection de tap ici.
         this.touchId = null;
         this.touchSteer = 0;
       }
@@ -141,8 +145,23 @@ export class Input {
     }
 
     this.steer = clamp(s, -1, 1);
-    this.jumpHeld =
-      this.keys.has('Space') || this.keys.has('ArrowUp') || this.keys.has('KeyW');
+
+    // Le doigt pose vaut MAINTIEN du saut, exactement comme la barre d'espace.
+    // Sans ca le tactile n'arme jamais et ne saute jamais : le saut se
+    // declenche au relachement, et `jumpHeld` ne lisait que le clavier.
+    // Un meme doigt dirige (glissement lateral) et arme (duree d'appui).
+    const rawHeld =
+      this.keys.has('Space') ||
+      this.keys.has('ArrowUp') ||
+      this.keys.has('KeyW') ||
+      this.touchId !== null ||
+      !!gp?.jump;
+
+    // Un appui tres bref peut commencer ET finir entre deux update() : sans ce
+    // verrou il serait purement perdu, et un tap franc ne ferait rien du tout.
+    // Le verrou garantit au moins une lecture a `true`, donc au moins un petit saut.
+    this.jumpHeld = rawHeld || this.jumpLatch;
+    this.jumpLatch = false;
     this.boostHeld =
       this.keys.has('ShiftLeft') ||
       this.keys.has('ShiftRight') ||

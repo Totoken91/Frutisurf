@@ -11,7 +11,8 @@
     "shot": "node scripts/shot.mjs",
     "check": "esbuild scripts/carve-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/carve.mjs --log-level=error && node node_modules/.cache/carve.mjs",
     "build:single": "vite build --config vite.single.config.ts && node scripts/build-artifact.mjs dist-single/artifact.html",
-    "check:air": "esbuild scripts/air-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/air.mjs --log-level=error && node node_modules/.cache/air.mjs"
+    "check:air": "esbuild scripts/air-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/air.mjs --log-level=error && node node_modules/.cache/air.mjs",
+    "check:input": "node scripts/input-check.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.36.4",

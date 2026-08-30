@@ -146,7 +146,7 @@ export class Game {
     // 120 Hz pour ne pas osciller en escalier sur un ecran 60 Hz.
     this.acc += real;
     let guard = 0;
-    while (this.acc >= STEP && guard++ < 8) {
+    while (this.acc >= STEP && guard++ < 16) {
       // Le hitstop gele la SIM, pas le RENDU.
       if (this.controller.hitstop > 0) {
         this.controller.hitstop -= STEP;
@@ -155,6 +155,10 @@ export class Game {
       }
       this.acc -= STEP;
     }
+    // On JETTE le retard qui n'a pas pu etre rattrape. Sans ca l'accumulateur
+    // grossit sans fin quand la machine ne suit pas, et la simulation part en
+    // ralenti : le jeu ne repond plus au temps reel mais a son propre retard.
+    if (this.acc > STEP * 2) this.acc = STEP * 2;
 
     this.controller.writeState(this.state);
     this.gauges.update(this.state, real);

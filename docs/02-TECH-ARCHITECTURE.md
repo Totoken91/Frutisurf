@@ -59,7 +59,7 @@ Pas fixe pour la simulation, rendu libre :
 
 ```
 accumulator += min(realDelta, 0.1)        // clamp anti-spirale après un onglet en arrière-plan
-while (accumulator >= 1/120) {
+while (accumulator >= 1/120 && steps++ < 16) {
     if (!hitstopActive) world.step(1/120)  // le hitstop gèle la SIM, pas le RENDU
     accumulator -= 1/120
 }
@@ -69,6 +69,24 @@ render()
 
 120 Hz de simulation : les ressorts de `steer` (ω=14) ont besoin de ça pour ne pas
 osciller en escalier sur un écran 60 Hz.
+
+Le retard qui n'a pas pu être rattrapé est **jeté** (`accumulator` replafonné à
+deux pas). Sans ça, sur une machine qui ne suit pas, l'accumulateur grossit sans
+fin et la simulation part en ralenti : le jeu ne répond plus au temps réel mais
+à son propre retard, et *tout* devient mou — y compris la charge du saut.
+
+## 3 quater. Un doigt fait tout
+
+Sur mobile le doigt posé vaut **maintien du saut**, exactement comme la barre
+d'espace : le glisser dirige, sa durée d'appui arme, le lever déclenche.
+
+Deux pièges se sont révélés à l'usage :
+
+- `jumpHeld` ne lisait que le clavier. Comme le saut se déclenche au
+  relâchement, le tactile n'armait jamais et **ne pouvait pas sauter du tout**.
+- Un appui très bref peut commencer *et* finir entre deux `update()`, et se
+  perdre entièrement. Un verrou (`jumpLatch`) garantit au moins une lecture à
+  `true`, donc au moins un petit saut : un tap franc répond toujours.
 
 ## 3 ter. Ce qui suit la caméra, et pourquoi
 

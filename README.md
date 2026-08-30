@@ -29,10 +29,14 @@ npm run dev     # http://localhost:5173
 
 | Action | Clavier | Tactile | Manette |
 |---|---|---|---|
-| Diriger | `←` `→` / `A` `D` | glisser | stick gauche |
-| Armer / sauter | maintenir puis **relâcher** `Espace` | maintenir puis relâcher | `A` |
-| Planer | re-maintenir après l'apex | re-maintenir | `A` |
+| Diriger | `←` `→` / `A` `D` | glisser le doigt posé | stick gauche |
+| Armer / sauter | maintenir puis **relâcher** `Espace` | **poser le doigt**, puis lever | `A` |
+| Planer | re-maintenir après l'apex | reposer le doigt en vol | `A` |
 | Boost | `Maj` | deux doigts | `RT` |
+
+> **Sur mobile, un seul doigt fait tout.** Il reste posé : le glisser
+> latéralement dirige, sa durée d'appui arme le saut, et le lever déclenche.
+> Un deuxième doigt boost.
 
 **Le relief** : le terrain est procédural et vallonné. Le saut se déclenche au
 **relâchement**, pas à l'appui — maintiens pour armer l'élan en voyant la crête
@@ -78,6 +82,10 @@ d'un effet visuel, c'est que les ressorts sont ratés.
   l'air plus de 30 % du temps en croisière (actuellement 1 %) sinon c'est un
   trampoline, et les figures doivent rapporter plus de boost que la recharge
   passive, à dépense égale.
+- `check:input` : pilote un vrai navigateur, au clavier **et au tactile**. Les
+  deux contrôles précédents pilotent `jumpHeld` directement — ils valident le
+  modèle de saut, jamais le chemin qui va de l'événement au contrôleur. C'est
+  exactement là que le saut tactile s'est cassé sans que rien ne le voie.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 
