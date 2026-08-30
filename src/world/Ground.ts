@@ -157,6 +157,16 @@ export class Ground {
           float band = sin(p.y * 0.201) * 0.5 + 0.5;
           c = mix(c, c * 1.16, band * (0.030 + uSpeed * 0.045) * (1.0 - f * 0.55));
 
+          // --- Grandes taches de prairie. La plaine etait d'un vert trop
+          //     uniforme : ces variations lentes (60-160 m) lui donnent de la
+          //     matiere sans ajouter un seul triangle, et elles survivent a la
+          //     distance la ou le micro-detail disparait.
+          // Nom volontaire : "patch" est un mot RESERVE en GLSL ES. Sous ce nom
+          // le shader ne compilait pas et le sol disparaissait entierement,
+          // laissant voir le dome de ciel a travers.
+          float meadow = fbm(vec2(p.x * 0.016, p.y * 0.011));
+          c = mix(c * 0.93, mix(c, uStreak, 0.22) * 1.05, smoothstep(0.32, 0.72, meadow));
+
           // --- Relief. Sans ces deux termes on ne voit pas ou est le sommet,
           //     donc on ne peut pas le timer : c'est de la lisibilite de jeu,
           //     pas de la decoration.
@@ -185,6 +195,11 @@ export class Ground {
 
           vec3 H = normalize(V + L);
           c += vec3(0.20, 0.27, 0.22) * pow(max(dot(N, H), 0.0), 46.0) * 0.48;
+
+          // --- Brume d'horizon. Elle separe les plans lointains les uns des
+          //     autres : sans elle, des collines a 300 m et a 900 m ont
+          //     exactement la meme valeur et le relief s'aplatit.
+          c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.55, 0.99, f) * 0.30);
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.93, 1.0, f));

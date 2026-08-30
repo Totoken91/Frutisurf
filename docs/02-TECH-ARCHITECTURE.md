@@ -28,7 +28,8 @@ src/
 │   ├── Environment.ts       PMREM ciel+herbe pour les réflexions du verre
 │   ├── Clouds.ts            champ de billboards
 │   ├── Ground.ts            grille en éventail déplacée par Terrain
-│   └── City.ts              skyline de cristal
+│   ├── City.ts              skyline de cristal
+│   └── Boosters.ts          colonnes de vitesse, semées en chaîne
 ├── player/
 │   ├── Buddy.ts             le bonhomme MSN en verre
 │   ├── Disc.ts              le CD + shader de diffraction

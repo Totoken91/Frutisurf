@@ -64,8 +64,9 @@ export class Input {
       for (const t of Array.from(e.changedTouches)) {
         if (t.identifier !== this.touchId) continue;
         const dx = t.clientX - this.touchX;
-        // 26 % de la largeur d'ecran = butee franche
-        this.touchSteer = clamp(dx / (window.innerWidth * 0.26), -1, 1);
+        // 34 % de la largeur : plus de course sous le doigt = plus de finesse
+        // avant la butee. A 26 % on saturait en un rien de geste.
+        this.touchSteer = clamp(dx / (window.innerWidth * 0.34), -1, 1);
         // rattrapage : la reference glisse avec le doigt, sinon on sature
         this.touchX += dx * 0.06;
       }
@@ -144,7 +145,10 @@ export class Input {
       if (gp.jump) this.jumpEdge = true;
     }
 
-    this.steer = clamp(s, -1, 1);
+    // Courbe expo douce : du controle fin autour du centre, la butee reste
+    // atteignable. Sans elle le moindre tremblement de pouce fait un virage.
+    const c = clamp(s, -1, 1);
+    this.steer = Math.sign(c) * Math.pow(Math.abs(c), 1.35);
 
     // Le doigt pose vaut MAINTIEN du saut, exactement comme la barre d'espace.
     // Sans ca le tactile n'arme jamais et ne saute jamais : le saut se

@@ -139,8 +139,55 @@ console.log(
     `${(100 * groundFast.air / DURATION).toFixed(0)} % en boost`,
 );
 
+// --- Indulgences d'entree, testees de facon deterministe.
+//
+// Elles ne se voient dans aucune statistique de vol : ce sont des fenetres de
+// quelques centiemes de seconde. On les pilote donc directement.
+function tolerances(): { coyote: boolean; buffer: boolean } {
+  const mk = (): { c: Controller; input: Input; launched: boolean } => {
+    const c = new Controller();
+    const state = { c, input: null as unknown as Input, launched: false };
+    c.events.onJump = (_t: number, w: number) => { if (w > 0) state.launched = true; };
+    state.input = {
+      steer: 0, jumpHeld: false, boostHeld: false, consumeJump: () => false,
+    } as unknown as Input;
+    return state;
+  };
+
+  // Coyote : on arme au sol, on quitte le sol, on relache un poil trop tard.
+  const a = mk();
+  a.input.jumpHeld = true;
+  for (let i = 0; i < 60; i++) a.c.step(STEP, a.input);   // 0.5 s d'elan
+  a.c.airborne = true; a.c.vy = 1; a.c.y = a.c.groundY + 0.4;
+  for (let i = 0; i < 10; i++) a.c.step(STEP, a.input);   // 0.08 s en l'air
+  a.input.jumpHeld = false;
+  a.c.step(STEP, a.input);
+  const coyote = a.launched;
+
+  // Tampon : on relache haut, trop tot, puis on touche le sol.
+  const b = mk();
+  b.input.jumpHeld = true;
+  for (let i = 0; i < 60; i++) b.c.step(STEP, b.input);
+  b.c.airborne = true; b.c.vy = 0; b.c.y = b.c.groundY + 6;
+  for (let i = 0; i < 40; i++) b.c.step(STEP, b.input);
+  b.input.jumpHeld = false;
+  b.c.step(STEP, b.input);
+  const releasedInAir = b.launched;
+  b.c.y = b.c.groundY - 0.1;                              // contact
+  b.c.step(STEP, b.input);
+  const buffer = !releasedInAir && b.launched;
+
+  return { coyote, buffer };
+}
+
+const tol = tolerances();
+console.log(`\nindulgences : coyote ${tol.coyote ? 'ok' : 'ECHEC'}  ` +
+  `tampon ${tol.buffer ? 'ok' : 'ECHEC'}`);
+
 let bad = false;
 const fail = (m: string): void => { console.error(`\nECHEC — ${m}`); bad = true; };
+if (!tol.coyote) fail('le coyote ne rattrape pas un relachement juste apres le decollage.');
+if (!tol.buffer) fail('le tampon ne rejoue pas un relachement anticipe a l atterrissage.');
 
 if (per(wound) <= per(tap) * 1.20) fail("armer le saut ne paie pas : l'elan ne sert a rien.");
 if (per(timed) <= per(wound) * 1.15) fail('viser la crete ne paie pas : la fenetre de timing ne sert a rien.');

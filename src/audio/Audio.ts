@@ -194,6 +194,14 @@ export class Audio {
     this.blip(1180, 0.055, 'sine', 0.05);
   }
 
+  /** Plot de vitesse : accord montant, transpose par le combo. */
+  booster(combo: number): void {
+    const semi = PENTA[combo % PENTA.length] + 12;
+    const f = 440 * Math.pow(2, semi / 12);
+    this.blip(f, 0.20, 'triangle', 0.13, f * 1.5);
+    this.blip(f * 2, 0.26, 'sine', 0.07, f * 3);
+  }
+
   jump(timed = 0, wind = 0): void {
     // Un saut bien time sonne plus haut et plus clair : le retour audio doit
     // confirmer le timing avant meme qu'on voie la hauteur atteinte.

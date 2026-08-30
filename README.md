@@ -34,6 +34,10 @@ npm run dev     # http://localhost:5173
 | Planer | re-maintenir après l'apex | reposer le doigt en vol | `A` |
 | Boost | `Maj` | deux doigts | `RT` |
 
+**Les colonnes ambre** plantées dans la plaine donnent une poussée immédiate et
+rechargent la jauge. Elles sont semées en slalom : les enchaîner demande de
+tourner.
+
 > **Sur mobile, un seul doigt fait tout.** Il reste posé : le glisser
 > latéralement dirige, sa durée d'appui arme le saut, et le lever déclenche.
 > Un deuxième doigt boost.

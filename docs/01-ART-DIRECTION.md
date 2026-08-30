@@ -189,6 +189,33 @@ Tone mapping : **Neutral** (Khronos PBR Neutral), exposure 1.0. Sortie sRGB.
 lumineux ; à 0.62 le bloom attrapait *tout le sol* et délavait l'image. On ne
 fait briller que les vrais highlights — nuages, verre, disque, spray.
 
+### Colonnes de vitesse — le seul accent chaud
+
+Ambre (`#FFB842` → `#FFF0B8`), et c'est délibéré. Un additif **cyan** se noie
+sur une plaine vert saturé : le vert est déjà proche de la saturation et
+l'ajout ne fait que pâlir. L'ambre est la seule teinte qui tranche encore.
+
+C'est aussi le seul accent chaud de la référence (1,6 % de l'image), donc le
+budget du §5 est respecté : quelques colonnes fines, jamais plus de 2 % des
+pixels.
+
+### Matière de la plaine
+
+Trois termes ajoutés pour sortir de l'aplat :
+
+1. **Grandes taches de prairie** (60-160 m). Elles donnent de la matière sans
+   ajouter un triangle, et survivent à la distance là où le micro-détail
+   disparaît.
+2. **Brume d'horizon**, qui sépare les plans lointains — sans elle, des collines
+   à 300 m et à 900 m ont la même valeur et le relief s'aplatit.
+3. **Soleil à trois lobes** (diffusion large, couronne, cœur cueilli par le
+   bloom) plus une traînée horizontale discrète. Un seul lobe fait une tache
+   collée au ciel.
+
+> Piège rencontré : nommer une variable `meadow` et non `patch` — ce dernier est
+> un **mot réservé en GLSL ES**. Sous ce nom le shader ne compilait pas et le
+> sol disparaissait entièrement, laissant voir le dôme de ciel à travers.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :

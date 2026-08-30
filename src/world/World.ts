@@ -9,6 +9,7 @@ import {
 } from 'three';
 import { col } from '../core/Palette';
 import { City } from './City';
+import { Boosters } from './Boosters';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { createEnvironment } from './Environment';
@@ -23,6 +24,7 @@ export class World {
   readonly ground: Ground;
   readonly clouds: Clouds;
   readonly city = new City();
+  readonly boosters: Boosters;
   readonly lights = new Group();
   private sky: Mesh;
 
@@ -30,6 +32,7 @@ export class World {
     const dense = quality !== 'low';
     this.ground = new Ground(dense);
     this.clouds = new Clouds(quality === 'high' ? 46 : 26);
+    this.boosters = new Boosters(dense ? 6 : 5);
 
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
@@ -37,6 +40,7 @@ export class World {
     scene.add(this.ground.mesh);
     scene.add(this.city.group);
     scene.add(this.clouds.mesh);
+    scene.add(this.boosters.mesh);
 
     // Key : les highlights speculaires du verre.
     const key = new DirectionalLight(0xffffff, 2.6);
@@ -61,5 +65,6 @@ export class World {
     this.ground.update(camPos, origin, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);
+    this.boosters.update(origin, time);
   }
 }

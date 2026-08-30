@@ -190,10 +190,45 @@ saut mou au lieu d'un envol suivi d'un vol) :
 - le buddy se cabre, la caméra recule, prend de la hauteur et vise plus bas —
   on veut voir **où on va retomber**.
 
+### Les indulgences d'entrée
+
+Deux fenêtres de quelques centièmes font toute la différence entre un saut qui
+« ne répond pas » et un saut qui pardonne :
+
+- **Coyote** (0,13 s) : on peut encore sauter juste après avoir quitté le sol.
+  On a roulé par-dessus la crête et appuyé un poil trop tard.
+- **Tampon** (0,16 s) : un relâchement juste avant l'atterrissage part dès le
+  contact, sans nouvel appui. L'élan monte aussi **en vol**, donc on peut armer
+  pendant un plané et repartir à la seconde où l'on touche.
+
+Le contrôle **aérien est plus fort qu'au sol** (0,56 contre 0,42) : en l'air on
+n'a que ça pour viser sa réception ou rattraper une colonne.
+
 ### La réception
 
 Atterrir dans la pente descendante amortit et relance ; à plat ou en montée, ça
 casse. C'est ce qui pousse à choisir *où* retomber, pas seulement *quand* sauter.
+
+## 4 quater. Les colonnes de vitesse
+
+Semées en **slalom** en travers du couloir, à ~65 m d'écart. Les enchaîner
+demande de tourner : c'est une récompense d'adresse, pas un ramassage passif.
+
+Elles donnent une impulsion **franche et immédiate** (+11 m/s) en plus de
+recharger la jauge. Un bonus qui se contenterait de remplir la jauge ne se
+sentirait pas au moment où on le prend, et c'est précisément cet instant qui
+doit payer.
+
+> Deux erreurs de conception corrigées en cours de route, toutes deux
+> invisibles à la lecture du code et évidentes à l'écran :
+>
+> - **semées au hasard dans une fenêtre**, elles laissaient des trous de plus de
+>   100 m. Elles s'accrochent maintenant en **chaîne** à écart contrôlé, ce qui
+>   garantit toujours une colonne à portée de vue.
+> - **posées à plat sur le relief**, elles n'offraient presque aucune surface
+>   depuis une caméra rasante, et celles dans un creux disparaissaient derrière
+>   la colline suivante. On ne peut pas viser ce qu'on ne voit pas. Ce sont
+>   maintenant des colonnes verticales, visibles par-dessus le terrain.
 
 ## 4 ter. L'économie du boost
 

@@ -20,6 +20,7 @@ export interface SurfEvents {
   onCarveFull?: () => void;
   /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
   onLipEnter?: () => void;
+  onBooster?: (combo: number) => void;
 }
 
 const CORRIDOR = 14;
@@ -36,6 +37,16 @@ const GRIP = 1.8;
 const LIP_SPAN = 7;
 /** Seuil d'entree dans la fenetre de saut, pour le signal sonore. */
 const LIP_CUE = 0.55;
+
+/**
+ * Indulgences d'entree. Ce sont elles qui font la difference entre un saut qui
+ * "ne repond pas" et un saut qui pardonne : le joueur vise un instant, la
+ * machine encaisse son erreur de quelques centiemes.
+ */
+/** On peut encore sauter juste apres avoir quitte le sol. */
+const COYOTE = 0.13;
+/** Un relachement juste avant l'atterrissage part des le contact. */
+const BUFFER = 0.16;
 
 /**
  * Economie du boost. Ce n'est plus une touche qu'on tient : c'est une
@@ -75,6 +86,10 @@ export class Controller {
    */
   jumpWind = 0;
   private jumpHeldPrev = false;
+  private sinceGrounded = 0;
+  private jumpedThisAir = false;
+  private bufferTimer = 0;
+  private bufferWind = 0;
   /** La portance ne se prend qu'UNE fois par vol (cf. commentaire plus bas). */
   private liftUsed = false;
 
@@ -106,6 +121,20 @@ export class Controller {
 
   private cruise(): number {
     return 22 + Math.min(12, this.distance / 260);
+  }
+
+  /**
+   * Plot de vitesse ramasse. Impulsion FRANCHE et immediate : un plot qui se
+   * contenterait de remplir la jauge ne se sentirait pas au moment ou on le
+   * prend, et c'est precisement l'instant qui doit payer.
+   */
+  collectBooster(): void {
+    this.bonus.add(11);
+    this.reward(0.24);
+    this.combo += 1;
+    this.comboTimer = 2.6;
+    this.score += 140 * (1 + this.combo * 0.3);
+    this.events.onBooster?.(this.combo);
   }
 
   /** Les figures rechargent le boost. C'est la seule facon d'en gagner vite. */
@@ -192,14 +221,30 @@ export class Controller {
     const released = this.jumpHeldPrev && !held;
     this.jumpHeldPrev = held;
 
-    if (!this.airborne) {
-      if (held) this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
+    // L'elan monte aussi EN VOL : on peut armer pendant un plane et relacher
+    // juste avant de toucher, pour repartir des le contact.
+    if (held) this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
+    this.sinceGrounded = this.airborne ? this.sinceGrounded + dt : 0;
+    if (this.bufferTimer > 0) this.bufferTimer -= dt;
 
-      if (released && this.jumpWind > 0) {
+    if (released) {
+      if (!this.airborne) {
         this.launch(effective, this.lipFactor, this.jumpWind);
         this.jumpWind = 0;
-      } else if (!held) {
+      } else if (this.sinceGrounded < COYOTE && !this.jumpedThisAir) {
+        // Coyote : on a roule par-dessus la crete et appuye un poil trop tard.
+        this.launch(effective, this.lipFactor, this.jumpWind);
         this.jumpWind = 0;
+      } else {
+        // Trop tot : on garde l'intention pour l'appliquer au contact.
+        this.bufferTimer = BUFFER;
+        this.bufferWind = this.jumpWind;
+        this.jumpWind = 0;
+      }
+    }
+
+    if (!this.airborne) {
+      if (!held) {
         // Decollage naturel : au-dela d'une certaine vitesse, une crete bombee
         // ne peut plus retenir le disque. C'est de la physique, pas un scenario.
         //
@@ -209,6 +254,7 @@ export class Controller {
         const needed = -this.curvature * effective * effective;
         if (needed > -GRAVITY * GRIP) {
           this.airborne = true;
+          this.jumpedThisAir = false;
           this.vy = this.slopeTravel * effective;
           this.airTime = 0;
           this.peakY = this.y;
@@ -253,10 +299,17 @@ export class Controller {
         this.airborne = false;
         this.gliding = false;
         this.glideTime = 0;
-        this.jumpWind = 0;
         this.jumpHeldPrev = held;
         this.liftUsed = false;
         this.land(effective);
+
+        // Relachement anticipe : il part des le contact, sans nouvel appui.
+        if (this.bufferTimer > 0) {
+          this.launch(effective, this.lipFactor, this.bufferWind);
+          this.bufferTimer = 0;
+        } else {
+          this.jumpWind = held ? this.jumpWind : 0;
+        }
       }
     } else {
       this.y = this.groundY;
@@ -264,8 +317,9 @@ export class Controller {
       this.glideTime = 0;
     }
 
-    // --- Deplacement
-    const lateral = st * effective * 0.42;
+    // --- Deplacement. Le controle aerien est PLUS fort qu'au sol : en l'air
+    // on n'a que ca pour viser sa reception ou rattraper une colonne.
+    const lateral = st * effective * (this.airborne ? 0.56 : 0.42);
     this.x += lateral * dt;
     this.z -= effective * dt;
     this.distance += effective * dt;
@@ -291,6 +345,7 @@ export class Controller {
    */
   private launch(speed: number, timed: number, wind: number): void {
     this.airborne = true;
+    this.jumpedThisAir = true;
     this.airTime = 0;
     this.peakY = this.y;
     this.liftUsed = false;

@@ -13,6 +13,7 @@ import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
 import { terrainGradient, terrainHeight } from './world/Terrain';
+import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
 
 const STEP = 1 / 120;
@@ -43,6 +44,8 @@ export class Game {
   private grad = { dx: 0, dz: 0 };
   private groundNormal = new Vector3(0, 1, 0);
   private trailPoint = new Vector3();
+  private hits: BoosterHit[] = [];
+  private probe = new Vector3();
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -60,6 +63,7 @@ export class Game {
         this.spray.burst(this.contactPoint(), Math.round(90 * charge), 0.9 + charge, this.time);
         this.rings.spawn(this.contactPoint(), 0.55 + charge * 0.5, this.time, this.controller.groundY);
         this.audio.pop(charge, combo);
+        this.buzz(18);
       },
       onJump: (timed, wind) => {
         this.audio.jump(timed, wind);
@@ -73,6 +77,14 @@ export class Game {
         }
       },
       onLipEnter: () => this.audio.lip(),
+      onBooster: (combo) => {
+        this.rig.punch(0.20, 11);
+        this.state.popFlash = Math.max(this.state.popFlash, 0.85);
+        this.spray.burst(this.contactPoint(), 70, 1.3, this.time);
+        this.rings.spawn(this.contactPoint(), 0.9, this.time, this.controller.groundY);
+        this.audio.booster(combo);
+        this.buzz(28);
+      },
       onLand: (impact, quality) => {
         // Une reception propre dans la pente secoue moins et gicle plus :
         // le retour doit dire au joueur qu'il a bien choisi son point de chute.
@@ -85,6 +97,7 @@ export class Game {
         );
         this.rings.spawn(this.contactPoint(), 0.4 + impact * 0.7, this.time, this.controller.groundY);
         this.audio.land(impact, quality);
+        if (impact > 0.7) this.buzz(14);
       },
     });
 
@@ -113,6 +126,21 @@ export class Game {
   private contactPoint(): Vector3 {
     const c = this.controller;
     return this.contact.set(c.x, c.y + 0.08, c.z);
+  }
+
+  /** Vibration courte sur mobile. Ignoree partout ou l'API n'existe pas. */
+  private buzz(ms: number): void {
+    navigator.vibrate?.(ms);
+  }
+
+  private collectBoosters(): void {
+    const c = this.controller;
+    this.probe.set(c.x, c.y, c.z);
+    this.world.boosters.query(this.probe, 1.6, this.hits);
+    for (const h of this.hits) {
+      this.world.boosters.take(h.index, this.time);
+      c.collectBooster();
+    }
   }
 
   /** Normale du terrain sous le surfeur, pour poser tout ce qui touche le sol. */
@@ -152,6 +180,7 @@ export class Game {
         this.controller.hitstop -= STEP;
       } else {
         this.controller.step(STEP, this.input);
+        this.collectBoosters();
       }
       this.acc -= STEP;
     }
