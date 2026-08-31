@@ -8,7 +8,7 @@ import {
   ShaderMaterial,
   Vector2,
 } from 'three';
-import { GLSL_NOISE } from '../core/Noise';
+import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 
 /**
@@ -64,12 +64,13 @@ export class Disc {
         uCharge: { value: 0 },
       },
       vertexShader: /* glsl */ `
+${GLSL_SAFE}
         varying vec3 vN, vV, vLocal;
         void main(){
           vLocal = position;
           vec4 wp = modelMatrix * vec4(position, 1.0);
           vN = normalize(mat3(modelMatrix) * normal);
-          vV = normalize(cameraPosition - wp.xyz);
+          vV = nsafe(cameraPosition - wp.xyz, vec3(0.0, 0.0, 1.0));
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,

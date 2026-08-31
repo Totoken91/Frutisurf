@@ -10,7 +10,7 @@ import {
   TorusGeometry,
   Vector3,
 } from 'three';
-import { Rng } from '../core/Noise';
+import { GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { terrainHeight, WATER_LEVEL } from './Terrain';
 
@@ -73,6 +73,7 @@ export interface Ring {
 }
 
 const GLASS = /* glsl */ `
+${GLSL_SAFE}
   attribute float iAlpha, iFlash, iSeed, iHigh;
   varying vec3 vN, vV;
   varying vec2 vUv;
@@ -84,8 +85,10 @@ const GLASS = /* glsl */ `
     // mieux en vision peripherique, mieux qu'un simple changement de couleur.
     vec3 p = position * (1.0 + iFlash * 0.42);
     vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
-    vN = normalize(mat3(instanceMatrix) * normal);
-    vV = normalize(cameraPosition - wp.xyz);
+    vN = nsafe(mat3(instanceMatrix) * normal, vec3(0.0, 1.0, 0.0));
+    // La camera traverse les anneaux (mesure a -0,98 m) : sans garde, le
+    // vecteur de vue s'annule et normalize rend NaN, donc du noir.
+    vV = nsafe(cameraPosition - wp.xyz, vec3(0.0, 0.0, 1.0));
 
     // --- FONDU DE PROXIMITE.
     //
@@ -173,6 +176,7 @@ export class Rings {
       },
       vertexShader: GLASS,
       fragmentShader: /* glsl */ `
+${GLSL_SAFE}
         uniform float uTime;
         uniform vec3 uGlass, uRim, uDeep, uHigh;
         varying vec3 vN, vV;
@@ -181,7 +185,8 @@ export class Rings {
 
         void main(){
           if (vAlpha < 0.01) discard;
-          float fres = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.1);
+          float fres = pow(max(1.0 - abs(dot(nsafe(vN, vec3(0.0, 1.0, 0.0)),
+                                             nsafe(vV, vec3(0.0, 0.0, 1.0)))), 1e-4), 2.1);
 
           // Teinte : cyan au sol, violet iridescent en hauteur. La couleur DIT
           // s'il faut sauter, avant meme d'avoir juge la hauteur a l'oeil.

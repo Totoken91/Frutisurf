@@ -7,7 +7,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { Rng } from '../core/Noise';
+import { GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 
 /**
@@ -84,6 +84,7 @@ export class Spray {
         uFoamB: { value: vec3('waterShallow') },
       },
       vertexShader: /* glsl */ `
+${GLSL_SAFE}
         attribute vec3 iPos, iVel;
         attribute float iBirth, iSeed, iFoam;
         uniform float uTime, uLife, uGravity;
@@ -107,11 +108,16 @@ export class Spray {
 
           // Billboard oriente sur la vitesse : le brin s'etire dans son sens
           // de projection au lieu de rester une pastille ronde.
-          vec3 fwd = normalize(cameraPosition - center);
+          // Par PARTICULE : celles qui passent au ras de l'objectif avaient un
+          // vecteur de vue nul, donc un NaN, donc un quad noir — pendant que
+          // leurs voisines s'affichaient normalement.
+          vec3 fwd = nsafe(cameraPosition - center, vec3(0.0, 0.0, 1.0));
           vec3 up = vel - fwd * dot(vel, fwd);
           float upLen = length(up);
           up = upLen > 0.0001 ? up / upLen : vec3(0.0, 1.0, 0.0);
-          vec3 right = normalize(cross(up, fwd));
+          // Si le repli vec3(0,1,0) se retrouve colineaire a fwd — camera juste
+          // au-dessus de la particule — le produit vectoriel est nul.
+          vec3 right = nsafe(cross(up, fwd), vec3(1.0, 0.0, 0.0));
 
           float fade = 1.0 - vAge;
           float w = (0.085 + iSeed * 0.055) * fade * (1.0 + iFoam * 0.55);

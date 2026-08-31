@@ -8,6 +8,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
+import { GLSL_SAFE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 
@@ -57,6 +58,7 @@ export class Motes {
         uWarm: { value: vec3('cloudCore') },
       },
       vertexShader: /* glsl */ `
+${GLSL_SAFE}
         attribute vec4 iSeed;
         uniform vec3 uOrigin, uSun;
         uniform float uTime, uSpan;
@@ -76,7 +78,10 @@ export class Motes {
           vec3 toCam = cameraPosition - p;
           float dist = length(toCam);
           vec3 fwd = toCam / max(dist, 0.001);
-          vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));
+          // Nul quand la camera est a la VERTICALE du grain. Un grain sur N
+          // tombait alors en NaN et sortait noir pendant que ses voisins
+          // s'affichaient normalement — le defaut decrit par le joueur.
+          vec3 right = nsafe(cross(vec3(0.0, 1.0, 0.0), fwd), vec3(1.0, 0.0, 0.0));
           vec3 up = cross(fwd, right);
 
           // Taille en metres, legerement croissante avec la distance pour ne
@@ -88,7 +93,7 @@ export class Motes {
           // au soleil et ceux qui lui tournent le dos qui donne la profondeur ;
           // un pollen d'intensite uniforme n'est qu'un semis de points blancs.
           float facing = max(dot(normalize(-fwd), normalize(uSun)), 0.0);
-          vGlow = (0.22 + pow(facing, 3.0) * 1.5) * smoothstep(uSpan, uSpan * 0.35, dist)
+          vGlow = (0.22 + pow(max(facing, 1e-4), 3.0) * 1.5) * smoothstep(uSpan, uSpan * 0.35, dist)
                 * smoothstep(1.5, 5.0, dist);
           vUv = uv;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
@@ -103,7 +108,8 @@ export class Motes {
           if (r > 1.0) discard;
           // Coeur dur, halo doux : un simple disque flou lit comme une tache
           // de poussiere sur l'objectif, pas comme un grain en suspension.
-          float a = pow(1.0 - r, 2.2) * 0.55 + pow(max(0.0, 1.0 - r * 2.4), 6.0) * 0.9;
+          float a = pow(max(1.0 - r, 1e-4), 2.2) * 0.55
+                  + pow(max(1.0 - r * 2.4, 1e-4), 6.0) * 0.9;
           a *= vGlow;
           gl_FragColor = vec4(uWarm * a, a);
           #include <tonemapping_fragment>

@@ -9,7 +9,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { Rng } from '../core/Noise';
+import { GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { terrainHeight, WATER_LEVEL } from './Terrain';
 
@@ -93,6 +93,7 @@ export class Boosters {
       },
       side: DoubleSide,
       vertexShader: /* glsl */ `
+${GLSL_SAFE}
         attribute float iAlpha, iSeed;
         varying vec2 vUv;
         varying float vAlpha, vSeed;
@@ -108,12 +109,17 @@ export class Boosters {
           // ramasser. Un cylindre double face de 6,4 m de large vu de l'interieur,
           // c'est un mur translucide sur tout l'ecran.
           vAlpha *= smoothstep(0.8, 6.5, distance(cameraPosition, wp.xyz));
-          vNormalW = normalize(mat3(instanceMatrix) * normal);
-          vViewW = normalize(cameraPosition - wp.xyz);
+          vNormalW = nsafe(mat3(instanceMatrix) * normal, vec3(0.0, 1.0, 0.0));
+          // LE defaut. Ce vecteur s'annule des que la camera atteint la
+          // surface, et elle traverse la colonne pour de vrai : normalize
+          // rendait alors NaN, le fragment sortait noir, et le bloom etalait
+          // ce noir sur tout un voisinage.
+          vViewW = nsafe(cameraPosition - wp.xyz, vec3(0.0, 0.0, 1.0));
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,
       fragmentShader: /* glsl */ `
+${GLSL_SAFE}
         uniform float uTime;
         uniform vec3 uCore, uEdge, uWarm;
         varying vec2 vUv;
@@ -126,7 +132,7 @@ export class Boosters {
           // Le pied est franc, le sommet se dissout : la colonne se lit comme
           // posee au sol et non comme un cylindre flottant.
           float up = vUv.y;
-          float body = pow(1.0 - up, 1.6);
+          float body = pow(max(1.0 - up, 1e-4), 1.6);
           float foot = smoothstep(0.14, 0.0, up);
 
           // Chevrons qui montent : ils disent que c'est une PRISE, pas un obstacle.
@@ -134,12 +140,15 @@ export class Boosters {
           float chevron = smoothstep(0.55, 1.0, wave) * body * 0.7;
 
           // Bords vus de profil plus lumineux : donne le volume du tube.
-          float rim = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewW))), 2.2);
+          float rim = pow(max(1.0 - abs(dot(nsafe(vNormalW, vec3(0.0, 1.0, 0.0)),
+                                            nsafe(vViewW, vec3(0.0, 0.0, 1.0)))), 1e-4), 2.2);
 
           float pulse = 0.82 + 0.18 * sin(uTime * 3.4 + vSeed);
           vec3 c = mix(uEdge, uCore, rim * 0.55 + chevron * 0.45) * 1.6 + uWarm * foot * 1.2;
           float a = (body * 0.62 + chevron * 0.7 + rim * 0.7 + foot * 1.1) * vAlpha * pulse;
-          gl_FragColor = vec4(c * a, a);
+          // Pare-feu de sortie : rien d'invalide ne doit atteindre le bloom.
+          a = fsafe(a);
+          gl_FragColor = vec4(fsafe3(c) * a, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }

@@ -93,3 +93,35 @@ vec3 hue2rgb(float h){
   return clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0);
 }
 `;
+
+/**
+ * Garde-fous numeriques, a inclure dans tout shader qui normalise un vecteur
+ * de vue ou eleve une base variable a une puissance.
+ *
+ * normalize(vec3(0)) vaut 0/0, c'est-a-dire NaN. Ce n'est pas un cas
+ * theorique : le vecteur de vue s'annule des que la camera atteint la surface,
+ * et la camera TRAVERSE reellement les colonnes de boost et les anneaux — 
+ * mesure a -0,01 m, plusieurs images d'affilee, puisque le joueur les traverse
+ * pour les ramasser et qu'elle le suit.
+ *
+ * Un fragment NaN s'affiche NOIR. Et comme il alimente ensuite le flou de
+ * bloom, qui est une moyenne ponderee, un seul pixel invalide noircit tout son
+ * voisinage : d'abord un objet noir qui bouche la vue, puis un clignotement sur
+ * une large partie de l'ecran. Les deux symptomes que le joueur decrivait
+ * separement sont le meme defaut.
+ *
+ * Le rasteriseur logiciel des bancs d'essai, lui, renvoie 0 pour
+ * normalize(vec3(0)) et calcule pow() en pleine precision : c'est pourquoi le
+ * defaut n'a JAMAIS ete reproduit ici, et pourquoi dix corrections raisonnees
+ * sur le symptome sont tombees a cote.
+ */
+export const GLSL_SAFE = /* glsl */ `
+vec3 nsafe(vec3 v, vec3 fallback){
+  float l = length(v);
+  return l > 1e-5 ? v / l : fallback;
+}
+// NaN est faux dans TOUTE comparaison, y compris avec lui-meme : seule une
+// forme niee l'attrape : une comparaison directe le laisserait passer.
+float fsafe(float x){ return (x >= 0.0 || x <= 0.0) ? x : 0.0; }
+vec3 fsafe3(vec3 v){ return vec3(fsafe(v.x), fsafe(v.y), fsafe(v.z)); }
+`;

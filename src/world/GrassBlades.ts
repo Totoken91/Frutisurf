@@ -193,7 +193,7 @@ export class GrassBlades {
           vec3 face = normalize(vec3(rot.y, 0.0, -rot.x));
           vLight = 0.80 + 0.20 * abs(dot(face, normalize(vec3(0.4, 0.0, -0.9))));
           // Les brins tournes vers le soleil accrochent un eclat sur la pointe.
-          vGlint = pow(max(dot(face, normalize(uSun)), 0.0), 5.0);
+          vGlint = pow(max(dot(face, normalize(uSun)), 1e-4), 5.0);
 
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
@@ -210,10 +210,11 @@ export class GrassBlades {
           c *= vLight;
           // Translucidite : le soleil traverse la pointe. C'est ce terme qui
           // donne le duvet lumineux d'une prairie a contre-jour.
-          c += uGlow * pow(vV, 3.0) * 0.40;
+          float vVs = max(vV, 1e-4);
+          c += uGlow * pow(vVs, 3.0) * 0.40;
           // Eclat de pointe : c'est le gloss Frutiger Aero applique au vegetal,
           // et il ne prend que sur les brins reellement tournes vers le soleil.
-          c += vec3(0.95, 1.0, 0.80) * vGlint * pow(vV, 6.0) * 0.85 * (1.0 - vShade);
+          c += vec3(0.95, 1.0, 0.80) * vGlint * pow(vVs, 6.0) * 0.85 * (1.0 - vShade);
           c = mix(c, c * 0.62 + uSkyLight * 0.055, vShade * 0.85);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>

@@ -18,6 +18,8 @@
     "check:flicker": "node scripts/flicker-check.mjs",
     "check:flicker:resize": "RESIZE=1 SECONDS=80 node scripts/flicker-check.mjs",
     "check:theme": "node scripts/theme-check.mjs",
+    "check:nan": "node scripts/nan-check.mjs",
+    "check:backticks": "node scripts/backtick-check.mjs",
     "check:shaders": "node scripts/shader-check.mjs",
     "check:shake": "esbuild scripts/shake-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/shake.mjs --log-level=error && node node_modules/.cache/shake.mjs",
     "check:water": "esbuild scripts/water-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/water.mjs --log-level=error && node node_modules/.cache/water.mjs"

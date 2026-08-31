@@ -1,4 +1,5 @@
 import { BackSide, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { GLSL_SAFE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 
 /**
@@ -42,6 +43,7 @@ export function createSky(): Mesh {
       }
     `,
     fragmentShader: /* glsl */ `
+${GLSL_SAFE}
       varying vec3 vDir;
       uniform vec3 uZenith, uHigh, uMid, uHorizon, uSun;
 
@@ -87,7 +89,7 @@ export function createSky(): Mesh {
         // que soit l'endroit du ciel ou l'on regarde ; calculees en espace
         // ecran, elles tourneraient avec le roulis de la camera.
         vec3 up = vec3(0.0, 1.0, 0.0);
-        vec3 sx = normalize(cross(up, sun));
+        vec3 sx = nsafe(cross(up, sun), vec3(1.0, 0.0, 0.0));
         vec3 sy = cross(sun, sx);
         vec2 t = vec2(dot(d, sx), dot(d, sy));
         float r = length(t) + 1e-5;
@@ -95,7 +97,9 @@ export function createSky(): Mesh {
 
         // Six branches longues + six courtes decalees : une etoile a branches
         // toutes egales lit comme un flocon, pas comme un eblouissement.
-        float spikes = pow(abs(cos(ang * 3.0)), 22.0) + 0.45 * pow(abs(cos(ang * 3.0 + 0.5236)), 34.0);
+        // abs(cos()) passe par zero a chaque quart de tour : bases plafonnees.
+        float spikes = pow(max(abs(cos(ang * 3.0)), 1e-4), 22.0)
+                     + 0.45 * pow(max(abs(cos(ang * 3.0 + 0.5236)), 1e-4), 34.0);
         float falloff = exp(-r * 19.0);
         c += vec3(1.00, 0.98, 0.92) * spikes * falloff * 1.9;
 
@@ -107,10 +111,10 @@ export function createSky(): Mesh {
         // --- Voile atmospherique juste au-dessus de l'horizon. Il blanchit la
         // bande basse et donne la profondeur : sans lui, la plaine se colle au
         // ciel au lieu de s'y enfoncer.
-        float lowBand = pow(1.0 - clamp(abs(h) * 8.0, 0.0, 1.0), 2.4);
+        float lowBand = pow(max(1.0 - clamp(abs(h) * 8.0, 0.0, 1.0), 1e-4), 2.4);
         c = mix(c, uHorizon, lowBand * 0.42);
         // Et un supplement de lumiere du cote du soleil, ou l'air diffuse le plus.
-        c += vec3(0.30, 0.36, 0.38) * lowBand * pow(max(dot(normalize(vec3(d.x, 0.0, d.z)), normalize(vec3(sun.x, 0.0, sun.z))), 0.0), 3.0) * 0.55;
+        c += vec3(0.30, 0.36, 0.38) * lowBand * pow(max(dot(normalize(vec3(d.x, 0.0, d.z)), normalize(vec3(sun.x, 0.0, sun.z))), 1e-4), 3.0) * 0.55;
 
         // Sous l'horizon le dome ne doit jamais s'assombrir : le sol le recouvre,
         // mais les bords d'ecran en perspective large peuvent le laisser voir.

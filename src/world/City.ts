@@ -10,7 +10,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { GLSL_NOISE, Rng } from '../core/Noise';
+import { GLSL_SAFE, GLSL_NOISE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 
 /**
@@ -45,6 +45,7 @@ export class City {
         uHaze: { value: vec3('skyHorizon') },
       },
       vertexShader: /* glsl */ `
+${GLSL_SAFE}
         varying float vH;
         varying vec3 vNormalW;
         varying vec3 vViewDir;
@@ -53,11 +54,12 @@ export class City {
           vec4 wp = instanceMatrix * vec4(position, 1.0);
           vec4 world = modelMatrix * wp;
           vNormalW = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
-          vViewDir = normalize(cameraPosition - world.xyz);
+          vViewDir = nsafe(cameraPosition - world.xyz, vec3(0.0, 0.0, 1.0));
           gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
       fragmentShader: /* glsl */ `
+${GLSL_SAFE}
         uniform vec3 uFace, uLit, uDeep, uHaze;
         varying float vH;
         varying vec3 vNormalW;
@@ -68,7 +70,8 @@ export class City {
           c = mix(c, uLit, smoothstep(0.55, 1.0, vH) * 0.75);
 
           // Arete lumineuse : c'est ce qui fait lire "cristal" et pas "boite".
-          float fres = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewDir))), 2.2);
+          float fres = pow(max(1.0 - abs(dot(nsafe(vNormalW, vec3(0.0, 1.0, 0.0)),
+                                             nsafe(vViewDir, vec3(0.0, 0.0, 1.0)))), 1e-4), 2.2);
           c += uLit * fres * 0.75;
 
           // Une face sur deux prend le soleil de plein fouet. Sans contraste

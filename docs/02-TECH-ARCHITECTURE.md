@@ -200,6 +200,8 @@ npm run check:flicker:resize  # idem, sous tempête de redimensionnement
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 npm run check:theme           # le jeu reste en plein jour en mode sombre
 npm run check:shaders         # aucun shader cassé, profil bureau ET téléphone
+npm run check:nan             # aucun normalize() qui peut rendre NaN (= pixels noirs)
+npm run check:backticks       # aucun backtick dans un commentaire de shader
 npm run check:perf            # profil par soustraction + objets trop près de la caméra
 ```
 
@@ -385,6 +387,81 @@ l'objectif s'efface pendant que le reste tient.
 
 Le pollen avait déjà le sien. C'est ce précédent qui aurait dû faire poser la
 question pour tout le reste.
+
+## 7 sexies. La vraie cause : `normalize(vec3(0))`
+
+Dix corrections raisonnées sur le symptôme, dix échecs. Le défaut n'a **jamais**
+été reproduit ici, et c'est ça qui aurait dû mettre la puce à l'oreille bien plus
+tôt : sous rastériseur logiciel, il n'existe pas.
+
+Le joueur a fini par donner les deux phrases décisives : « certaines particules
+s'affichent bien, certaines sont noires » et « j'ai l'impression que ça arrive
+quand je m'approche des colonnes lumineuses ».
+
+```glsl
+vViewW = normalize(cameraPosition - wp.xyz);   // Boosters.ts
+```
+
+Ce vecteur **s'annule** dès que la caméra atteint la surface. Et deux sections
+plus haut, on avait déjà mesuré que la caméra entre **dans** les colonnes
+(−0,01 m) et **dans** les anneaux (−0,98 m) : le joueur les traverse pour les
+ramasser, elle le suit une fraction de seconde plus tard. `normalize(vec3(0))`
+vaut `0/0`, c'est-à-dire **NaN**.
+
+Un fragment NaN s'affiche **noir**. Et comme il alimente ensuite le flou de
+bloom, qui est une moyenne pondérée, **un seul pixel invalide noircit tout son
+voisinage**. Les deux plaintes — l'objet noir qui bouche la vue, et le
+clignotement plein écran — étaient le même bug.
+
+Le même piège existe **par particule** dans la gerbe et dans le pollen :
+
+```glsl
+vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));   // Motes.ts
+```
+
+nul quand la caméra est à la verticale du grain. Un grain sur N tombait en NaN et
+sortait noir pendant que ses voisins s'affichaient normalement — mot pour mot ce
+que le joueur décrivait.
+
+### Pourquoi aucun banc d'essai ne l'a vu
+
+SwiftShader renvoie `0` pour `normalize(vec3(0))` et calcule `pow()` en pleine
+précision. Le défaut est **propre au GPU** : c'est un comportement non spécifié
+que chaque pilote traite à sa façon. Un banc d'essai en rendu logiciel est un
+excellent détecteur de fautes de logique et un **détecteur nul** de fautes
+numériques dépendantes du matériel. Il aurait fallu conclure ça après le
+deuxième « ça flicke toujours », pas après le dixième.
+
+### Ce qui est en place
+
+`GLSL_SAFE` (dans `core/Noise.ts`) fournit deux garde-fous, inclus dans les dix
+shaders concernés :
+
+```glsl
+vec3 nsafe(vec3 v, vec3 fallback){ float l = length(v); return l > 1e-5 ? v / l : fallback; }
+float fsafe(float x){ return (x >= 0.0 || x <= 0.0) ? x : 0.0; }
+```
+
+`fsafe` teste la forme **niée** : un NaN est faux dans *toute* comparaison, y
+compris avec lui-même, donc `x < 0.0` le laisserait passer.
+
+S'y ajoute le plafonnement des bases de `pow()`. Sur beaucoup de GPU mobiles,
+`pow(x, n)` est calculé en `exp2(n · log2(x))` : à `x = 0`, `log2(0) = -Inf`, et
+le produit par un exposant élevé sort du domaine de la précision `mediump`. Le
+pire site était `Environment.ts`, où le facteur solaire vaut exactement 0 sur
+**toute la moitié** de la carte opposée au soleil — et cette passe alimente la
+carte d'environnement **pré-filtrée**, dont le pré-filtrage *floute* : un NaN y
+entre et ressort en taches noires sur **chaque objet en verre du jeu**.
+
+### Deux vérifications, parce que le défaut ne se reproduit pas ici
+
+- `npm run check:nan` — statique. Interdit `normalize()` sur un vecteur qui peut
+  s'annuler. Confrontée au code d'avant correction, elle y trouve bien les sites
+  fautifs ; c'est la seule preuve possible quand l'exécution ne reproduit rien.
+- `npm run check:backticks` — un backtick dans un commentaire GLSL termine le
+  template literal qui le porte, et l'erreur tombe des dizaines de lignes plus
+  bas sur du code valide. C'est arrivé **quatre** fois. Une règle qu'on doit se
+  rappeler est une règle qu'on oubliera.
 
 ## 8. Aucune frame noire
 

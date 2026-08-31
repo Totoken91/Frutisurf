@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
-import { GLSL_NOISE } from '../core/Noise';
+import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { makeGrassTexture } from './GrassTexture';
 import { SUN_DIR } from './Sky';
@@ -130,6 +130,7 @@ export class Ground {
         }
       `,
       fragmentShader: /* glsl */ `
+${GLSL_SAFE}
         varying vec3 vWorld;
         varying vec3 vNormal;
         uniform vec3 uNear, uMid, uFar, uHorizon, uShadow, uStreak, uSun, uCam;
@@ -301,15 +302,15 @@ export class Ground {
           c *= 1.0 + (smoothstep(0.35, 0.65, mow) - 0.5) * 0.09 * (1.0 - f * 0.6);
 
           // --- Sheen laque : il allume la bande d'horizon
-          vec3 V = normalize(uCam - vWorld);
-          float graze = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.5);
+          vec3 V = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
+          float graze = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 4.5);
           c += vec3(0.07, 0.22, 0.15) * graze * 0.50;
 
           //     Gloss Frutiger Aero : le speculaire est MASQUE par les brins.
           //     Une plaine qui brille uniformement lit comme du plastique ; ce
           //     sont les pointes qui doivent scintiller, pas la surface.
           vec3 H = normalize(V + L);
-          float spec = pow(max(dot(N, H), 0.0), 62.0);
+          float spec = pow(max(dot(N, H), 1e-4), 62.0);
           c += vec3(0.26, 0.34, 0.24) * spec * (0.28 + blade * 1.05);
 
           //     Et un lisere sur les pointes vues de biais : c'est ce qui donne
@@ -368,7 +369,7 @@ export class Ground {
           //     avant le ciel est traversee par la lumiere et s'allume. Sans
           //     ce lisere, la plaine se termine par une decoupe de papier.
           float toward = max(dot(normalize(vec3(vWorld.x, 0.0, vWorld.z) - vec3(uCam.x, 0.0, uCam.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0);
-          c += vec3(0.34, 0.46, 0.30) * smoothstep(0.68, 0.99, f) * pow(toward, 2.0) * 1.05;
+          c += vec3(0.34, 0.46, 0.30) * smoothstep(0.68, 0.99, f) * pow(max(toward, 1e-4), 2.0) * 1.05;
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));

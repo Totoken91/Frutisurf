@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
-import { GLSL_NOISE } from '../core/Noise';
+import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { terrainGLSL, WATER_LEVEL } from './Terrain';
@@ -108,6 +108,7 @@ export class Water {
         }
       `,
       fragmentShader: /* glsl */ `
+${GLSL_SAFE}
         uniform float uTime;
         uniform vec3 uCam, uSun, uDeep, uShallow, uFoam, uSkyLow, uSkyHigh, uSkyLight, uWake;
         varying vec3 vWorld;
@@ -120,7 +121,7 @@ export class Water {
           // Hors de l'eau : rien. C'est ce discard qui dessine les rives.
           if (vDepth <= 0.02) discard;
 
-          vec3 V = normalize(uCam - vWorld);
+          vec3 V = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
           vec3 L = normalize(uSun);
 
           // --- La ride. Deux couches de bruit qui derivent en sens contraire :
@@ -167,7 +168,7 @@ export class Water {
           // --- Reflexion du ciel a l'incidence rasante. C'est le terme qui
           //     fait la SURFACE : sans Fresnel, une etendue d'eau vue de loin
           //     reste une tache bleue posee sur l'herbe.
-          float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0);
+          float fres = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 4.0);
           vec3 sky = mix(uSkyLow, uSkyHigh, clamp(V.y * 1.6, 0.0, 1.0));
           vec3 c = mix(body, sky, clamp(fres * 1.15, 0.0, 0.92));
 
@@ -181,7 +182,12 @@ export class Water {
           //     de points nets qui donne une surface liquide au soleil.
           vec3 H = normalize(V + L);
           float ndh = max(dot(N, H), 0.0);
-          float glint = pow(ndh, 340.0) * 5.0 + pow(ndh, 46.0) * 0.55;
+          // Exposant 340 : c'est le pow le plus violent du projet. En mediump,
+          // n * log2(x) perd toute precision utile bien avant d'atteindre ce
+          // rang, et a ndh = 0 il produit un NaN qui, additionne a la couleur,
+          // rend le pixel noir puis contamine le flou de bloom.
+          float ndhs = max(ndh, 1e-4);
+          float glint = pow(ndhs, 340.0) * 5.0 + pow(ndhs, 46.0) * 0.55;
           c += vec3(1.0, 0.98, 0.90) * glint;
 
           // --- Ecume de rive. Elle suit la ligne de flottaison, donc la courbe
