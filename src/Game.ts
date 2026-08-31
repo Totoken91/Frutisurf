@@ -370,7 +370,7 @@ export class Game {
     if (this.run.step(real, this.controller.score, this.controller.combo)) this.endRun();
     this.countdown();
 
-    this.controller.writeState(this.state);
+    this.controller.writeState(this.state, real);
     this.hud.update(this.state, this.run, real);
 
     // La camera tourne en temps reel : elle doit rester fluide meme si la

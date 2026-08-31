@@ -194,6 +194,7 @@ npm run check:air      # élan, timing, plané, économie de boost
 npm run check:input    # clavier ET tactile arment puis déclenchent le saut
 npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
 npm run check:water    # on glisse assez vite, on coule trop lent, et ça coûte
+npm run check:shake    # la secousse se voit, reste continue, ne bouge pas le point de vue
 npm run check:flicker         # aucune frame noire sur une partie complète
 npm run check:flicker:resize  # idem, sous tempête de redimensionnement
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression

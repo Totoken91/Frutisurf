@@ -656,7 +656,8 @@ export class Controller {
     this.events.onPop?.(c, this.combo);
   }
 
-  writeState(s: GameState): void {
+  /** @param dt temps REEL de l'image, pas le pas de simulation. */
+  writeState(s: GameState, dt = 1 / 60): void {
     s.speed = Math.min(60, this.speed + this.bonus.value);
     s.steer = this.steer.value;
     s.lean = this.lean.value;
@@ -676,7 +677,13 @@ export class Controller {
     s.planing = this.planing;
     s.sunk = this.sunk;
     s.mult = this.mult;
-    s.popFlash = lerp(s.popFlash, 0, 0.12);
+    // Decroissance exponentielle en TEMPS, pas par image. Le facteur fixe de
+    // 0,12 par image liait la duree du flash a la cadence d'affichage : deux
+    // fois plus court sur un telephone a 120 Hz, deux fois plus long a 30. Un
+    // retour visuel dont la duree depend de l'ecran ne se regle pas.
+    // 7.7 = -ln(1 - 0.12) * 60, soit exactement l'ancienne vitesse a 60 Hz.
+    s.popFlash *= Math.exp(-7.7 * dt);
+    if (s.popFlash < 1e-3) s.popFlash = 0;
   }
 
   /** Remise a zero pour une nouvelle partie. Aucun etat ne doit survivre. */

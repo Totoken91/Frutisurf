@@ -487,6 +487,80 @@ blanche mate au milieu d'une surface qui scintille partout ailleurs.
 Rien à l'**entrée** côté HUD : le lac suivant arrive neuf secondes plus tard,
 une bannière à chaque rive occuperait l'écran en permanence.
 
+## 4 nonies. La secousse de caméra, et le « ça clignote »
+
+Deux plaintes du joueur, un seul défaut : « la caméra bouge brutalement quand on
+clique » et « ça clignote ».
+
+La secousse déplaçait la **position** de la caméra de `shake` mètres — jusqu'à
+35 cm sur un pop chargé, davantage en cumulant — à partir d'un bruit
+échantillonné à **26×** le temps.
+
+Les deux moitiés sont fausses, et il fallait corriger les deux.
+
+### Le bruit était du bruit blanc
+
+À 60 images par seconde, un argument qui avance de 0,43 par image dépasse la
+taille des motifs du bruit : deux images consécutives tirent des valeurs
+**indépendantes**. Mesuré à 0,19 d'écart moyen par image et jusqu'à 0,85 sur une
+plage de 2 — exactement ce que le commentaire d'origine prétendait éviter.
+
+| Vitesse du bruit | Écart moyen / image | Pire |
+|---|---|---|
+| 1,7× (tenue en main) | 0,020 | 0,101 |
+| 6× | 0,066 | 0,316 |
+| 26× (l'ancienne secousse) | **0,190** | **0,851** |
+
+Une image entière qui vibre au rythme de l'affichage, l'œil ne l'appelle pas
+« secousse ». Il l'appelle **« ça clignote »**.
+
+### Ralentir le bruit ne suffisait pas
+
+L'enveloppe retombe en trois dixièmes de seconde ; pendant ce temps, un bruit
+lent n'a pas le temps de bouger. On obtenait une pichenette statique qui
+s'efface — mesurée à 0,18° d'amplitude, invisible.
+
+Ce qu'il faut est une **oscillation amortie** : trois sinusoïdes à 7,9 / 6,3 /
+5,1 Hz (incommensurables, pour que les axes ne se remettent jamais en phase),
+sous l'enveloppe qui les tue en 0,3 s. Une dizaine d'images par cycle : assez
+rapide pour claquer, assez lent pour rester continu.
+
+### Et elle porte sur l'orientation, pas sur le trépied
+
+À dix mètres du sujet, 35 cm de translation donnent le bon nombre de pixels —
+mais déplacent le **point de vue** : toute la parallaxe se réorganise d'une image
+à l'autre, l'herbe du premier plan balaie l'écran. Le cinéma secoue
+l'orientation, pas le trépied.
+
+### Ce que ça donne
+
+`npm run check:shake` pilote le rig à 60 Hz exacts, sans rendu, et le compare à
+un second rig identique **sans secousse** — c'est cette différence qui isole ce
+que la secousse ajoute.
+
+| | Ampleur | Inversions de sens | Retour au calme | Point de vue |
+|---|---|---|---|---|
+| repos | 0,00° | 11 % | — | 0,27 cm/img |
+| pop chargé | 0,81° | 15 % | 0,35 s | 0,27 cm/img |
+| anneau + plot + pop | 1,20° | 18 % | 0,27 s | 0,27 cm/img |
+
+Le critère central n'est pas la vitesse — une secousse d'impact **doit** bouger
+vite, la brider revient à la supprimer. C'est la **cohérence** : une oscillation
+garde son sens plusieurs images d'affilée, un bruit blanc en change une image sur
+deux. Au-delà de 35 % d'inversions, ce n'est plus un mouvement, c'est du grain.
+
+Le cumul est aussi plafonné (`SHAKE_MAX`, `FOV_PUNCH_MAX`) : `Decay.add`
+additionne sans borne, et un anneau, un plot et un pop peuvent tomber dans la
+même seconde. Sans plafond, c'est précisément au moment où le joueur réussit
+quelque chose que la caméra devenait illisible.
+
+### Au passage : le flash ne dépend plus de l'écran
+
+`popFlash` décroissait de 12 % **par image**, donc deux fois plus vite sur un
+téléphone à 120 Hz et deux fois plus lentement à 30. Un retour visuel dont la
+durée dépend de l'écran ne se règle pas. C'est désormais une exponentielle en
+temps, calée pour valoir exactement l'ancienne vitesse à 60 Hz.
+
 ## 5. Le saut
 
 ```
@@ -555,8 +629,8 @@ absolu casse la fluidité du carve.
 
 ## 9. Critères de recette
 
-Cinq vérifications automatiques tiennent ces critères (`npm run check`,
-`check:air`, `check:input`, `check:run`, `check:water`). Toutes sauf
+Six vérifications automatiques tiennent ces critères (`npm run check`,
+`check:air`, `check:input`, `check:run`, `check:water`, `check:shake`). Toutes sauf
 `check:input` simulent le contrôleur **sans rendu** : si le feeling dépend d'un
 effet visuel, c'est que les ressorts sont ratés.
 
