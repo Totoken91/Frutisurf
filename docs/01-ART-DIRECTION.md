@@ -397,6 +397,91 @@ coefficients d'ombrage resserrés en conséquence.
 Le rebond hémisphérique et les particules d'herbe lisent la même palette : la
 teinte du buddy et de la gerbe a suivi toute seule.
 
+## 8. La matière de l'herbe
+
+Jusqu'ici la plaine n'avait que du bruit fractal : des taches, pas des brins. À
+trois mètres de la caméra on voyait un aplat coloré, et c'est ce qui trahissait
+le plus le rendu — **une prairie se reconnaît à son grain bien avant sa
+couleur**.
+
+### La texture, générée au boot
+
+Une tuile de 512 px, dessinée au trait : quelques milliers de brins courbes,
+effilés, d'orientation **libre** (un biais directionnel réapparaît à l'écran
+sous forme de rayures dès que la caméra rase le sol — le défaut précédent du
+projet). Tout trait proche d'un bord est redessiné de l'autre côté, sinon une
+couture apparaît tous les mètres.
+
+Quatre canaux :
+
+| | Contenu | Usage |
+|---|---|---|
+| R, G | normale du micro-relief | **le canal qui compte** |
+| B | variation d'albédo | touffes claires, creux sombres |
+| A | couverture de brins | masque du spéculaire |
+
+La normale fait tout. Avec un soleil bas et de face, ce sont les milliers de
+micro-facettes qui accrochent la lumière ; aucune quantité de bruit sur la
+*couleur* ne fera de l'herbe. Elle est aussi la chose la plus facile à trop
+doser : au premier essai le sol lisait comme du **cuir craquelé**. Le
+micro-relief doit accrocher la lumière, pas sculpter le sol.
+
+Deux échantillons de la même tuile, à 1 m et à 7,7 m de période : un seul et
+l'œil voit la grille au bout de trois secondes. Le grand ne porte que la
+couleur — lui donner du relief sculptait des plaques de dix mètres et ramenait
+le crépi.
+
+Les deux échelles multipliées par 1000 donnent des entiers. Ce n'est pas un
+hasard : le sol replie sa coordonnée Z modulo 1000 m, et une période de tuile
+qui n'y tient pas un nombre entier de fois y ferait une couture franche en
+travers de la plaine.
+
+Ce bloc **remplace** deux appels de bruit fractal : plus juste *et* moins cher.
+Une texture avec mipmaps se filtre toute seule là où un bruit procédural se met
+à scintiller dès que le motif passe sous le pixel.
+
+### Les touffes, en géométrie
+
+Une texture reste plate : au premier plan on voit une image d'herbe collée sur
+un plan. Ce qui fait la différence, c'est la **silhouette** — des brins qui
+dépassent, qui coupent l'horizon local, qui bougent indépendamment du sol.
+
+Dispersion par **cellule monde**. Chaque instance porte un indice de grille ; le
+shader en déduit la cellule monde à partir de la position du joueur, la hache
+pour en tirer une place, une orientation et une hauteur. Les touffes ne suivent
+donc pas le joueur : elles restent où elles sont, et c'est l'ensemble des
+cellules visitées qui glisse. Des décalages fixes dans un carré qu'on déplace
+donneraient une prairie qui rame avec la caméra — défaut immédiatement visible
+et impossible à ignorer une fois qu'on l'a vu.
+
+Trois réglages trouvés en regardant :
+
+- les quatre brins d'une touffe ne partent **pas du même point**. Groupés, une
+  instance faisait un buisson isolé et la prairie ressemblait à un champ
+  d'ailerons de requin ; dispersés, la même dépense couvre quatre fois plus de sol ;
+- la hauteur a été **divisée par deux** (11 à 22 cm). À 25-46 cm chaque touffe
+  lisait comme un arbuste planté dans une pelouse tondue. Un brin sur huit
+  dépasse quand même : une hauteur uniforme donne un tapis, pas une prairie ;
+- le brin n'est **jamais plus sombre que le sol**. Basé sur le vert d'ombre, le
+  champ se lisait comme un semis de piquants sombres au lieu d'une matière
+  continue.
+
+Rayon volontairement court, une douzaine de mètres : au-delà le brin passe sous
+le pixel et ne fait plus que du bruit, alors que la même dépense concentrée près
+du joueur double la densité perçue. Le fondu s'étale sur la moitié du rayon —
+coupé court, la limite se lit comme un cercle tracé autour du joueur.
+
+Pas de transparence : la hauteur tombe à zéro aux bords. Un fondu en alpha
+imposerait un tri par profondeur pour quelques milliers d'instances, et
+laisserait un anneau franc là où le seuil coupe.
+
+Le champ existe **aussi sur téléphone**, avec un rayon réduit. Il avait d'abord
+été coupé là par prudence, mais c'était une erreur de diagnostic : le poste
+coûteux sur mobile était la transmission du verre — un rendu de scène complet
+par image — pas la géométrie. Vingt-cinq mille triangles à shader trivial ne
+coûtent rien, et sans eux le premier plan redevient l'aplat vert que le jeu
+vient justement de quitter.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :

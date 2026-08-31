@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
 import { GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
+import { makeGrassTexture } from './GrassTexture';
 import { SUN_DIR } from './Sky';
 import { terrainGLSL } from './Terrain';
 
@@ -82,7 +83,8 @@ export class Ground {
   readonly mesh: Mesh;
   private mat: ShaderMaterial;
 
-  constructor(dense = true) {
+  constructor(dense = true, detailRes = 512) {
+    const grass = makeGrassTexture(detailRes);
     this.mat = new ShaderMaterial({
       fog: false,
       uniforms: {
@@ -97,6 +99,13 @@ export class Ground {
         uOrigin: { value: new Vector3() },
         uTime: { value: 0 },
         uSpeed: { value: 0 },
+        uGrass: { value: grass.texture },
+        // Deux echelles pour casser la repetition. Les deux valeurs, multipliees
+        // par 1000, donnent des entiers (620 et 85) : le sol replie sa
+        // coordonnee Z modulo 1000 m, et un multiple non entier de la periode
+        // de tuile y ferait une couture franche en travers de la plaine.
+        uDetail: { value: grass.scale },
+        uDetailFar: { value: 0.13 },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -120,6 +129,8 @@ export class Ground {
         uniform vec3 uNear, uMid, uFar, uHorizon, uShadow, uStreak, uSun, uCam;
         uniform vec3 uOrigin;
         uniform float uTime, uSpeed;
+        uniform sampler2D uGrass;
+        uniform float uDetail, uDetailFar;
 
         ${GLSL_NOISE}
         ${terrainGLSL()}
@@ -159,7 +170,7 @@ export class Ground {
           float m1 = fbm(vec2(p.x * 0.062, p.y * 0.062));
           float m2 = fbm(vec2(p.x * 0.021, p.y * 0.021));
           float streak = m1 * 0.55 + m2 * 0.45;
-          streak = mix(0.5, streak, 1.10 + uSpeed * 0.45);
+          streak = mix(0.5, streak, 1.32 + uSpeed * 0.45);
           streak = clamp(streak, 0.0, 1.0);
 
           // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan.
@@ -172,13 +183,27 @@ export class Ground {
 
           c = mix(mix(c, uShadow, 0.30), mix(c, uStreak, 0.55), streak);
 
-          // --- Micro-detail de brins, uniquement dans le champ proche
-          float near = 1.0 - smoothstep(0.0, 0.55, f);
-          // Touffes, pas brins : a 2,2 (45 cm de periode) le motif tombait
-          // sous le pixel des la deuxieme rangee et ne rendait qu'un bruit gris.
-          float blade = fbm(vec2(p.x * 0.42, p.y * 0.42));
-          c = mix(c, mix(c, uStreak, 0.34), blade * near * 0.46);
-          c *= 1.0 - near * 0.16 * fbm(vec2(p.x * 0.17, p.y * 0.17));
+          // --- LES BRINS.
+          //
+          //     Deux echantillons de la MEME tuile a des echelles tres
+          //     differentes : le premier donne le brin (1,6 m de periode), le
+          //     second casse la repetition sur 11,8 m. Un seul echantillon et
+          //     l'oeil voit la grille de tuiles au bout de trois secondes.
+          //
+          //     Ce bloc remplace deux appels de bruit fractal : c'est a la fois
+          //     plus juste ET moins cher. Une texture avec mipmaps se filtre
+          //     toute seule la ou un bruit procedural se met a scintiller des
+          //     que le motif passe sous le pixel.
+          float detail = 1.0 - smoothstep(0.06, 0.52, f);
+          vec4 g0 = texture2D(uGrass, p * uDetail);
+          vec4 g1 = texture2D(uGrass, p * uDetailFar);
+          float blade = mix(0.5, g0.a * 0.72 + g1.a * 0.28, detail);
+          float tuft = mix(0.5, g0.b * 0.55 + g1.b * 0.45, detail);
+
+          //     Albedo : les touffes exposees sont plus claires, les creux
+          //     entre elles plus sombres et plus satures.
+          c = mix(c * 0.93, mix(c, uStreak, 0.26) * 1.05, tuft);
+          c *= 0.96 + 0.09 * blade;
 
           // --- Bandes de defilement : la lecture de vitesse
           float band = sin(p.y * 0.201) * 0.5 + 0.5;
@@ -187,6 +212,20 @@ export class Ground {
           // --- Relief. Sans ces deux termes on ne voit pas ou est le sommet,
           //     donc on ne peut pas le timer : c'est de la lisibilite de jeu,
           //     pas de la decoration.
+          //     La NORMALE des brins, c'est elle qui fait l'herbe. Avec un
+          //     soleil bas et de face, ce sont les micro-facettes qui accrochent
+          //     la lumiere ; aucune quantite de bruit sur la couleur ne
+          //     remplacerait ce terme.
+          //     Dose PRUDENTE : a 1,55 le relief passait de l'herbe au cuir
+          //     craquele. Le micro-relief doit accrocher la lumiere, pas
+          //     sculpter le sol.
+          //     SEUL l'echantillon fin porte le relief. L'echantillon large
+          //     n'est la que pour casser la repetition de la couleur ; lui
+          //     donner du relief sculptait des plaques de dix metres et le sol
+          //     prenait un aspect de crepi.
+          vec2 micro = (g0.rg - 0.5) * 0.55 * detail;
+          N = normalize(N + vec3(micro.x, 0.0, micro.y));
+
           vec3 L = normalize(uSun);
           float ndl = dot(N, L);
 
@@ -251,8 +290,16 @@ export class Ground {
           float graze = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.5);
           c += vec3(0.07, 0.22, 0.15) * graze * 0.50;
 
+          //     Gloss Frutiger Aero : le speculaire est MASQUE par les brins.
+          //     Une plaine qui brille uniformement lit comme du plastique ; ce
+          //     sont les pointes qui doivent scintiller, pas la surface.
           vec3 H = normalize(V + L);
-          c += vec3(0.20, 0.27, 0.22) * pow(max(dot(N, H), 0.0), 46.0) * 0.48;
+          float spec = pow(max(dot(N, H), 0.0), 62.0);
+          c += vec3(0.26, 0.34, 0.24) * spec * (0.28 + blade * 1.05);
+
+          //     Et un lisere sur les pointes vues de biais : c'est ce qui donne
+          //     le duvet argente d'une prairie a contre-jour.
+          c += vec3(0.30, 0.40, 0.26) * graze * blade * detail * 0.55;
 
           // --- Brume d'horizon. Elle separe les plans lointains les uns des
           //     autres : sans elle, des collines a 300 m et a 900 m ont

@@ -13,6 +13,7 @@ import { Boosters } from './Boosters';
 import { Rings } from './Rings';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
+import { GrassBlades } from './GrassBlades';
 import { createEnvironment } from './Environment';
 import { createSky, SUN_DIR } from './Sky';
 import type { Quality } from '../core/Engine';
@@ -23,6 +24,7 @@ import type { Quality } from '../core/Engine';
  */
 export class World {
   readonly ground: Ground;
+  readonly blades: GrassBlades | null;
   readonly clouds: Clouds;
   readonly city = new City();
   readonly boosters: Boosters;
@@ -32,7 +34,14 @@ export class World {
 
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
     const dense = quality !== 'low';
-    this.ground = new Ground(dense);
+    this.ground = new Ground(dense, quality === 'low' ? 384 : 512);
+    // Le champ de touffes existe MEME en qualite basse, avec un rayon reduit.
+    // Il avait d'abord ete coupe la par prudence, mais c'est une erreur de
+    // diagnostic : le poste couteux sur telephone etait la transmission du
+    // verre (un rendu de scene complet par image), pas la geometrie. Vingt-cinq
+    // mille triangles a shader trivial ne coutent rien, et sans eux le premier
+    // plan redevient l'aplat vert que le jeu vient justement de quitter.
+    this.blades = new GrassBlades(quality === 'high' ? 64 : quality === 'medium' ? 46 : 40, 0.38);
     // L'atlas est genere au boot pixel par pixel : sa resolution est le seul
     // poste de chargement du jeu. 768 sur machine confortable, 512 sinon.
     // Effectifs revus a la baisse : a 72 nuages le ciel etait sature et le
@@ -48,6 +57,7 @@ export class World {
     this.sky = createSky();
     scene.add(this.sky);
     scene.add(this.ground.mesh);
+    if (this.blades) scene.add(this.blades.mesh);
     scene.add(this.city.group);
     scene.add(this.clouds.mesh);
     scene.add(this.boosters.mesh);
@@ -80,6 +90,7 @@ export class World {
     // passait au noir — apres environ 70 s de jeu a vitesse de croisiere.
     this.sky.position.copy(camPos);
     this.ground.update(camPos, origin, time, speedN);
+    this.blades?.update(origin, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);
     this.boosters.update(origin, time);

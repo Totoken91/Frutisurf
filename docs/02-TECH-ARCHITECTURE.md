@@ -29,6 +29,8 @@ src/
 │   ├── Environment.ts       PMREM ciel+herbe pour les réflexions du verre
 │   ├── Clouds.ts            champ de billboards
 │   ├── Ground.ts            grille en éventail déplacée par Terrain
+│   ├── GrassTexture.ts      tuile de brins générée au boot (normale + albédo)
+│   ├── GrassBlades.ts       touffes instanciées, dispersées par cellule monde
 │   ├── City.ts              skyline de cristal
 │   ├── Boosters.ts          colonnes de vitesse, semées en chaîne
 │   └── Rings.ts             anneaux de verre à franchir (bas et hauts)
