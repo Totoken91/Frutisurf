@@ -550,3 +550,86 @@ qualité `low`. Elle coûtait un rendu de scène complet par image — three.js
 redessine tout l'opaque dans une cible dédiée pour que le verre ait quelque
 chose à réfracter — pour un apport marginal à 0,18. Elle est remplacée par une
 simple opacité.
+
+## 9. Les chunks GLSL, et la dépendance qu'on oublie
+
+Le masque de grève était écrit **trois fois** — dans le sol, dans les touffes,
+dans les palmiers — avec les mêmes constantes recopiées à la main. Le jour où
+l'on retouche la largeur de plage, deux copies sur trois suivent, et il pousse
+de l'herbe sur le sable. Il vit désormais dans `Terrain.shoreGLSL()`, avec le
+relief, pour la même raison que `terrainGLSL()` : une seule source de vérité par
+grandeur.
+
+L'extraction a immédiatement produit sa propre faute, et elle mérite d'être
+notée parce qu'elle est **silencieuse** :
+
+```
+ERROR: 0:104: 'fbm2' : no matching overloaded function found
+```
+
+Le chunk de grève dépend de `fbm2`/`fbm3`. Le shader de sommet du sol l'incluait
+sans inclure le bruit — et un shader qui ne compile pas ne dit rien : le
+maillage disparaît, ou tombe sur un matériau de secours, sans une ligne dans la
+console qu'on regarde. Le sol est resté **plusieurs heures sans compiler** ; tout
+le travail sur le sable était invisible, et je le croyais fait.
+
+Le correctif n'est pas « ajouter l'include manquant ». Une dépendance qu'il faut
+penser à coller à la main juste au-dessus est une dépendance qu'on oubliera. Les
+chunks portent donc une **garde d'inclusion**, exactement le `#pragma once` des
+autres langages — le préprocesseur GLSL ES gère `#ifndef` depuis la 1.00, donc
+ceci marche en WebGL1 comme en WebGL2 :
+
+```glsl
+#ifndef FS_NOISE
+#define FS_NOISE
+...
+#endif
+```
+
+`shoreGLSL()` **tire** alors `GLSL_NOISE` lui-même. Inclure les deux reste sans
+effet, et n'inclure que la grève fonctionne. Les deux propositions sont vraies en
+même temps, ce qui est tout l'intérêt.
+
+`npm run check:shaders` charge le jeu sur deux profils et échoue si une seule
+erreur GLSL apparaît en console. C'est le seul filet contre cette classe de
+faute, puisqu'elle ne casse jamais la page.
+
+## 10. L'équipement
+
+`src/core/Loadout.ts` ne connaît que des **nombres de jeu** : cinq
+multiplicateurs par option, et rien qui touche à three.js. La peinture — les
+livrées, la matière des montures — vit dans `player/Surfer.ts` et
+`player/Disc.ts`. Mélanger l'équilibrage et la peinture dans la même table est
+le plus court chemin vers une option qu'on n'ose plus retoucher parce qu'elle
+est jolie.
+
+`Game.applyLoadout()` est le **point d'entrée unique** : il écrit dans le
+Controller *et* dans le Surfer. Deux appels séparés finiraient par diverger, et
+l'écran promettrait une monture que la partie ne livre pas.
+
+Les multiplicateurs s'appliquent **aux constantes**, jamais aux valeurs
+instantanées : une monture ne change pas l'état du surfeur, elle change les
+règles sous lui. C'est ce qui garantit qu'aucune combinaison ne peut sortir des
+bornes du jeu — les seuils bougent, les `clamp` restent.
+
+Une subtilité de signe : `plane` **divise** le seuil de déjaugeage
+(`PLANE_ENTER / plane`) au lieu de le multiplier. C'est la coque qui déchausse
+plus tôt, pas le surfeur qui va plus vite — et ça garde le sens « plus c'est
+haut, mieux c'est » sur la jauge, qui est ce que le joueur lit.
+
+`npm run check:pick` fait le parcours **au clic**, pas par `window.__game` :
+l'écran s'ouvre-t-il au premier lancement et seulement là, un clic sur une carte
+puis sur la validation applique-t-il le choix à la physique **et** à la livrée,
+et le choix survit-il au rechargement.
+
+### Les scripts et le premier lancement
+
+Chaque lancement de Playwright est un profil neuf, donc un premier lancement,
+donc l'écran d'équipement. Il couvre le rendu — toutes les captures montraient
+le menu — et il intercepte les doigts — le banc d'entrées ne testait plus rien,
+avec six échecs à la clé.
+
+`scripts/lib/boot.mjs` sème le choix dans `localStorage` **avant** le
+chargement, exactement comme un joueur qui revient. Fermer le panneau après coup
+aurait été plus court et faux : la fermeture appelle `restart()`, et on mesurerait
+alors une partie qui vient de repartir à zéro.

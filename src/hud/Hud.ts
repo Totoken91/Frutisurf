@@ -38,6 +38,9 @@ export class Hud {
   private clockFill: HTMLElement;
   private multVal: HTMLElement;
 
+  /** Ouverture de l'ecran d'equipement depuis le panneau de fin. */
+  onEquip: (() => void) | null = null;
+
   private acc = 0;
   private lastBoost = 0;
   private gainTimer = 0;
@@ -180,9 +183,19 @@ export class Hud {
           </div>
           <div class="bestline">record ${money(run.best)}</div>
           <div class="again"><u>rejouer</u></div>
+          <div class="equip"><u data-el="equip">équipement</u></div>
         </div>
       </div>
     `;
+    // Le panneau est reconstruit a chaque fin de partie : l'ecouteur se
+    // rebranche ici plutot que sur un noeud persistant. Un seul bouton, et il
+    // est le SEUL element cliquable de l'ecran de fin — tout le reste relance,
+    // donc il doit intercepter le clic avant que le canvas ne le voie.
+    const eq = this.overEl.querySelector<HTMLElement>('[data-el="equip"]');
+    eq?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onEquip?.();
+    });
     this.overEl.classList.add('show');
     // On eteint tout le transitoire : le chrono a zero, le multiplicateur et le
     // rappel de commandes n'ont plus rien a dire, et ils tirent l'oeil loin du

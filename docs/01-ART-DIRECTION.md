@@ -768,3 +768,107 @@ décalé vers le rouge (20 px), **bloom additif** en `mix-blend-mode: screen`, e
 chrono critique, deux bannières, fin de partie. Une interface passe l'essentiel
 de son temps dans des états qu'une capture ordinaire ne montre jamais, et ce
 sont ceux qui portent le plus de matière.
+
+## 12. Le cycle jour/nuit
+
+`src/world/Daylight.ts` est à la lumière ce que `Terrain.ts` est au relief :
+**la** source, et la seule. Tout ce qui a une couleur la tient d'ici — dôme de
+ciel, sol, eau, brins, nuages, ville, palmiers, éoliennes, pollen, et les deux
+lampes de la scène. Rien n'est plus destructeur pour une ambiance qu'une couche
+qui n'a pas reçu le mémo : la nuit tombe sur le ciel pendant que l'herbe reste
+en plein midi.
+
+**Trois minutes** pour un tour complet, et **le cycle ne se remet pas à zéro
+entre deux parties**. Une course de quarante secondes en traverse donc un gros
+cinquième : on part en fin de matinée, on finit au soleil rasant. Remettre
+l'heure à zéro à chaque relance aurait figé le jeu sur une seule lumière, celle
+du départ, et tout ce travail n'aurait servi qu'aux captures.
+
+Quatre palettes clés, interpolées en `smoothstep` — une interpolation linéaire
+fait un **coude visible** au passage de chaque clé, et l'œil accroche dessus :
+
+| Moment | Zénith | Horizon | Ce qu'il apporte |
+|---|---|---|---|
+| Aube | `#1e4a8c` froid | `#ffd3a0` chaud | Le **grand écart vertical**. C'est lui qui fait un lever de soleil, pas l'orange. |
+| Midi | `#0d6fe0` | `#c6ecfa` | La palette Frutiger Aero d'origine, celle de la référence. |
+| Crépuscule | `#24306e` violet | `#ffb072` braise | L'inverse de l'aube, et le contraste le plus fort des quatre. |
+| Nuit | `#081436` | `#3b6094` | Bleu de minuit, **jamais noir** — un jeu de vitesse qui s'éteint devient injouable. |
+
+Ce n'est pas une diffusion atmosphérique : le rendu physique donne des ciels
+justes et **ternes**, alors qu'on cherche des ciels de carte postale.
+
+**L'azimut du soleil reste presque fixe**, et c'est une décision de mise en
+scène, pas une approximation. En portrait le champ horizontal ne fait que 37° :
+un soleil qui traverserait vraiment le ciel d'est en ouest passerait
+l'essentiel de la journée hors cadre, et tout le travail sur les rasants ne se
+verrait jamais. C'est son **élévation** qui raconte l'heure, avec une courbe
+aplatie près de l'horizon (puissance 0,7 sur le sinus) pour que le soleil y
+**traîne** au lieu de le franchir en trois secondes.
+
+`daylight(couleur, ombre)` fait le reste, et son intérêt tient en une ligne :
+**la lumière directe se colore pendant que l'ombre prend le ciel**. C'est la
+seule façon d'obtenir une nuit qui ne soit pas du jour assombri — à minuit la
+directe est faible et bleutée, mais le remplissage du ciel devient
+proportionnellement dominant, et c'est lui qui donne la clarté laiteuse des
+nuits dégagées. Un `c *= 0.3` nocturne donnerait une image sale.
+
+`npm run shot` sur `scripts/daylight-shot.mjs` capture **sept heures** côte à
+côte : un cycle ne se juge pas sur une capture, il se juge sur la **cohérence
+entre les couches** à chaque instant.
+
+## 13. Palmiers et éoliennes
+
+Deux ajouts, deux problèmes différents.
+
+**Les palmiers** doivent pousser exactement où le sol dessine du sable — pas à
+peu près. Or le masque de plage vit en GLSL et repose sur des bruits fractals
+que la version TypeScript de `fbm2D` ne reproduit **pas** à l'identique : ce
+sont deux implémentations différentes. Placer les palmiers depuis le CPU, même
+avec le même algorithme apparent, donnerait une dérive. Ils sont donc placés
+**dans le vertex shader**, avec `shoreMask()` — le chunk partagé — et un
+palmier hors grève est replié sur un point dégénéré : il ne coûte alors plus un
+seul fragment, et il ne peut structurellement pas apparaître au mauvais endroit.
+
+Le pli des palmes est ce qui fait la palme : un quad plat lit comme une pale de
+ventilateur, quelle que soit la texture. Et la rafale est un **dégradé** le long
+de la feuille — une palme rigide qui pivote lit comme un essuie-glace.
+
+**Les éoliennes** sont l'élément le plus littéralement Frutiger Aero qui soit :
+l'esthétique entière est bâtie sur l'imagerie de la technologie propre du milieu
+des années 2000. Elles vivent **loin** — 620 m, devant la ville. Posées près du
+joueur elles deviendraient des obstacles visuels qui balaient l'écran ; au loin
+elles ne font que ce qu'on leur demande, donner une **échelle** au paysage et un
+mouvement lent qui contredit la vitesse du premier plan. À 150 km/h, une chose
+qui tourne lentement au fond du cadre rend la course plus rapide, pas moins.
+
+Leur **phase** diffère par instance. Sans décalage, quatorze éoliennes tournent
+au même instant dans la même position — ce qui ne s'observe jamais dans la
+nature et se remarque immédiatement : le paysage se met à battre.
+
+## 14. L'écran d'équipement
+
+Même grammaire Aqua que le HUD : biseau chromé, corps à **coupure nette**, cap
+spéculaire à bord franc, rebond. Aucun `backdrop-filter`, ici non plus.
+
+Deux partis pris propres à cet écran :
+
+**Le décor reste vivant derrière.** Le monde continue de défiler, le cycle
+jour/nuit continue de tourner. Un fond figé derrière une interface donne
+immédiatement l'impression d'un menu **collé par-dessus** un jeu ; un fond qui
+bouge dit que le jeu est déjà là, et qu'il attend. Seul le chrono est gelé.
+
+**La carte au repos est un creux, pas une plaque.** Un puits sombre dans le
+panneau, comme un logement vide ; la sélection le **remplit**. C'est la même
+logique que la jauge de boost — un trou, puis de la matière dedans — et c'est
+ce qui rend l'état choisi lisible sans avoir besoin d'une bordure.
+
+Les emblèmes sont dessinés **en CSS**, pas en images : nets à toute densité de
+pixels, et rien ajouté au chargement. Trois silhouettes différentes pour les
+montures — un disque irisé, un disque noir, une cartouche carrée — parce qu'à
+38 pixels c'est la silhouette qui distingue, jamais la texture.
+
+Les trois livrées de buddy tiennent une règle commune : **le bas est clair, le
+haut plus dense**. L'inverse donne un personnage qui a l'air posé la tête en
+bas, parce que la lumière du monde vient d'en haut. GIVRE a dû descendre son
+haut à `#3f7fc4` : un verre presque blanc sature dans le bloom et **perd sa
+silhouette** au lieu de gagner en clarté.

@@ -3,8 +3,9 @@ import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { makeGrassTexture } from './GrassTexture';
 import { SUN_DIR } from './Sky';
+import { GLSL_DAY, dayUniforms } from './Daylight';
 import { WEATHER_GLSL } from './Weather';
-import { terrainGLSL } from './Terrain';
+import { terrainGLSL, shoreGLSL } from './Terrain';
 
 /**
  * La plaine, desormais vallonnee.
@@ -82,7 +83,7 @@ function buildGeometry(dense: boolean): BufferGeometry {
 
 export class Ground {
   readonly mesh: Mesh;
-  private mat: ShaderMaterial;
+  readonly mat: ShaderMaterial;
 
   constructor(dense = true, detailRes = 512) {
     const grass = makeGrassTexture(detailRes);
@@ -106,6 +107,7 @@ export class Ground {
         // qui se contente d'assombrir est une ombre grise, et une ombre grise
         // en plein jour est le signe le plus sur d'un rendu qui triche.
         uSkyLight: { value: [0.32, 0.52, 0.72] },
+        ...dayUniforms(),
         uSandDry: { value: vec3('sandDry') },
         uSandPale: { value: vec3('sandPale') },
         uSandWet: { value: vec3('sandWet') },
@@ -139,6 +141,7 @@ ${GLSL_SAFE}
         varying vec3 vNormal;
         uniform vec3 uNear, uMid, uFar, uHorizon, uShadow, uStreak, uSun, uCam;
         uniform vec3 uSandDry, uSandPale, uSandWet, uSandShell;
+${GLSL_DAY}
         uniform vec3 uOrigin;
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
@@ -150,6 +153,7 @@ ${GLSL_SAFE}
         ${GLSL_NOISE}
         ${WEATHER_GLSL}
         ${terrainGLSL()}
+${shoreGLSL()}
 
         void main(){
           // Coordonnees de texture repliees modulo la periode du bruit : la
@@ -381,19 +385,8 @@ ${GLSL_SAFE}
           // un simple lisere — ce qui est exactement le comportement d'une vraie
           // cote, mais il faut la calibrer genereusement pour qu'elle se voie
           // meme la ou le relief plonge.
-          float shoreWide = 2.0 + fbm2(vWorld.xz * 0.010) * 4.0;
-          // Trois echelles de decoupe : les anses, les langues de sable qui
-          // remontent dans l'herbe, et la dentelure fine du bord. C'est cette
-          // superposition qui empeche de lire une courbe de niveau.
-          float ragged = (fbm3(vWorld.xz * 0.055) - 0.5) * 2.1
-                       + (fbm2(vWorld.xz * 0.17) - 0.5) * 0.8
-                       + (fbm2(vWorld.xz * 0.62) - 0.5) * 0.24;
-          float sand = 1.0 - smoothstep(0.0, shoreWide, above + ragged);
-          sand = clamp(sand, 0.0, 1.0);
-          // Le haut de plage se MELANGE a l'herbe au lieu de s'arreter : une
-          // frontiere nette entre deux aplats se lit comme un masque de
-          // decoupe, quelle que soit la finesse du contour.
-          sand = smoothstep(0.02, 0.78, sand);
+          float shoreWide = shoreWidth(vWorld.xz);
+          float sand = shoreMask(vWorld.xz, above);
 
           if (sand > 0.002) {
             // Le sable MOUILLE n'est pas du sable sec assombri : il est plus
@@ -424,6 +417,10 @@ ${GLSL_SAFE}
             // La LAISSE DE MER : les lignes que la mer laisse en se retirant.
             // Elles suivent la ligne de flottaison, donc la hauteur, et c'est
             // le detail qui dit « plage » plutot que « terrain beige ».
+            // La MEME dentelure que le masque de plage, relue depuis Terrain :
+            // une laisse de mer qui suivrait un autre bruit traverserait le
+            // sable en diagonale au lieu de longer l'eau.
+            float ragged = shoreRagged(vWorld.xz);
             float tide = sin((above + ragged * 0.35) * 5.4) * 0.5 + 0.5;
             tide = smoothstep(0.48, 0.96, tide) * (1.0 - dryness * 0.7);
             sc = mix(sc, sc * vec3(0.82, 0.81, 0.86), tide * 0.9);
@@ -458,6 +455,12 @@ ${GLSL_SAFE}
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));
+
+          // --- L'HEURE, appliquee en DERNIER sur l'albedo assemble.
+          //     L'ombre des nuages sert d'entree : sous un nuage, c'est le ciel
+          //     qui eclaire, donc la couleur de remplissage domine — et c'est ce
+          //     basculement qui fait qu'une nuit n'est pas un jour assombri.
+          c = daylight(c, cloudDark * 0.55 + uDayNight * 0.30);
 
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>

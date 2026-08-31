@@ -1,4 +1,5 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
+import { NEUTRAL, type Loadout } from '../core/Loadout';
 import { terrainHeight, WATER_LEVEL } from '../world/Terrain';
 import type { GameState } from '../core/GameState';
 
@@ -221,6 +222,15 @@ export class Controller {
   score = 0;
   distance = 0;
 
+  /**
+   * L'equipement choisi. Cinq multiplicateurs, appliques AUX CONSTANTES et non
+   * aux valeurs instantanees : une monture ne change pas l'etat du surfeur,
+   * elle change les regles sous lui. C'est ce qui garantit qu'aucune
+   * combinaison ne peut sortir des bornes du jeu — les seuils bougent, les
+   * clamps restent.
+   */
+  loadout: Loadout = NEUTRAL;
+
   hitstop = 0;
   /**
    * Fin de partie. Le surfeur FINIT sa course au lieu de se figer : couper le
@@ -239,7 +249,7 @@ export class Controller {
 
   private cruise(): number {
     if (this.braking) return 0;
-    return 22 + Math.min(12, this.distance / 260);
+    return (22 + Math.min(12, this.distance / 260)) * this.loadout.cruise;
   }
 
   /** Multiplicateur courant. Une seule formule pour tout le scoring. */
@@ -285,7 +295,7 @@ export class Controller {
 
   /** Les figures rechargent le boost. C'est la seule facon d'en gagner vite. */
   private reward(amount: number): void {
-    this.boost = clamp(this.boost + amount, 0, 1);
+    this.boost = clamp(this.boost + amount * this.loadout.boost, 0, 1);
   }
 
   get speedNorm(): number {
@@ -307,7 +317,11 @@ export class Controller {
       this.sunk = false;
     } else if (!this.sunk) {
       const eff = this.speed + this.bonus.value;
-      this.planing = this.planing ? eff > PLANE_KEEP : eff > PLANE_ENTER;
+      // Un fort `plane` ABAISSE le seuil : c'est la coque qui dechausse plus
+      // tot, pas le surfeur qui va plus vite. Diviser plutot que multiplier
+      // garde donc le sens « plus c'est haut, mieux c'est » sur la jauge.
+      const p = this.loadout.plane;
+      this.planing = this.planing ? eff > PLANE_KEEP / p : eff > PLANE_ENTER / p;
       if (!this.planing) this.sunk = true;
     }
 
@@ -400,7 +414,7 @@ export class Controller {
     const forced = this.burst > 0;
     this.boosting = forced || (boostAllowed && input.boostHeld && this.boost > BOOST_MIN);
     if (this.boosting && !forced) this.boost = Math.max(0, this.boost - BOOST_DRAIN * dt);
-    else if (!this.boosting) this.boost = Math.min(1, this.boost + BOOST_REGEN * dt);
+    else if (!this.boosting) this.boost = Math.min(1, this.boost + BOOST_REGEN * this.loadout.boost * dt);
     const target = this.cruise() + (this.boosting ? 13 : 0);
     if (this.sunk) {
       // Coule : l'eau freine BRUTALEMENT. C'est le cout de l'erreur, et il doit
@@ -513,7 +527,7 @@ export class Controller {
         //
         // UNE SEULE FOIS par vol. Sinon relacher et re-maintenir redonne la
         // poussee a chaque fois : il suffit de tapoter pour ne jamais redescendre.
-        this.vy += 2.2;
+        this.vy += 2.2 * this.loadout.lift;
         this.liftUsed = true;
       }
       this.gliding = wantGlide;
@@ -567,7 +581,7 @@ export class Controller {
     // Autorite laterale relevee avec l'elargissement du couloir : il faut
     // pouvoir traverser la nouvelle largeur entre deux anneaux, sinon un
     // terrain plus large n'est qu'un terrain ou l'on rate davantage.
-    let grip = this.airborne ? 0.64 * (1 - 0.72 * this.spinLock) : 0.52;
+    let grip = (this.airborne ? 0.64 * (1 - 0.72 * this.spinLock) : 0.52) * this.loadout.grip;
     // En glisse sur l'eau le disque ne mord plus : il DERIVE. Le virage
     // devient long et doux, et c'est ce qui rend la traversee si agreable.
     if (this.planing) grip *= 0.62;
@@ -607,7 +621,7 @@ export class Controller {
     // On herite de la vitesse verticale que la montee donnait deja : sauter
     // juste avant le sommet paie donc aussi, la fenetre reste indulgente.
     const inherited = Math.max(0, this.slopeTravel * speed);
-    this.vy = JUMP_V * (0.60 + 0.75 * wind) * (1 + 1.15 * timed) + inherited;
+    this.vy = JUMP_V * this.loadout.lift * (0.60 + 0.75 * wind) * (1 + 1.15 * timed) + inherited;
     if (timed > 0.55) {
       this.combo += 1;
       this.comboTimer = 2.6;

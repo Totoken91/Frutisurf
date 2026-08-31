@@ -62,6 +62,19 @@ export class Disc {
         uRadius: { value: DISC_RADIUS },
         uHole: { value: HOLE },
         uCharge: { value: 0 },
+        // --- Identite de la monture. Un seul shader pour les trois : ce sont
+        //     les memes sillons, le meme environnement analytique et le meme
+        //     liseré exterieur — un disque presse reste un disque presse. Seuls
+        //     changent la matiere, la finesse des sillons et ce qu'il y a au
+        //     centre. Trois shaders auraient triple la surface a maintenir
+        //     pour dire la meme chose.
+        uIri: { value: 1 },
+        uGroove: { value: 620 },
+        uGrain: { value: 0 },
+        uLabel: { value: [0.9, 0.6, 0.1] },
+        uLabelR: { value: 0 },
+        uShutter: { value: 0 },
+        uOpaque: { value: 0 },
       },
       vertexShader: /* glsl */ `
 ${GLSL_SAFE}
@@ -76,7 +89,8 @@ ${GLSL_SAFE}
       `,
       fragmentShader: /* glsl */ `
         uniform float uTime, uRadius, uHole, uCharge;
-        uniform vec3 uSilver, uSkyMid, uSkyHor, uGrassNear, uGrassHor;
+        uniform float uIri, uGroove, uGrain, uLabelR, uShutter, uOpaque;
+        uniform vec3 uSilver, uSkyMid, uSkyHor, uGrassNear, uGrassHor, uLabel;
         varying vec3 vN, vV, vLocal;
 
         ${GLSL_NOISE}
@@ -99,14 +113,16 @@ ${GLSL_SAFE}
             ? mix(uSkyHor, uSkyMid, clamp(Rv.y * 1.6, 0.0, 1.0))
             : mix(uGrassHor, uGrassNear, clamp(-Rv.y * 1.6, 0.0, 1.0));
 
-          // Sillons concentriques : ils modulent la nettete du reflet.
-          float grooves = sin(r * 620.0) * 0.5 + 0.5;
+          // Sillons concentriques : ils modulent la nettete du reflet. Sur un
+          // microsillon ils sont dix fois plus larges et se VOIENT, au lieu de
+          // se contenter de moduler un reflet — d'ou uGroove et uGrain.
+          float grooves = sin(r * uGroove) * 0.5 + 0.5;
 
           // Diffraction. Sur la reference elle est PASTEL, pas saturee : le
           // disque balaie teal -> argent -> lavande, il ne fait pas l'arc-en-
           // ciel de fete foraine du premier jet.
           float hue = fract(ang / TAU * 1.15 + ndv * 1.25 + rn * 0.30 + uTime * 0.04);
-          vec3 iri = mix(vec3(1.0), hue2rgb(hue), 0.42);
+          vec3 iri = mix(vec3(1.0), hue2rgb(hue), 0.42 * uIri);
 
           // Moyeu plastique transparent, puis zone donnees.
           float hub = smoothstep(0.05, 0.17, rn);
@@ -120,6 +136,21 @@ ${GLSL_SAFE}
           c = mix(uSilver * 1.28, c, hub);
           float hole = smoothstep(0.0, 0.03, rn);
           c = mix(uGrassNear * 0.30, c, hole);
+          // Le relief des sillons, quand la monture en a de vrais.
+          c *= 1.0 - uGrain * grooves * 0.55;
+
+          // Etiquette centrale. Rayon nul = pas d'etiquette : c'est ce qui
+          // distingue un 45 tours d'un disque optique en un coup d'oeil.
+          float lab = smoothstep(uLabelR, uLabelR - 0.10, rn) * step(0.001, uLabelR) * hole;
+          c = mix(c, uLabel * (0.75 + ndv * 0.55), lab);
+
+          // Le volet du MiniDisc : une bande droite, decentree, qui casse la
+          // symetrie radiale. C'est la seule chose qui empeche la cartouche de
+          // se lire comme un CD blanc.
+          float shut = uShutter
+            * smoothstep(0.34, 0.25, abs(vLocal.z))
+            * smoothstep(0.10, 0.26, vLocal.x);
+          c = mix(c, vec3(0.88, 0.94, 0.99) * (0.62 + ndv * 0.7), shut);
 
           // Arete exterieure incandescente : le liseré blanc de la reference.
           c += vec3(1.0) * smoothstep(0.90, 1.0, rn) * 0.30;
@@ -136,6 +167,8 @@ ${GLSL_SAFE}
           c = mix(c, vec3(1.0), uCharge * 0.35);
 
           float a = mix(0.42, 0.97, hub) * mix(0.35, 1.0, hole);
+          // Un microsillon n'est pas translucide, un CD si.
+          a = mix(a, max(a, hole), uOpaque);
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -184,6 +217,51 @@ ${GLSL_SAFE}
   }
 
   readonly halo: Mesh;
+  /**
+   * Echelle de la monture. Elle n'est pas cosmetique : elle DIT la statistique.
+   * Le vinyle est plus grand parce qu'il est plus lourd et plus rapide, le
+   * MiniDisc plus petit parce qu'il vole. Un joueur qui n'a pas lu l'ecran
+   * d'equipement voit quand meme qu'il ne pilote pas la meme chose.
+   */
+  private mountScale = 1;
+
+  /** Applique une monture. `id` vient de core/Loadout. */
+  setMount(id: string): void {
+    const u = this.mat.uniforms;
+    if (id === 'vinyle') {
+      u.uSilver.value = [0.20, 0.22, 0.26];
+      u.uIri.value = 0.10;
+      u.uGroove.value = 210;
+      u.uGrain.value = 0.55;
+      u.uLabel.value = [0.95, 0.58, 0.10];
+      u.uLabelR.value = 0.34;
+      u.uShutter.value = 0;
+      u.uOpaque.value = 1;
+      this.mountScale = 1.15;
+    } else if (id === 'minidisc') {
+      // Plus BLEU que blanc, et volontairement : sous GIVRE, un plastique
+      // pale se confondait avec le buddy et la monture disparaissait.
+      u.uSilver.value = [0.42, 0.70, 0.94];
+      u.uIri.value = 0.30;
+      u.uGroove.value = 900;
+      u.uGrain.value = 0.10;
+      u.uLabel.value = [0.08, 0.34, 0.58];
+      u.uLabelR.value = 0.22;
+      u.uShutter.value = 1;
+      u.uOpaque.value = 0.9;
+      this.mountScale = 0.82;
+    } else {
+      u.uSilver.value = vec3('discSilver');
+      u.uIri.value = 1;
+      u.uGroove.value = 620;
+      u.uGrain.value = 0;
+      u.uLabelR.value = 0;
+      u.uShutter.value = 0;
+      u.uOpaque.value = 0;
+      this.mountScale = 1;
+    }
+    this.mesh.scale.setScalar(this.mountScale);
+  }
 
   update(time: number, charge: number, speedN: number, airT: number): void {
     this.mat.uniforms.uTime.value = time;
@@ -192,6 +270,6 @@ ${GLSL_SAFE}
     const air = 1 - Math.min(1, airT * 1.4);
     this.haloMat.uniforms.uGain.value = (0.55 + speedN * 0.5 + charge * 0.6) * air;
     const s = 1 + speedN * 0.22 + charge * 0.18;
-    this.halo.scale.setScalar(s * (0.6 + air * 0.4));
+    this.halo.scale.setScalar(s * (0.6 + air * 0.4) * this.mountScale);
   }
 }

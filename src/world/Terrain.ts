@@ -1,3 +1,4 @@
+import { GLSL_NOISE } from '../core/Noise';
 /**
  * Le relief.
  *
@@ -74,6 +75,15 @@ const LAYERS: readonly Layer[] = [
  */
 export const WATER_LEVEL = -5.5;
 
+/**
+ * Largeur de la greve, en hauteur au-dessus de l'eau : une base plus une part
+ * variable. Resserrees d'un cinquieme sur retour joueur — la plage mangeait
+ * trop de premier plan, et une greve trop large cesse d'etre une transition
+ * pour devenir un decor a part entiere.
+ */
+const SHORE_BASE = 1.55;
+const SHORE_VARY = 3.2;
+
 /** Amplitude cumulee : sert a caler la camera et les garde-fous. */
 export const TERRAIN_MAX = LAYERS.reduce((s, l) => s + l.a, 0);
 
@@ -118,6 +128,61 @@ export function terrainGradient(x: number, z: number, out: { dx: number; dz: num
  * lui, jamais depuis la camera, pour que le sol sous ses pieds soit toujours a
  * pleine resolution et corresponde exactement a `terrainHeight`.
  */
+/**
+ * Le masque de GREVE, en un seul endroit.
+ *
+ * Il etait ecrit trois fois — dans le sol, dans les touffes, dans les palmiers
+ * — avec les memes constantes recopiees a la main. C'est exactement le piege
+ * que ce fichier existe pour eviter : le jour ou l'on retouche la largeur de
+ * plage, deux copies sur trois suivent, et il pousse de l'herbe sur le sable ou
+ * des palmiers dans l'eau.
+ *
+ * Il depend de `fbm2`/`fbm3`, qu'il TIRE lui-meme : une dependance qu'il faut
+ * penser a coller a la main juste au-dessus est une dependance qu'on oubliera,
+ * et c'est exactement ce qui est arrive au shader de sommet du sol. Les deux
+ * chunks portent une garde d'inclusion, donc les inclure tous les deux reste
+ * sans effet.
+ *
+ * @returns `shoreMask(vec2 wp, float above)` -> 0 hors greve, 1 en plein sable,
+ *          et `shoreWidth(vec2 wp)` pour ceux qui ont besoin de la largeur.
+ */
+export function shoreGLSL(): string {
+  return /* glsl */ `
+${GLSL_NOISE}
+#ifndef FS_SHORE
+#define FS_SHORE
+// Largeur de greve. C'est une HAUTEUR au-dessus de l'eau, pas une distance au
+// sol : sur une pente douce elle donne une plage large, sur une pente raide un
+// simple ourlet — le comportement d'une vraie cote, gratuitement.
+float shoreWidth(vec2 wp){
+  return ${SHORE_BASE.toFixed(2)} + fbm2(wp * 0.010) * ${SHORE_VARY.toFixed(2)};
+}
+// Trois echelles de decoupe : les anses, les langues de sable qui remontent
+// dans l'herbe, la dentelure fine. C'est leur superposition qui empeche de lire
+// une courbe de niveau.
+// La DENTELURE du trait de cote, exposee a part.
+//
+// Le sol s'en ressert pour poser les laisses de mer et la frange d'ecume : ces
+// lignes doivent epouser le contour de la plage au metre pres. Les recalculer
+// avec « a peu pres le meme bruit » les ferait glisser en travers du sable, ce
+// qui est precisement l'inverse de ce qu'une laisse de mer raconte.
+float shoreRagged(vec2 wp){
+  return (fbm3(wp * 0.055) - 0.5) * 2.1
+       + (fbm2(wp * 0.17) - 0.5) * 0.8
+       + (fbm2(wp * 0.62) - 0.5) * 0.24;
+}
+float shoreMask(vec2 wp, float above){
+  float ragged = shoreRagged(wp);
+  float m = clamp(1.0 - smoothstep(0.0, shoreWidth(wp), above + ragged), 0.0, 1.0);
+  // Le haut de plage se MELANGE a l'herbe : une frontiere nette entre deux
+  // aplats se lit comme un masque de decoupe, quelle que soit la finesse du
+  // contour.
+  return smoothstep(0.02, 0.78, m);
+}
+#endif
+`;
+}
+
 export function terrainGLSL(): string {
   const terms = LAYERS.map(
     (l) =>

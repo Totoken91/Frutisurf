@@ -21,9 +21,16 @@ instantanée.
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
 <p align="center">
-  <img src="docs/hero.png" width="360" alt="Collines procedurales et surfeur MSN" />
-  <img src="docs/hero-boost.png" width="360" alt="Jauges de vitesse et de boost, en carve a 102 km/h" />
+  <img src="docs/hero.png" width="300" alt="Collines procedurales, eoliennes et surfeur MSN" />
+  <img src="docs/hero-couchant.png" width="300" alt="Coucher de soleil sur un lac, avec le chemin du soleil sur l eau" />
+  <img src="docs/equipement.png" width="300" alt="Ecran d equipement : trois buddies, trois montures, cinq jauges" />
 </p>
+
+**Le jour tourne.** Un cycle complet fait trois minutes et ne se remet jamais à
+zéro entre deux parties : on part en fin de matinée, on finit au soleil rasant,
+et la partie suivante n'a pas la même lumière. Aube froide en haut et déjà
+chaude en bas, midi Frutiger Aero, crépuscule violet sur braise, nuit claire de
+pleine lune — jamais noire, un jeu de vitesse qui s'éteint devient injouable.
 
 ## Lancer
 
@@ -92,6 +99,36 @@ tranche, le spray s'intensifie, le son monte d'une tierce. Relâche au bon momen
 et tout se libère d'un coup : poussée, FOV qui s'ouvre, hitstop de 45 ms,
 combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 
+## L'équipement
+
+Trois buddies, trois montures, six combinaisons. **Chaque choix se paie** —
+aucune option n'est meilleure qu'une autre sur tous les axes, sinon il n'y a pas
+de choix, il y a une bonne réponse et cinq mauvaises.
+
+| | Avantage | Coût |
+|---|---|---|
+| **BLEU** · **CD** | — | — |
+| **NÉON** | recharge le boost, part plus vite | mord moins en virage |
+| **GIVRE** | colle au sol | plafonne plus bas, déjauge plus tard |
+| **VINYLE** | le plus rapide | tourne mal, saute mal |
+| **MINIDISC** | vole et glisse | perd en vitesse de pointe |
+
+Les étiquettes de l'écran sont **calculées depuis les multiplicateurs**, jamais
+écrites à la main : un libellé rédigé survit toujours à l'équilibrage qui le
+rend faux. Les cinq jauges du bas donnent le profil de la **combinaison**, pas
+de la carte — le joueur ne joue pas un buddy et une monture, il joue leur
+produit. Elles partent du centre parce que la grandeur intéressante est un écart
+au neutre, et le coût est ambre et non rouge : le rouge dit l'erreur, or aucun
+choix n'est une erreur.
+
+Le choix se voit en jeu — le verre du buddy et la matière **et la taille** du
+disque changent. Un écran de sélection qui ne change rien à l'écran suivant est
+un écran qui ment.
+
+L'écran s'ouvre au **premier lancement uniquement**, et depuis le panneau de
+fin. Un menu imposé à chaque lancement tue le « encore une » d'un jeu de
+quarante secondes.
+
 ## Jouer en ligne
 
 Le dépôt se déploie **tel quel** sur Vercel : `vercel.json` fixe le framework
@@ -142,6 +179,17 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   séparées, l'hystérésis doit tenir (pas de glisse qui clignote au milieu du
   lac), et sortir en glissant doit laisser au moins **deux fois** la vitesse de
   sortir en coulant — sinon l'erreur ne coûte rien.
+- `check:pick` : l'écran d'équipement, **au clic**. Tout le reste de la suite
+  pilote le jeu par `window.__game`, ce qui ne prouve rien sur un écran dont
+  l'unique interface est le doigt. Il vérifie que l'écran s'ouvre au premier
+  lancement et seulement là, qu'un clic sur une carte puis sur la validation
+  applique le choix à la physique **et** à la livrée, et que le choix survit au
+  rechargement.
+- `check:shaders` : charge le jeu sur deux profils et échoue à la moindre erreur
+  GLSL en console. C'est le seul filet contre cette classe de faute : un shader
+  qui ne compile pas ne casse pas la page, il fait juste disparaître un maillage
+  en silence. Le sol est resté plusieurs heures sans compiler sans que rien ne
+  le dise.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 

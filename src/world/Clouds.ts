@@ -214,7 +214,7 @@ function makeCloudAtlas(res: number): CanvasTexture {
 
 export class Clouds {
   readonly mesh: Mesh;
-  private mat: ShaderMaterial;
+  readonly mat: ShaderMaterial;
   readonly span = 2600;
 
   constructor(count = 64, res = 768) {

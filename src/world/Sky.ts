@@ -1,6 +1,6 @@
 import { BackSide, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
-import { GLSL_SAFE } from '../core/Noise';
-import { vec3 } from '../core/Palette';
+import { GLSL_NOISE, GLSL_SAFE } from '../core/Noise';
+import { colClone } from '../core/Palette';
 
 /**
  * Dome de ciel. Degrade vertical cyan sature + gonflement lumineux vers l'horizon.
@@ -29,11 +29,13 @@ export function createSky(): Mesh {
     depthWrite: false,
     fog: false,
     uniforms: {
-      uZenith: { value: vec3('skyZenith') },
-      uHigh: { value: vec3('skyHigh') },
-      uMid: { value: vec3('skyMid') },
-      uHorizon: { value: vec3('skyHorizon') },
+      uZenith: { value: colClone('skyZenith') },
+      uHigh: { value: colClone('skyHigh') },
+      uMid: { value: colClone('skyMid') },
+      uHorizon: { value: colClone('skyHorizon') },
       uSun: { value: SUN_DIR.clone() },
+      uNight: { value: 0 },
+      uTime: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -44,8 +46,10 @@ export function createSky(): Mesh {
     `,
     fragmentShader: /* glsl */ `
 ${GLSL_SAFE}
+${GLSL_NOISE}
       varying vec3 vDir;
       uniform vec3 uZenith, uHigh, uMid, uHorizon, uSun;
+      uniform float uNight, uTime;
 
       void main(){
         vec3 d = normalize(vDir);
@@ -119,6 +123,30 @@ ${GLSL_SAFE}
         // Sous l'horizon le dome ne doit jamais s'assombrir : le sol le recouvre,
         // mais les bords d'ecran en perspective large peuvent le laisser voir.
         c = mix(c, uHorizon * 1.02, smoothstep(0.0, -0.16, h));
+
+        // --- LES ETOILES.
+        //
+        //     Une grille hachee, seuillee tres haut : on ne garde qu'une
+        //     poignee de cellules sur mille, sinon on obtient du grain et non
+        //     un ciel. Elles montent avec la nuit et s'eteignent pres de
+        //     l'horizon, ou la brume les mangerait de toute facon.
+        //
+        //     Le scintillement est indexe sur la position ET sur le temps, avec
+        //     une phase propre a chaque etoile : sans decalage, tout le ciel
+        //     clignote a l'unisson et l'illusion tombe immediatement.
+        if (uNight > 0.01) {
+          vec2 sc = vec2(atan(d.z, d.x) * 2.4, d.y * 3.4) * 42.0;
+          vec2 cell = floor(sc);
+          float rnd = hash21(cell);
+          float bright = smoothstep(0.9955, 1.0, rnd);
+          if (bright > 0.0) {
+            vec2 sub = fract(sc) - 0.5;
+            float dot2 = 1.0 - smoothstep(0.0, 0.34, length(sub));
+            float twink = 0.62 + 0.38 * sin(uTime * 2.1 + rnd * 88.0);
+            float high = smoothstep(0.02, 0.30, d.y);
+            c += vec3(0.92, 0.96, 1.0) * bright * dot2 * twink * high * uNight * 26.0;
+          }
+        }
 
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>

@@ -6,6 +6,7 @@
  * C'est exactement la ou le saut tactile s'est casse sans que rien ne le voie.
  */
 import { chromium, devices } from 'playwright';
+import { seedLoadout } from './lib/boot.mjs';
 
 const URL = process.env.URL ?? 'http://localhost:5173/';
 const b = await chromium.launch({
@@ -20,6 +21,7 @@ const check = (name, ok, detail) => {
 };
 
 async function boot(page) {
+  await seedLoadout(page);
   await page.goto(URL, { waitUntil: 'networkidle' });
   // Laisser passer la compilation des shaders : les premieres images sont
   // tres lentes et fausseraient toute mesure de duree.
@@ -113,7 +115,17 @@ const peek = (page) => page.evaluate(() => {
   // pente du terrain au moment du relachement, qui varie d'un essai a l'autre.
   // Que l'elan se traduise en hauteur est deja couvert, hors navigateur et de
   // facon deterministe, par `check:air`.
-  check('clavier : l elan monte avec la duree', !!tap && !!hold && hold.wind > tap.wind + 0.4,
+  // Assertion en RAPPORT et non en ecart absolu.
+  //
+  // L'elan monte a 2,0 par seconde et n'est lu qu'aux frontieres de frame :
+  // sa valeur est donc quantifiee par la cadence d'affichage, et un tap
+  // mesure 0,13 ou 0,20 selon l'endroit ou tombe la frame. Une marge absolue
+  // de 0,4 posait le seuil exactement sur l'une de ces valeurs, et le test
+  // basculait au gre du navigateur sans que rien n'ait change dans le jeu.
+  // Ce qu'on veut verifier n'est pas un ecart precis, c'est que maintenir
+  // rapporte franchement plus que tapoter — donc un facteur.
+  check('clavier : l elan monte avec la duree',
+    !!tap && !!hold && hold.wind >= tap.wind * 2 && hold.wind > 0.5,
     tap && hold ? `tap elan=${tap.wind} -> maintien elan=${hold.wind}` : 'donnees manquantes');
   await p.close();
 }

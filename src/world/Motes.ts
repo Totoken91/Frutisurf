@@ -26,7 +26,7 @@ import { SUN_DIR } from './Sky';
  */
 export class Motes {
   readonly mesh: Mesh;
-  private mat: ShaderMaterial;
+  readonly mat: ShaderMaterial;
   private readonly span = 70;
 
   constructor(count = 380) {

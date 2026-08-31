@@ -37,6 +37,9 @@ export const BUDDY_HEIGHT = HEAD_Y + HEAD_R;
 /** Degrade releve au pixel : sommet de la tete -> bas du buste. */
 const GRAD_TOP = 0x0a8fe8;
 const GRAD_BOTTOM = 0x6ff2fb;
+/** Liseré de Fresnel et arete basse du buddy d'origine. */
+const RIM = 0x4cd9ff;
+const FOOT = 0x9effff;
 
 /**
  * Silhouette du buste, relevee tous les 100 px sur la reference puis
@@ -100,7 +103,23 @@ function bodyProfile(): Vector2[] {
  * normalise sur la hauteur LOCALE de chaque volume, pour que la tete et le
  * buste balaient chacun toute la plage azur -> cyan, comme sur la reference.
  */
-function glassMaterial(yMin: number, yMax: number, lowPower: boolean): MeshPhysicalMaterial {
+/**
+ * Les quatre couleurs d'un buddy, PARTAGEES par ses deux volumes.
+ *
+ * Elles sont creees avant la compilation du shader et branchees telles quelles
+ * comme valeurs d'uniformes : ecrire dedans suffit donc a changer de
+ * personnage, sans recompiler quoi que ce soit et sans avoir a attendre que
+ * `onBeforeCompile` ait eu lieu. C'est ce qui permet a l'ecran d'equipement de
+ * changer la teinte a la validation, y compris avant le premier rendu.
+ */
+export interface Tint {
+  top: Color;
+  bottom: Color;
+  rim: Color;
+  foot: Color;
+}
+
+function glassMaterial(yMin: number, yMax: number, lowPower: boolean, tint: Tint): MeshPhysicalMaterial {
   const m = new MeshPhysicalMaterial({
     color: 0xffffff, // neutralise : le degrade injecte pilote la couleur
     // La reference est bien plus OPAQUE qu'un verre creux : le vert ne
@@ -130,8 +149,10 @@ function glassMaterial(yMin: number, yMax: number, lowPower: boolean): MeshPhysi
   });
 
   m.onBeforeCompile = (shader) => {
-    shader.uniforms.uTop = { value: new Color(GRAD_TOP) };
-    shader.uniforms.uBottom = { value: new Color(GRAD_BOTTOM) };
+    shader.uniforms.uTop = { value: tint.top };
+    shader.uniforms.uBottom = { value: tint.bottom };
+    shader.uniforms.uRim = { value: tint.rim };
+    shader.uniforms.uFoot = { value: tint.foot };
     shader.uniforms.uYMin = { value: yMin };
     shader.uniforms.uYMax = { value: yMax };
 
@@ -147,7 +168,7 @@ function glassMaterial(yMin: number, yMax: number, lowPower: boolean): MeshPhysi
       .replace(
         'void main() {',
         `varying float vGradY;
-         uniform vec3 uTop, uBottom;
+         uniform vec3 uTop, uBottom, uRim, uFoot;
          void main() {`,
       )
       .replace(
@@ -175,12 +196,12 @@ function glassMaterial(yMin: number, yMax: number, lowPower: boolean): MeshPhysi
 
           // Rim de Fresnel : c'est lui qui detache le buddy du fond vert.
           float gRim = pow(1.0 - clamp(dot(gN, gV), 0.0, 1.0), 2.6);
-          outgoingLight += vec3(0.30, 0.85, 1.0) * gRim * 0.42;
+          outgoingLight += uRim * gRim * 0.42;
 
           // Arete basse incandescente : sur la reference la lumiere du sol
           // entre par la base plate et allume tout le bord inferieur.
           float gFoot = smoothstep(0.16, 0.0, vGradY);
-          outgoingLight += vec3(0.62, 1.0, 1.0) * gFoot * 0.30;
+          outgoingLight += uFoot * gFoot * 0.30;
 
           // Relief lateral. La reference est franchement plus sombre sur le
           // flanc gauche ; sans ce gradient le volume reste plat et le verre
@@ -204,12 +225,23 @@ export class Buddy {
   readonly body: Mesh;
   readonly head: Mesh;
 
+  /** Les quatre couleurs vivantes du personnage. Ecrire dedans le recolore. */
+  readonly tint: Tint = {
+    top: new Color(GRAD_TOP),
+    bottom: new Color(GRAD_BOTTOM),
+    rim: new Color(RIM),
+    foot: new Color(FOOT),
+  };
+
   constructor(lowPower = false) {
-    this.body = new Mesh(new LatheGeometry(bodyProfile(), 72), glassMaterial(0, BODY_H, lowPower));
+    this.body = new Mesh(
+      new LatheGeometry(bodyProfile(), 72),
+      glassMaterial(0, BODY_H, lowPower, this.tint),
+    );
 
     this.head = new Mesh(
       new SphereGeometry(HEAD_R, 56, 40),
-      glassMaterial(-HEAD_R, HEAD_R, lowPower),
+      glassMaterial(-HEAD_R, HEAD_R, lowPower, this.tint),
     );
     this.head.position.y = HEAD_Y;
 
@@ -219,6 +251,19 @@ export class Buddy {
     this.body.renderOrder = 2;
 
     this.group.add(this.head, this.body);
+  }
+
+  /**
+   * Change de personnage. Quatre teintes, pas un `material.color` : la couleur
+   * du buddy est portee par un terme ADDITIF dans le shader (le lobe diffus ne
+   * sert qu'a la reponse a la lumiere), donc toucher au materiau standard
+   * n'aurait rien change a l'ecran.
+   */
+  setTint(top: number, bottom: number, rim: number, foot: number): void {
+    this.tint.top.setHex(top);
+    this.tint.bottom.setHex(bottom);
+    this.tint.rim.setHex(rim);
+    this.tint.foot.setHex(foot);
   }
 
   /** Squash & stretch — absurde sur une icone en verre, et c'est pour ca que ca marche. */

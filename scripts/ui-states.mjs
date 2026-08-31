@@ -8,6 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { seedLoadout } from './lib/boot.mjs';
 
 const OUT = 'shots/ui';
 mkdirSync(OUT, { recursive: true });
@@ -21,6 +22,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(String(e)));
+await seedLoadout(page);
 await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(3000);
 

@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { seedLoadout } from './lib/boot.mjs';
 
 const URL = process.env.SHOT_URL ?? 'http://localhost:5173/';
 const OUT = process.env.SHOT_OUT ?? 'shots';
@@ -19,6 +20,7 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(String(e)));
 
+await seedLoadout(page);
 await page.goto(URL, { waitUntil: 'networkidle' });
 
 // Pilotage scripte : permet de capturer une pose precise (virage, saut).

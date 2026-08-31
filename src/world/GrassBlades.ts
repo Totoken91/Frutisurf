@@ -10,7 +10,8 @@ import {
 import { GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
-import { terrainGLSL } from './Terrain';
+import { GLSL_DAY, dayUniforms } from './Daylight';
+import { terrainGLSL, shoreGLSL } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
 /**
@@ -75,7 +76,7 @@ function tuftGeometry(): InstancedBufferGeometry {
 
 export class GrassBlades {
   readonly mesh: Mesh;
-  private mat: ShaderMaterial;
+  readonly mat: ShaderMaterial;
 
   /**
    * @param grid nombre de cellules de cote
@@ -110,6 +111,7 @@ export class GrassBlades {
         uTip: { value: vec3('grassStreak') },
         uGlow: { value: vec3('grassHorizon') },
         uSkyLight: { value: [0.32, 0.52, 0.72] },
+        ...dayUniforms(),
       },
       vertexShader: /* glsl */ `
         attribute vec2 iCell;
@@ -122,6 +124,7 @@ export class GrassBlades {
         ${GLSL_NOISE}
         ${WEATHER_GLSL}
         ${terrainGLSL()}
+${shoreGLSL()}
 
         float h21(vec2 p){
           p = fract(p * vec2(127.31, 311.7));
@@ -163,12 +166,7 @@ export class GrassBlades {
           // trahirait immediatement que les deux couches ne se parlent pas.
           float gh = terrainHeightAt(wp, dist);
           float above = gh - WATER_LEVEL;
-          float shoreWide = 2.0 + fbm2(wp * 0.010) * 4.0;
-          float ragged = (fbm3(wp * 0.055) - 0.5) * 2.1
-                       + (fbm2(wp * 0.17) - 0.5) * 0.8
-                       + (fbm2(wp * 0.62) - 0.5) * 0.24;
-          float sand = clamp(1.0 - smoothstep(0.0, shoreWide, above + ragged), 0.0, 1.0);
-          sand = smoothstep(0.02, 0.78, sand);
+          float sand = shoreMask(wp, above);
           // Quelques oyats survivent en haut de plage : la coupure nette est
           // moins credible qu'une frange clairsemee.
           float dry = (1.0 - sand * 0.92) * smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 0.6, gh);
@@ -214,6 +212,7 @@ export class GrassBlades {
       `,
       fragmentShader: /* glsl */ `
         uniform vec3 uBase, uTip, uGlow, uSkyLight;
+${GLSL_DAY}
         varying float vV, vTint, vLight, vGlint, vShade;
         void main(){
           // Degrade base -> pointe en carre : l'ombre reste au pied, la
@@ -230,6 +229,10 @@ export class GrassBlades {
           // et il ne prend que sur les brins reellement tournes vers le soleil.
           c += vec3(0.95, 1.0, 0.80) * vGlint * pow(vVs, 6.0) * 0.85 * (1.0 - vShade);
           c = mix(c, c * 0.62 + uSkyLight * 0.055, vShade * 0.85);
+          // Meme traitement que le sol, avec la MEME entree d'ombrage : les deux
+          // couches doivent basculer ensemble, sinon les touffes restent en
+          // plein jour sur une prairie qui a bascule au crepuscule.
+          c = daylight(c, vShade * 0.55 + uDayNight * 0.30);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

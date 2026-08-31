@@ -23,7 +23,8 @@
     "check:backticks": "node scripts/backtick-check.mjs",
     "check:shaders": "node scripts/shader-check.mjs",
     "check:shake": "esbuild scripts/shake-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/shake.mjs --log-level=error && node node_modules/.cache/shake.mjs",
-    "check:water": "esbuild scripts/water-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/water.mjs --log-level=error && node node_modules/.cache/water.mjs"
+    "check:water": "esbuild scripts/water-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/water.mjs --log-level=error && node node_modules/.cache/water.mjs",
+    "check:pick": "node scripts/pick-check.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.36.4",

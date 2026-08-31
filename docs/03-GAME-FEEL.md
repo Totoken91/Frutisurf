@@ -677,3 +677,88 @@ La glisse est validée quand :
 5. Le pop de carve donne envie de le refaire immédiatement.
 6. Sauter sur la crête bat nettement sauter au hasard (**+63 %** de vol par saut).
 7. Planer allonge encore le vol (**+42 %**) sans rendre le sol inutile.
+
+---
+
+## 10. L'équipement : trois buddies, trois montures
+
+### La règle, et elle vaut plus que le contenu
+
+**Chaque choix se paie.** Aucune option n'est meilleure qu'une autre sur tous les
+axes — sinon il n'y a pas de choix, il y a une bonne réponse et cinq mauvaises,
+et le joueur cesse d'ouvrir l'écran dès la deuxième partie.
+
+Chaque entrée a donc exactement **un avantage franc et un coût franc**, et la
+somme des modificateurs est nulle à peu de chose près. C'est un peu plus sévère
+que ce que font la plupart des jeux, et c'est ce qui garde les six combinaisons
+vivantes.
+
+### Les cinq axes
+
+| Axe | Ce qu'il change vraiment | Où il atterrit |
+|---|---|---|
+| `cruise` | Vitesse de croisière. **L'axe le plus lisible, donc le plus cher** : plus de distance et plus de score par seconde, mais moins de temps pour lire le relief. | `Controller.cruise()` |
+| `grip` | Autorité latérale. Fort, il rattrape un anneau mal abordé ; faible, il force à anticiper mais rend les longues courbes plus douces et les vrilles plus faciles à boucler. | le facteur `grip` du déplacement |
+| `lift` | Portance au saut et à l'ouverture du plané. Change la durée de vol, donc le nombre de tours et l'accès aux anneaux hauts. | `JUMP_V`, et le coup de portance |
+| `plane` | Seuil de glisse sur l'eau. Plus il est haut, plus le seuil est **bas** — on déjauge plus tôt. | `PLANE_ENTER / plane` |
+| `boost` | Vitesse de recharge de la jauge, fond de régénération compris. | `reward()`, `BOOST_REGEN` |
+
+### Les six options
+
+| Buddy | Avantage | Coût |
+|---|---|---|
+| **BLEU** | — | — (le neutre assumé) |
+| **NÉON** | boost ×1,15 · cruise ×1,10 | grip ×0,86 |
+| **GIVRE** | grip ×1,24 | cruise ×0,93 · plane ×0,90 · lift ×0,96 |
+
+| Monture | Avantage | Coût |
+|---|---|---|
+| **CD** | — | — |
+| **VINYLE** | cruise ×1,12 | grip ×0,82 · lift ×0,88 · plane ×0,94 · boost ×0,94 |
+| **MINIDISC** | lift ×1,22 · grip ×1,12 · plane ×1,10 | cruise ×0,95 |
+
+Les extrêmes se composent sans jamais sortir du jouable : NÉON+VINYLE plafonne à
+`cruise` 1,23 et descend à `grip` 0,71 ; GIVRE+MINIDISC monte à `grip` 1,39. Les
+seuils bougent, les bornes du Controller ne bougent pas.
+
+### Ce que l'écran affiche, et pourquoi
+
+**Chaque carte porte son coût**, sur la carte et pas dans une infobulle. Une
+option sans étiquette ambre est explicitement marquée *équilibré* : l'absence de
+coût est une information, pas un blanc.
+
+**Les étiquettes sont calculées, jamais écrites.** `Loadout.highlights()` lit le
+plus gros multiplicateur au-dessus de 1 et le plus gros en dessous. Un libellé
+rédigé à la main survit toujours à l'équilibrage qui le rend faux, et l'écran se
+met alors à mentir sans que rien ne le signale.
+
+**Le profil est affiché pour la combinaison, pas par carte.** Le joueur ne joue
+pas un buddy et une monture, il joue leur **produit**. Cinq jauges signées,
+tracées depuis le centre : la grandeur intéressante est un **écart au neutre**,
+et une barre remplie depuis la gauche cacherait le signe, qui est tout le sujet.
+Le coût est **ambre et non rouge** — le rouge dit l'erreur, or aucun choix n'est
+une erreur ici ; l'ambre dit le prix.
+
+Les jauges s'animent en `scaleX` et **jamais** en largeur. Ce n'est pas une
+optimisation de confort : une transition CSS sur `width` part d'un `auto` que le
+navigateur ne sait pas interpoler, et la barre reste **à zéro**. C'est
+exactement ce qui est arrivé, et c'est la capture qui l'a montré — pas le
+raisonnement.
+
+### Le choix se voit en jeu
+
+Un écran de sélection qui ne change rien à l'écran suivant est un écran qui ment.
+Le buddy change de verre (quatre teintes portées par un terme **additif** du
+shader : toucher `material.color` n'aurait rien changé, le lobe diffus ne sert
+qu'à la réponse à la lumière), et le disque change de matière **et de taille**.
+
+L'échelle n'est pas cosmétique, elle **dit la statistique** : le vinyle est plus
+grand parce qu'il est lourd et rapide, le MiniDisc plus petit parce qu'il vole.
+Un joueur qui n'a pas lu l'écran voit quand même qu'il ne pilote pas la même
+chose.
+
+### Quand il s'ouvre
+
+Au **premier lancement uniquement**, et depuis le panneau de fin. Un menu imposé
+à chaque lancement est exactement ce qui tue le « encore une » d'un jeu de
+quarante secondes.

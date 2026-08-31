@@ -42,6 +42,10 @@
 <body>
   <canvas id="stage"></canvas>
   <div id="hud"></div>
+  <!-- L'ecran d'equipement vit HORS du HUD : le HUD est en pointer-events:none
+       et se fait masquer d'un bloc pendant le choix, or cet ecran doit rester
+       cliquable exactement quand le HUD ne l'est plus. -->
+  <div id="pick"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

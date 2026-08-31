@@ -18,6 +18,7 @@
 import { chromium, devices } from 'playwright';
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { seedLoadout } from './lib/boot.mjs';
 
 const URL = process.env.URL ?? 'http://localhost:4173/';
 const SECONDS = Number(process.env.SECONDS ?? 60);
@@ -88,6 +89,7 @@ const page = await browser.newPage(
 const logs = [];
 page.on('console', (m) => { if (m.type() === 'error') logs.push(m.text()); });
 page.on('pageerror', (e) => logs.push(String(e)));
+await seedLoadout(page);
 await page.goto(URL, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(2500);
 

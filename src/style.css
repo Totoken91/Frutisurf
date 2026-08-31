@@ -687,3 +687,463 @@ html, body {
   .mult.bump, .panel .again, .banner.show::before { animation: none; }
   .clockpod.crit { transform: none; }
 }
+
+/* ============================================================================
+   L'ECRAN D'EQUIPEMENT.
+
+   Meme grammaire que le reste — biseau, coupure nette, cap speculaire, rebond —
+   mais un probleme de plus a resoudre : six vignettes, cinq jauges et deux
+   lignes de texte doivent tenir sur un telephone en portrait SANS qu'on ait a
+   faire defiler, sinon le joueur valide sans avoir vu la moitie de l'ecran.
+
+   La reponse est de ne jamais repeter une information : les cartes portent le
+   nom et le compromis en toutes lettres, les jauges portent les CHIFFRES de la
+   combinaison, et rien n'apparait deux fois.
+   ========================================================================= */
+
+#pick {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.24s ease-out, visibility 0.24s;
+  font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: clamp(12px, 3.2vw, 15px);
+  color: #f2fbff;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Meme raison qu'au HUD : une couche de composition stable, declaree une
+     fois, plutot qu'une promotion et une retrogradation a chaque animation. */
+  transform: translateZ(0);
+}
+#pick.show { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* Le voile. Ce n'est pas un gris : c'est la couleur du fond de l'eau du jeu,
+   assombrie. Un scrim neutre par-dessus une image saturee la fait virer au
+   sale, et c'est ce qui donne aux menus leur air de calque etranger. */
+.pickscrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 34%, rgba(10, 96, 150, 0.34), rgba(4, 38, 76, 0.80) 78%),
+    linear-gradient(180deg, rgba(6, 60, 112, 0.35), rgba(3, 28, 62, 0.72));
+}
+
+/* --- La carte. Biseau chrome, corps a coupure nette, cap speculaire. */
+.pickpanel {
+  position: relative;
+  width: min(94vw, 420px);
+  max-height: calc(100dvh - 20px);
+  padding: 2px;
+  border-radius: 24px;
+  background: linear-gradient(180deg,
+    #ffffff 0%, #cfe7f3 30%, #6e9ab1 54%, #47728c 76%, #eaf8ff 100%);
+  box-shadow: 0 20px 48px -18px rgba(3, 34, 74, 0.9);
+  transform: scale(0.9) translateY(16px);
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+#pick.show .pickpanel { transform: scale(1) translateY(0); }
+.pickpanel > .in {
+  position: relative;
+  border-radius: 22px;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  /* Le contenu peut deborder sur un ecran tres court : on autorise alors le
+     defilement vertical, et lui seul. `touch-action: none` est pose sur le
+     document entier pour la glisse, il faut le rouvrir ici. */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 1.15em 1.05em 1.2em;
+  background: linear-gradient(180deg,
+    #1c8ed2 0%, #1170b4 46.5%, #1aa2d6 47.5%, #3fbfe6 78%, #7ee0f4 100%);
+}
+.pickpanel > .in::-webkit-scrollbar { display: none; }
+.pickpanel > .in::before {
+  content: '';
+  position: absolute;
+  left: 3px; right: 3px; top: 2px;
+  height: 32%;
+  border-radius: 20px 20px 50% 50% / 20px 20px 22px 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.60), rgba(255,255,255,0.10));
+  pointer-events: none;
+}
+
+/* --- Titre. */
+.pickhead { position: relative; text-align: center; margin-bottom: 0.85em; }
+.pickhead b {
+  display: block;
+  font-size: clamp(19px, 5.6vw, 25px);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(6,62,104,0.9), 0 0 18px rgba(170,240,255,0.6);
+}
+.pickhead i {
+  display: block;
+  margin-top: 0.24em;
+  font-style: normal;
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  color: #cdeeff;
+  opacity: 0.8;
+  text-shadow: 0 1px 0 rgba(6,58,100,0.7);
+}
+
+/* --- Une rangee : un intitule grave, puis trois cartes. */
+.pickrow { position: relative; margin-bottom: 0.75em; }
+.pickrow h3 {
+  margin: 0 0 0.42em 0.16em;
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #bfe8ff;
+  /* Grave, pas pose : ombre claire en dessous, sombre au-dessus. C'est le
+     traitement des intitules de section de l'epoque, et il coute deux ombres. */
+  text-shadow: 0 -1px 0 rgba(4,44,80,0.85), 0 1px 0 rgba(190,240,255,0.28);
+}
+.pickrow .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+/* --- LA CARTE. Etat de repos volontairement CREUX : un puits sombre dans la
+   plaque, comme un logement vide. La selection le REMPLIT — c'est la meme
+   logique que la jauge de boost, un trou puis de la matiere dedans, et c'est
+   ce qui rend l'etat choisi lisible sans avoir besoin d'une bordure. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 44px;
+  padding: 0.55em 0.24em 0.5em;
+  border: 0;
+  border-radius: 13px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(4,48,84,0.52) 0%, rgba(6,68,108,0.30) 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(2,26,52,0.75),
+    inset 0 -1px 0 rgba(255,255,255,0.20);
+  transition: background 0.18s ease-out, box-shadow 0.18s ease-out, transform 0.18s cubic-bezier(0.16,1,0.3,1);
+}
+.card.on {
+  background: linear-gradient(180deg,
+    #eafaff 0%, #b6e9fb 46.5%, #8ddaf6 47.5%, #cdf3ff 100%);
+  box-shadow:
+    0 0 0 1.5px rgba(255,255,255,0.9),
+    0 3px 12px -3px rgba(4,44,84,0.75),
+    inset 0 1px 0 rgba(255,255,255,0.95);
+  transform: translateY(-1px);
+}
+/* Le curseur clavier : un liseré qui ne remplace PAS la selection, il s'y
+   ajoute. Confondre « ou je suis » et « ce que j'ai pris » est la faute
+   classique des menus a la manette. */
+.card.cursor { outline: 2px solid rgba(255,255,255,0.85); outline-offset: 2px; }
+.card:focus { outline: none; }
+.card .nm {
+  font-size: 0.80em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: #f0fbff;
+  text-shadow: 0 1px 0 rgba(4,44,80,0.9);
+}
+.card.on .nm { color: #06405f; text-shadow: 0 1px 0 rgba(255,255,255,0.85); }
+.card .tags { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.card .tags em {
+  font-style: normal;
+  font-size: 0.56em;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.card .tags .up { color: #a9f56a; text-shadow: 0 1px 0 rgba(4,44,20,0.8); }
+.card .tags .dn { color: #ffc267; text-shadow: 0 1px 0 rgba(58,30,4,0.8); }
+.card .tags .eq { color: #b8dcf0; opacity: 0.8; text-shadow: 0 1px 0 rgba(4,44,80,0.8); }
+.card.on .tags .up { color: #2c7d06; text-shadow: 0 1px 0 rgba(255,255,255,0.7); }
+.card.on .tags .dn { color: #a25c02; text-shadow: 0 1px 0 rgba(255,255,255,0.7); }
+.card.on .tags .eq { color: #2c6d8c; opacity: 0.9; text-shadow: 0 1px 0 rgba(255,255,255,0.7); }
+
+/* --- LES EMBLEMES. Dessines en CSS, pas en images : ils doivent rester nets
+   sur un ecran a trois fois la densite, changer de couleur avec le theme, et
+   ne rien ajouter au chargement. Trois formes suffisent a les distinguer en
+   silhouette — c'est le seul critere qui compte a cette taille. */
+.emb {
+  display: grid;
+  place-items: center;
+  width: clamp(34px, 10.5vw, 44px);
+  height: clamp(34px, 10.5vw, 44px);
+}
+.av, .mv { position: relative; display: block; width: 100%; height: 100%; }
+/* La carte selectionnee est presque blanche : sans cette ombre, GIVRE — qui
+   est lui-meme presque blanc — y disparait purement et simplement. */
+.emb { filter: drop-shadow(0 1px 2px rgba(6, 58, 100, 0.42)); }
+
+/* Le buddy : tete ronde, buste en cloche, et le cap speculaire qui fait le
+   verre. La meme construction que le personnage du jeu, en deux divs. */
+.av b, .av u {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.55), 0 1px 2px rgba(3,32,64,0.45);
+}
+.av b {
+  top: 4%;
+  width: 46%; height: 46%;
+  border-radius: 50%;
+}
+.av u {
+  bottom: 4%;
+  width: 74%; height: 48%;
+  border-radius: 46% 46% 34% 34% / 60% 60% 26% 26%;
+}
+/* Le point chaud : un blanc franc en haut a gauche, decale — centre, il ferait
+   une bille de loto ; decale, il fait du verre souffle. */
+.av b::after, .av u::after {
+  content: '';
+  position: absolute;
+  left: 16%; top: 8%;
+  width: 46%; height: 34%;
+  border-radius: 50%;
+  background: linear-gradient(160deg, rgba(255,255,255,0.95), rgba(255,255,255,0.05));
+}
+.av.bleu b, .av.bleu u { background: linear-gradient(165deg, #8fe2ff 0%, #2e9de8 44%, #0b5cc0 100%); }
+.av.neon b, .av.neon u {
+  background: linear-gradient(165deg, #e6ff9c 0%, #97f52c 40%, #10cfd2 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.6), 0 0 9px rgba(150,245,60,0.75);
+}
+.av.givre b, .av.givre u {
+  background: linear-gradient(165deg, #ffffff 0%, #dcf6ff 42%, #8fc4e4 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.9), 0 0 7px rgba(190,235,255,0.85);
+}
+
+/* Les montures. Trois SILHOUETTES differentes, pas trois textures : un disque
+   irise, un disque noir, une cartouche carree. On les distingue du coin de
+   l'oeil, ce qu'aucun jeu de couleurs ne permettrait a 38 pixels. */
+.mv b { position: absolute; inset: 6%; }
+.mv u { position: absolute; }
+
+.mv.cd b {
+  border-radius: 50%;
+  background:
+    conic-gradient(from 210deg,
+      #7fe6ff 0deg, #b98cff 52deg, #ff9ad6 104deg, #ffe271 156deg,
+      #8dffb8 208deg, #6cd8ff 260deg, #ac93ff 312deg, #7fe6ff 360deg);
+  box-shadow: 0 1px 3px rgba(3,32,64,0.5), inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+/* L'eclat en croissant : c'est LUI qui fait lire un CD plutot qu'une pastille
+   arc-en-ciel. Un disque presse ne montre jamais tout son spectre a la fois. */
+.mv.cd b::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(128deg,
+    rgba(255,255,255,0) 22%, rgba(255,255,255,0.85) 40%,
+    rgba(255,255,255,0.1) 52%, rgba(255,255,255,0) 68%);
+}
+.mv.cd u {
+  left: 38%; top: 38%; width: 24%; height: 24%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 34%, #ffffff, #9fd4ea 70%, #5f9cbb);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.65);
+}
+
+.mv.vinyle b {
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255,255,255,0.16) 0 1px, rgba(255,255,255,0) 1px 3px),
+    linear-gradient(150deg, #4a5464 0%, #10151d 46%, #232c39 100%);
+  box-shadow: 0 1px 3px rgba(3,32,64,0.55), inset 0 0 0 1px rgba(255,255,255,0.28);
+}
+.mv.vinyle b::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(120deg,
+    rgba(255,255,255,0) 26%, rgba(255,255,255,0.42) 44%, rgba(255,255,255,0) 58%);
+}
+.mv.vinyle u {
+  left: 33%; top: 33%; width: 34%; height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 36%, #ffd98a, #e08c22 68%, #a85c08);
+}
+.mv.vinyle u::after {
+  content: '';
+  position: absolute;
+  left: 38%; top: 38%; width: 24%; height: 24%;
+  border-radius: 50%;
+  background: #101820;
+}
+
+/* Le MiniDisc : une cartouche. C'est la seule des trois qui ne soit pas ronde,
+   et c'est exactement pour ca qu'elle est dans la liste — elle donne a la
+   rangee une silhouette qu'on lit sans lire. */
+.mv.minidisc b {
+  inset: 10% 8%;
+  border-radius: 16%;
+  background: linear-gradient(160deg, #ffffff 0%, #a8d6f0 38%, #3f86bb 72%, #8fc8e8 100%);
+  box-shadow: 0 1px 3px rgba(3,32,64,0.5), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.mv.minidisc b::after {
+  content: '';
+  position: absolute;
+  left: 12%; top: 10%; right: 12%; height: 30%;
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.42));
+}
+/* Le volet metallique, decale a droite comme sur la vraie cartouche. */
+.mv.minidisc u {
+  left: 22%; bottom: 16%; width: 56%; height: 34%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #e8f4fb 0%, #9db4c4 42%, #5f7688 62%, #cfe2ee 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+}
+
+/* --- La zone de lecture : les deux phrases, puis le profil combine. */
+.pickread {
+  position: relative;
+  margin-top: 0.15em;
+  padding: 0.7em 0.75em 0.72em;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(4,48,84,0.42) 0%, rgba(6,70,110,0.24) 100%);
+  box-shadow: inset 0 1px 2px rgba(2,26,52,0.7), inset 0 -1px 0 rgba(255,255,255,0.18);
+}
+.pickread p {
+  margin: 0 0 0.2em;
+  font-size: 0.74em;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #e2f6ff;
+  text-shadow: 0 1px 0 rgba(4,44,80,0.85);
+}
+.pickread p + p { opacity: 0.86; }
+
+.meters { margin-top: 0.6em; display: grid; gap: 4px; }
+.meter { display: grid; grid-template-columns: 5.4em 1fr; align-items: center; gap: 0.5em; }
+.meter .lb {
+  font-size: 0.58em;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  color: #b6ddf2;
+  text-shadow: 0 1px 0 rgba(4,44,80,0.8);
+}
+/* Le rail : creux, eclaire par le HAUT. Meme construction que la jauge de
+   boost, pour que les deux se lisent comme le meme instrument. */
+.meter .tk {
+  position: relative;
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #06304e 0%, #0a4463 55%, #0d5f86 100%);
+  box-shadow: inset 0 1px 1px rgba(2,22,44,0.9), 0 1px 0 rgba(255,255,255,0.20);
+}
+/* Le repere du neutre. Sans lui, une barre qui part du milieu n'a pas de
+   milieu : on ne sait plus si elle monte ou si elle est simplement courte. */
+.meter .mid {
+  position: absolute;
+  z-index: 1;
+  left: 50%; top: 0; bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: rgba(226, 248, 255, 0.55);
+}
+/* Les deux moities de la jauge, de part et d'autre du neutre.
+   Animees en `scaleX` et jamais en largeur : une transition sur `width` part
+   d'un `auto` non interpolable et la barre ne sort jamais de zero — c'est
+   exactement ce qui est arrive ici, et la capture l'a montre avant le joueur. */
+.meter .up, .meter .dn {
+  position: absolute;
+  top: 1px; bottom: 1px;
+  border-radius: 999px;
+  transform: scaleX(0);
+  will-change: transform;
+  transition: transform 0.30s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.meter .up {
+  left: 50%; right: 1px;
+  transform-origin: left center;
+  background: linear-gradient(180deg, #d8ffab 0%, #7ee83a 46.5%, #96f24e 47.5%, #d6ffa4 100%);
+  box-shadow: 0 0 8px rgba(150, 245, 80, 0.6);
+}
+/* Le cout n'est pas rouge : le rouge dit l'erreur, or aucun choix n'est une
+   erreur ici. L'ambre dit le PRIX. */
+.meter .dn {
+  left: 1px; right: 50%;
+  transform-origin: right center;
+  background: linear-gradient(180deg, #ffeec0 0%, #f7a91c 46.5%, #ffbe44 47.5%, #ffe6b4 100%);
+  box-shadow: 0 0 8px rgba(255, 178, 60, 0.55);
+}
+
+/* --- Validation. Le meme bouton vert que « rejouer » : c'est le meme geste
+   dans la meme famille, il doit avoir la meme apparence. */
+.pickgo { position: relative; text-align: center; margin-top: 0.95em; }
+.pickgo u {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5em 2.1em 0.55em;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  background: linear-gradient(180deg, #8ae83f 0%, #5cc31c 46.5%, #79dd33 47.5%, #b6f77e 100%);
+  box-shadow:
+    0 0 0 1.5px rgba(255,255,255,0.85),
+    0 4px 14px -4px rgba(4,44,84,0.8);
+  font-size: 0.96em;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #17400a;
+  text-shadow: 0 1px 0 rgba(220,255,190,0.8);
+  animation: cta 1.9s ease-in-out infinite;
+}
+
+/* Pendant le choix, le HUD n'a rien a dire : un chrono fige derriere un menu
+   ment sur l'etat du jeu, et deux chiffres qui ne bougent pas attirent l'oeil
+   plus surement que ceux qui bougent. */
+body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
+
+/* --- Le rappel d'equipement, sur l'ecran de fin. */
+.panel .equip {
+  position: relative;
+  display: block;
+  margin-top: 0.85em;
+}
+.panel .equip u {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.34em 1.2em 0.38em;
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
+  text-decoration: none;
+  background: linear-gradient(180deg, rgba(238,250,255,0.94) 0%, rgba(174,220,240,0.86) 46.5%, rgba(146,204,232,0.86) 47.5%, rgba(214,242,254,0.94) 100%);
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.7), 0 2px 9px -3px rgba(4,44,84,0.7);
+  font-size: 0.76em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0a4b76;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickgo u { animation: none; }
+  .pickpanel, .card, .meter .fill { transition: none; }
+}

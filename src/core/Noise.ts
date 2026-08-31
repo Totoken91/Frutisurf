@@ -56,7 +56,23 @@ export function fbm2D(x: number, y: number, octaves = 4): number {
 }
 
 /** Chunk GLSL partage — a injecter dans les shaders qui ont besoin de bruit. */
+/**
+ * GARDE D'INCLUSION.
+ *
+ * Ce chunk est desormais tire par d'autres chunks (le masque de greve en a
+ * besoin), et plus seulement colle a la main dans chaque shader. Sans garde,
+ * un shader qui inclut le bruit ET la greve se retrouve avec deux definitions
+ * de `fbm2` et ne compile pas ; sans inclusion automatique, un shader qui
+ * inclut la greve SANS le bruit ne compile pas non plus. La garde est ce qui
+ * permet aux deux d'etre vrais en meme temps — c'est un `#pragma once`, et
+ * c'est exactement le probleme qu'il resout dans les autres langages.
+ *
+ * Le preprocesseur GLSL ES gere `#ifndef` depuis la version 1.00, donc ceci
+ * marche aussi bien en WebGL1 qu'en WebGL2.
+ */
 export const GLSL_NOISE = /* glsl */ `
+#ifndef FS_NOISE
+#define FS_NOISE
 float hash21(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p);
@@ -92,6 +108,7 @@ float fbm2(vec2 p){
 vec3 hue2rgb(float h){
   return clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0);
 }
+#endif
 `;
 
 /**

@@ -8,6 +8,8 @@ import { clamp } from './core/Spring';
 import { CameraRig } from './fx/CameraRig';
 import { PostFX } from './fx/PostFX';
 import { Hud } from './hud/Hud';
+import { Select } from './hud/Select';
+import { hasChosen, loadChoice, combine, type Loadout } from './core/Loadout';
 import { ShockRing } from './fx/ShockRing';
 import { Controller, IDLE_INPUT } from './player/Controller';
 import { Spray } from './player/Spray';
@@ -51,6 +53,7 @@ export class Game {
   readonly shock = new ShockRing();
   readonly audio = new Audio();
   readonly hud: Hud;
+  readonly select: Select;
 
   private acc = 0;
   private last = performance.now();
@@ -208,12 +211,43 @@ export class Game {
 
     this.hud = new Hud(document.getElementById('hud')!);
 
-    // Pas d'ecran de depart : l'audio s'arme au premier geste, c'est tout
-    // ce qu'imposait la politique autoplay.
+    // --- L'equipement.
+    //
+    // Le choix precedent est applique AVANT le premier pas de simulation :
+    // charger le monde avec une monture neutre puis la remplacer une frame
+    // plus tard ferait sauter la vitesse de croisiere sous les yeux du joueur.
+    const saved = loadChoice();
+    this.applyLoadout(combine(saved.rider, saved.mount));
+
+    this.select = new Select(document.getElementById('pick')!);
+    this.select.onToggle = (open) => document.body.classList.toggle('picking', open);
+    this.select.onConfirm = (l) => {
+      this.applyLoadout(l);
+      // Valider vaut geste utilisateur : l'audio peut s'armer ici, sans
+      // attendre que le joueur touche la zone de jeu.
+      this.state.started = true;
+      this.audio.start();
+      this.restart();
+    };
+
+    // Pas d'ecran de depart pour un habitue : seule la toute premiere visite
+    // ouvre l'equipement. Un menu impose a chaque lancement est exactement ce
+    // qui tue le « encore une » d'un jeu de quarante secondes.
+    if (!hasChosen()) this.select.open();
+
+    // L'audio s'arme au premier geste, c'est tout ce qu'imposait la
+    // politique autoplay.
     this.input.onFirstGesture = () => {
       this.state.started = true;
       this.audio.start();
     };
+    this.hud.onEquip = () => this.select.open();
+  }
+
+  /** Un seul point d'entree pour l'equipement : la physique ET la livree. */
+  private applyLoadout(l: Loadout): void {
+    this.controller.loadout = l;
+    this.surfer.setLoadout(l.rider.id, l.mount.id);
   }
 
   private contactPoint(): Vector3 {
@@ -339,9 +373,10 @@ export class Game {
     // Toujours consommer, meme en jeu : sinon un front garde en reserve
     // relancerait la partie a la seconde ou elle se termine.
     const acted = this.input.consumeAny();
-    if (acted && this.run.canRestart) this.restart();
+    const picking = this.select.isOpen;
+    if (acted && this.run.canRestart && !picking) this.restart();
 
-    const playing = this.run.phase === 'running';
+    const playing = this.run.phase === 'running' && !picking;
 
     // Pas fixe pour la simulation : les ressorts a omega=14 ont besoin de
     // 120 Hz pour ne pas osciller en escalier sur un ecran 60 Hz.
@@ -368,8 +403,15 @@ export class Game {
     // ralenti : le jeu ne repond plus au temps reel mais a son propre retard.
     if (this.acc > STEP * 2) this.acc = STEP * 2;
 
-    if (this.run.step(real, this.controller.score, this.controller.combo)) this.endRun();
-    this.countdown();
+    // Le chrono est GELE pendant le choix — et lui seul. Le monde continue de
+    // defiler derriere le panneau, le cycle jour/nuit continue de tourner :
+    // c'est ce qui fait la difference entre un menu pose sur une capture et un
+    // jeu qui attend. Mais faire couler le temps pendant qu'on lit des
+    // libelles reviendrait a punir la lecture.
+    if (!picking) {
+      if (this.run.step(real, this.controller.score, this.controller.combo)) this.endRun();
+      this.countdown();
+    }
 
     this.controller.writeState(this.state, real);
     this.hud.update(this.state, this.run, real);

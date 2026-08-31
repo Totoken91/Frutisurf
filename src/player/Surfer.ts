@@ -23,6 +23,27 @@ import { Disc, DISC_RADIUS } from './Disc';
  * l'autre.
  */
 
+/**
+ * La livree de chaque buddy : haut, bas, liseré, arete basse.
+ *
+ * Elle vit ICI et pas dans core/Loadout, qui ne connait que des nombres de
+ * jeu. Melanger l'equilibrage et la peinture dans la meme table est le plus
+ * court chemin vers une option qu'on n'ose plus retoucher parce qu'elle est
+ * jolie.
+ *
+ * Chaque livree tient la meme regle que le verre d'origine : le BAS est clair
+ * et le HAUT plus dense. L'inverse donne un personnage qui a l'air pose la
+ * tete en bas, parce que la lumiere du monde vient d'en haut.
+ */
+const RIDER_TINT: Record<string, [number, number, number, number]> = {
+  bleu: [0x0a8fe8, 0x6ff2fb, 0x4cd9ff, 0x9effff],
+  neon: [0x18c2a6, 0xc8ff4e, 0x9bff3c, 0xe4ff96],
+  // Le haut descend nettement plus bas que sur les deux autres : un verre
+  // presque blanc passe dans le bloom sature, et GIVRE perdait sa silhouette
+  // au lieu de gagner en clarte.
+  givre: [0x3f7fc4, 0xd2eeff, 0xa8dcf8, 0xe8fbff],
+};
+
 /** Ecart vertical entre le CD et la base du buddy, avant mise a l'echelle. */
 const GAP = 0.55;
 /** Le sujet occupait trop peu de place a l'ecran ; il grandit d'un sixieme. */
@@ -86,6 +107,17 @@ export class Surfer {
    * temps reel : elle doit rester fluide meme quand la simulation est gelee
    * par un hitstop.
    */
+  /**
+   * Applique l'equipement choisi. Le buddy change de verre, le disque change
+   * de matiere ET de taille — ce sont les deux seules choses que le joueur
+   * voit de son choix pendant la partie, donc elles doivent etre franches.
+   */
+  setLoadout(riderId: string, mountId: string): void {
+    const t = RIDER_TINT[riderId] ?? RIDER_TINT.bleu;
+    this.buddy.setTint(t[0], t[1], t[2], t[3]);
+    this.disc.setMount(mountId);
+  }
+
   animate(dt: number, m: SurferMotion): void {
     // --- LE DISQUE. Reactif, presque critique : il epouse la trajectoire
     //     sans depassement, comme une carre qui mord.

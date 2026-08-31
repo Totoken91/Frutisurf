@@ -1,7 +1,8 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
 import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
-import { vec3 } from '../core/Palette';
+import { colClone, vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
+import { GLSL_DAY, dayUniforms } from './Daylight';
 import { terrainGLSL, WATER_LEVEL } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
@@ -68,7 +69,7 @@ function buildGeometry(dense: boolean): BufferGeometry {
 
 export class Water {
   readonly mesh: Mesh;
-  private mat: ShaderMaterial;
+  readonly mat: ShaderMaterial;
 
   constructor(dense = true) {
     this.mat = new ShaderMaterial({
@@ -82,9 +83,10 @@ export class Water {
         uDeep: { value: vec3('waterDeep') },
         uShallow: { value: vec3('waterShallow') },
         uFoam: { value: vec3('waterFoam') },
-        uSkyLow: { value: vec3('skyHorizon') },
-        uSkyHigh: { value: vec3('skyMid') },
+        uSkyLow: { value: colClone('skyHorizon') },
+        uSkyHigh: { value: colClone('skyMid') },
         uSkyLight: { value: [0.32, 0.52, 0.72] },
+        ...dayUniforms(),
         /** x, z du surfeur et force du sillage (0 hors de l'eau). */
         uWake: { value: new Vector3() },
       },
@@ -111,6 +113,7 @@ export class Water {
 ${GLSL_SAFE}
         uniform float uTime;
         uniform vec3 uCam, uSun, uDeep, uShallow, uFoam, uSkyLow, uSkyHigh, uSkyLight, uWake;
+${GLSL_DAY}
         varying vec3 vWorld;
         varying float vDepth;
 
@@ -201,6 +204,10 @@ ${GLSL_SAFE}
           c = mix(c, c * 0.58 + uSkyLight * 0.05, dark * 0.8);
 
           // Opacite : transparente au bord, franche au large.
+          // L'heure. Le reflet du ciel est DEJA a la bonne couleur (uSkyLow et
+          // uSkyHigh viennent du cycle) : seul le corps de l'eau doit etre
+          // teinte, sinon on colore deux fois le meme ciel.
+          c = daylight(c, dark * 0.45 + uDayNight * 0.22);
           float alpha = mix(0.55, 0.97, smoothstep(0.0, 1.3, vDepth));
           gl_FragColor = vec4(c, alpha);
           #include <tonemapping_fragment>
