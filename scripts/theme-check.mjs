@@ -48,7 +48,7 @@ check('passe devant le style EN LIGNE de la visionneuse', b2.includes('light') &
 // L'interface ne doit plus animer de proprietes qui repeignent : on verifie que
 // la jauge passe bien par une transformation.
 const c = await p.evaluate(() => {
-  const el = document.querySelector('.boost > i');
+  const el = document.querySelector('.gauge .fill');
   return el ? getComputedStyle(el).transform : 'absent';
 });
 check('jauge de boost animee en transformation', c.startsWith('matrix'), c);
@@ -74,7 +74,7 @@ check('points volants animes sur le compositeur', e.ok, e.why);
 // La jauge de boost doit avoir une largeur reelle : une transition CSS
 // par-dessus une valeur reecrite en continu la laissait bloquee a zero.
 const f = await p.evaluate(() => {
-  const el = document.querySelector('.boost > i');
+  const el = document.querySelector('.gauge .fill');
   const w = el.getBoundingClientRect().width;
   const pw = el.parentElement.getBoundingClientRect().width;
   return { r: pw > 0 ? w / pw : 0, boost: window.__game.state.boost };

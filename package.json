@@ -14,6 +14,7 @@
     "check:air": "esbuild scripts/air-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/air.mjs --log-level=error && node node_modules/.cache/air.mjs",
     "check:input": "node scripts/input-check.mjs",
     "check:run": "esbuild scripts/run-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/run.mjs --log-level=error && node node_modules/.cache/run.mjs",
+    "shot:ui": "node scripts/ui-states.mjs",
     "check:perf": "node scripts/perf-check.mjs",
     "check:flicker": "node scripts/flicker-check.mjs",
     "check:flicker:resize": "RESIZE=1 SECONDS=80 node scripts/flicker-check.mjs",

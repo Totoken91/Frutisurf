@@ -1,5 +1,5 @@
 import type { GameState } from '../core/GameState';
-import type { Run } from '../core/Run';
+import { MAX_TIME, type Run } from '../core/Run';
 
 /**
  * Toute l'interface, en DOM.
@@ -35,6 +35,8 @@ export class Hud {
   private popRoot: HTMLElement;
   private overEl: HTMLElement;
   private hintEl: HTMLElement;
+  private clockFill: HTMLElement;
+  private multVal: HTMLElement;
 
   private acc = 0;
   private lastBoost = 0;
@@ -57,21 +59,36 @@ export class Hud {
 
   constructor(private root: HTMLElement) {
     root.innerHTML = `
-      <div class="row">
-        <div class="col">
-          <div class="aero speed">
-            <span class="speedVal" data-el="speed">0</span>
-            <span class="speedUnit">KM/H</span>
+      <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i></div>
+
+      <div class="topband">
+        <div class="cell">
+          <div class="pod speedpod">
+            <div class="in">
+              <span class="speedVal" data-el="speed">0</span>
+              <span class="speedUnit">KM/H</span>
+            </div>
           </div>
-          <div class="aero boost" data-el="boost"><i data-el="fill"></i></div>
+          <div class="gauge" data-el="boost">
+            <div class="in"><i class="fill" data-el="fill"><u class="stripes"></u></i></div>
+            <div class="gloss"></div>
+          </div>
         </div>
-        <div class="clock" data-el="clockBox"><span data-el="clock">30.0</span></div>
-        <div class="col right">
+
+        <div class="pod clockpod" data-el="clockBox">
+          <div class="in">
+            <span class="clockVal" data-el="clock">30.0</span>
+          </div>
+          <div class="clockbar"><i data-el="clockfill"></i></div>
+        </div>
+
+        <div class="scorestack">
           <div class="score" data-el="score">0</div>
           <div class="best" data-el="best"></div>
         </div>
       </div>
-      <div class="mult" data-el="mult"></div>
+
+      <div class="mult" data-el="mult"><b data-el="multVal"></b></div>
       <div class="banner" data-el="banner"></div>
       <div class="pops" data-el="pops"></div>
       <div class="hint" data-el="hint">
@@ -92,6 +109,8 @@ export class Hud {
     this.popRoot = pick('pops');
     this.overEl = pick('over');
     this.hintEl = pick('hint');
+    this.clockFill = pick('clockfill');
+    this.multVal = pick('multVal');
 
     for (let i = 0; i < 14; i++) {
       const el = document.createElement('div');
@@ -151,15 +170,17 @@ export class Hud {
     const record = run.recordBeaten;
     this.overEl.innerHTML = `
       <div class="panel">
-        ${record ? '<div class="record">nouveau record</div>' : ''}
-        <div class="final">${money(run.finalScore)}</div>
-        <div class="stats">
-          <span>${money(distance)} m</span>
-          <span>${run.rings} anneaux</span>
-          <span>combo ×${run.bestCombo}</span>
+        <div class="in">
+          ${record ? '<div class="record">nouveau record</div>' : ''}
+          <div class="final">${money(run.finalScore)}</div>
+          <div class="stats">
+            <span>${money(distance)} m</span>
+            <span>${run.rings} anneaux</span>
+            <span>×${run.bestCombo}</span>
+          </div>
+          <div class="bestline">record ${money(run.best)}</div>
+          <div class="again"><u>rejouer</u></div>
         </div>
-        <div class="bestline">record ${money(run.best)}</div>
-        <div class="again">tape pour rejouer</div>
       </div>
     `;
     this.overEl.classList.add('show');
@@ -174,7 +195,7 @@ export class Hud {
     this.root.classList.remove('ended');
     this.bannerEl.className = 'banner';
     this.lastScoreShown = -1;
-    this.multEl.textContent = '';
+    this.multVal.textContent = '';
   }
 
   update(s: GameState, run: Run, dt: number): void {
@@ -204,6 +225,10 @@ export class Hud {
     // La jauge est ecrite a chaque image, pas a 20 Hz : `transform` ne coute
     // qu'une composition, et ca evite d'avoir a lisser avec une transition CSS.
     this.boostFill.style.transform = `scaleX(${s.boost.toFixed(3)})`;
+    // La barre du chrono donne la PROPORTION restante, que le nombre seul ne
+    // donne jamais : « il m'en reste un tiers » se lit d'un coup d'oeil, « 14,2 »
+    // demande de savoir sur combien.
+    this.clockFill.style.transform = `scaleX(${Math.min(1, t / MAX_TIME).toFixed(3)})`;
 
     this.acc += dt;
     if (this.acc < 0.05) return;
@@ -228,8 +253,8 @@ export class Hud {
     const m = s.mult;
     if (m >= 1.35) {
       const label = `×${m.toFixed(1)}`;
-      if (label !== this.multEl.textContent) {
-        this.multEl.textContent = label;
+      if (label !== this.multVal.textContent) {
+        this.multVal.textContent = label;
         this.multEl.classList.remove('bump');
         void this.multEl.offsetWidth;
         this.multEl.classList.add('bump');

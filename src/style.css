@@ -80,333 +80,610 @@ html, body {
   text-shadow: 0 1px 2px rgba(4, 40, 96, 0.6);
 }
 
-.row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding:
-    calc(12px + env(safe-area-inset-top))
-    calc(12px + env(safe-area-inset-right)) 0
-    calc(12px + env(safe-area-inset-left));
-}
-.col { display: flex; flex-direction: column; gap: 7px; }
-.col.right { align-items: flex-end; text-align: right; }
 
-.aero {
+/* ============================================================================
+   AQUA — la grammaire visuelle, definie une fois.
+
+   Ce n'est PAS du glassmorphism. Le glassmorphism floute ce qu'il y a derriere ;
+   l'Aqua de 2006 ne floute rien du tout — il PEINT une reflexion. La difference
+   se voit et se mesure :
+
+   - un `backdrop-filter` releve et refloute la scene a chaque image, ce qui sur
+     un telephone faible est la chose la plus chere qu'on puisse poser sur un
+     canvas WebGL plein ecran ;
+   - un degrade peint coute un remplissage, une fois, sur une couche promue.
+
+   L'epoque avait raison pour la mauvaise raison — elle n'avait pas le choix —
+   mais le resultat est a la fois plus authentique et gratuit.
+
+   La signature Aqua tient en quatre couches, dans cet ordre :
+     1. le BISEAU chrome    — clair en haut, sombre en bas, puis clair a nouveau
+                              sur la toute derniere ligne (la levre usinee) ;
+     2. le CORPS            — degrade avec une COUPURE NETTE vers 47 %. C'est le
+                              detail que tout le monde rate : un fondu continu
+                              donne du plastique, la cassure donne du verre ;
+     3. le CAP SPECULAIRE   — un blanc a bord FRANC sur la moitie haute, avec sa
+                              propre courbure basse. Jamais un fondu ;
+     4. le REBOND           — une lueur diffuse contre le bord inferieur
+                              interieur : la lumiere qui a traverse le volume et
+                              remonte. Sans elle l'objet est creux.
+   ========================================================================= */
+
+:root {
+  --aq-cyan: #26d4eb;
+  --aq-blue: #1063d7;
+  --aq-deep: #0a4b9e;
+  --aq-frost: #cbf1f0;
+  --aq-ink: #04283f;
+  /* Ombre portee COLOREE. Une ombre grise sous une interface en plein jour est
+     la signature la plus visible d'un rendu qui n'a pas ete regarde. */
+  --aq-drop: 0 3px 10px -4px rgba(6, 58, 104, 0.55);
+}
+
+/* --- Bulles. Trois, tres lentes, tres diffuses, cantonnees a la bande haute.
+   L'element le plus reconnaissable de l'epoque, et le moins cher : trois
+   degrades radiaux qui derivent en transform. Elles ne descendent jamais dans
+   la zone de jeu. */
+.bubbles { position: absolute; top: 0; left: 0; right: 0; height: 34vh; overflow: hidden; }
+.bubbles i {
+  position: absolute;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,0.85) 0 6%, rgba(255,255,255,0.22) 22%, rgba(255,255,255,0.05) 46%, rgba(255,255,255,0) 62%),
+    radial-gradient(circle at 62% 78%, rgba(190,246,255,0.30) 0 30%, rgba(190,246,255,0) 64%);
+  will-change: transform;
+}
+.bubbles i:nth-child(1) { width: 84px; height: 84px; left: 6%;  top: 12%; animation: drift1 19s ease-in-out infinite; }
+.bubbles i:nth-child(2) { width: 46px; height: 46px; left: 74%; top: 4%;  animation: drift2 23s ease-in-out infinite; }
+.bubbles i:nth-child(3) { width: 122px; height: 122px; left: 42%; top: 18%; animation: drift3 31s ease-in-out infinite; opacity: 0.55; }
+@keyframes drift1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(14px,-22px) } }
+@keyframes drift2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-18px,16px) } }
+@keyframes drift3 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(9px,26px) } }
+
+/* --- La bande haute. TOUT le persistant vit ici, et rien d'autre ne descend.
+   Le bas de l'ecran est a la fois la zone du pouce et le champ de jeu : deux
+   raisons independantes de n'y rien mettre. */
+.topband {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 8px;
+}
+
+/* --- LE POD. Le biseau et le corps, la grammaire commune. */
+.pod {
   position: relative;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background:
-    linear-gradient(180deg,
-      rgba(255, 255, 255, 0.55) 0%,
-      rgba(255, 255, 255, 0.20) 48%,
-      rgba(255, 255, 255, 0.00) 49%,
-      rgba(255, 255, 255, 0.09) 100%),
-    linear-gradient(180deg, #3fb4ee 0%, #1063d7 52%, #0c57c9 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -10px 18px rgba(2, 26, 82, 0.36),
-    0 4px 14px rgba(4, 36, 104, 0.40);
+  padding: 1.5px;
+  /* 1. BISEAU : blanc en haut, ardoise a la cassure, puis une derniere ligne
+     claire tout en bas — la levre. C'est elle qui donne l'epaisseur. */
+  background: linear-gradient(180deg,
+    #ffffff 0%, #d3e9f4 34%, #7ba6bd 52%, #4d7b95 74%, #eaf8ff 100%);
+  box-shadow: var(--aq-drop);
+  isolation: isolate;
+}
+.pod > .in {
+  position: relative;
+  border-radius: inherit;
+  overflow: hidden;
+  /* 2. CORPS : la COUPURE NETTE a 47 %. Un point de plus et c'est du plastique. */
+  background: linear-gradient(180deg,
+    #1e8fd4 0%, #1170b4 46.5%, #1aa2d6 47.5%, #4fd2ef 84%, #a9f0fb 100%);
+}
+/* 3. CAP SPECULAIRE : bord FRANC, courbure propre, jamais un fondu jusqu'en bas. */
+.pod > .in::before {
+  content: '';
+  position: absolute;
+  left: 2px; right: 2px; top: 1px;
+  height: 45%;
+  border-radius: 999px 999px 46% 46% / 999px 999px 10px 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.30));
+  pointer-events: none;
+}
+/* 4. REBOND : la lumiere qui remonte du fond du volume. */
+.pod > .in::after {
+  content: '';
+  position: absolute;
+  left: 12%; right: 12%; bottom: -9px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.75), rgba(255,255,255,0) 72%);
+  pointer-events: none;
 }
 
-/* --- vitesse */
-.speed {
-  padding: 0.30em 0.85em 0.34em;
+/* --- Vitesse. */
+.speedpod { justify-self: start; }
+.speedpod > .in {
   display: flex;
   align-items: baseline;
-  gap: 0.35em;
+  gap: 0.34em;
+  padding: 0.30em 0.78em 0.34em;
 }
 .speedVal {
-  font-size: 1.7em;
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  min-width: 2.1em;
-  text-align: right;
-}
-.speedUnit {
-  font-size: 0.62em;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  opacity: 0.85;
-}
-
-/* --- boost */
-.boost {
   position: relative;
-  width: 8.2em;
-  height: 0.82em;
-  border-radius: 999px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #072a5e 0%, #04193c 100%);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-}
-/* Mise a l'echelle et non largeur : animer `width` declenche une mise en page
-   et une peinture a chaque image, en continu, juste au-dessus du canvas.
-   `transform` ne coute qu'une composition. Le degrade etant vertical, l'etirer
-   horizontalement ne le deforme pas. */
-.boost > i {
-  display: block;
-  height: 100%;
-  width: 100%;
-  transform-origin: left center;
-  transform: scaleX(0);
-  border-radius: 999px;
-  background: linear-gradient(180deg, #d6ffe6 0%, #48fd76 42%, #14b34e 100%);
-  box-shadow: 0 0 9px rgba(72, 253, 118, 0.8);
-  /* Aucune transition CSS : la valeur est ecrite a CHAQUE image depuis le
-     code. Une transition par-dessus une valeur reecrite en continu se
-     relance sans fin et reste bloquee pres de son point de depart — la jauge
-     restait a zero malgre un `scaleX(0.5)` en ligne. */
-}
-/* A sec, la jauge vire au rouge : on comprend sans texte pourquoi ca ne boost plus. */
-.boost.empty > i {
-  background: linear-gradient(180deg, #ffd9d0 0%, #ff7a5c 45%, #c2341a 100%);
-  box-shadow: 0 0 9px rgba(255, 122, 92, 0.75);
-}
-/* Pulsation en OPACITE et non en `filter` : un filtre anime cree une couche de
-   composition supplementaire au-dessus du canvas et la repeint a chaque image. */
-.boost.spending > i { animation: drain 0.42s ease-in-out infinite; }
-@keyframes drain { 0%, 100% { opacity: 1; } 50% { opacity: 0.66; } }
-
-/* Un gain de figure fait flasher le contour : le retour arrive AVANT que la
-   barre n'ait fini de bouger, donc on relie le geste a la recompense. */
-.boost.gain { animation: gain 0.34s ease-out; }
-@keyframes gain {
-  0%   { box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 0 rgba(150, 255, 190, .9); }
-  100% { box-shadow: inset 0 2px 4px rgba(0,0,0,.55), 0 0 0 9px rgba(150, 255, 190, 0); }
-}
-
-/* --- score et record */
-.score {
-  font-size: clamp(22px, 6.4vw, 34px);
+  font-size: clamp(19px, 5.6vw, 26px);
   font-weight: 800;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-/* Passer le record se voit pendant le run, pas seulement a la fin : c'est ce
-   moment-la qui donne envie de tenir encore dix secondes. */
-.score.record {
-  color: #fff6d8;
-  text-shadow: 0 0 14px rgba(255, 214, 110, 0.85), 0 1px 2px rgba(4, 40, 96, 0.6);
-}
-.best {
-  font-size: 0.78em;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  opacity: 0.78;
-}
-
-/* --- chrono. Le seul chiffre qu'on lit en continu, donc le plus gros. */
-.clock {
-  position: absolute;
-  top: calc(8px + env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: clamp(30px, 9.5vw, 48px);
-  font-weight: 800;
-  line-height: 1;
+  /* Chiffres TABULAIRES. Sans ca la vitesse fait danser tout le pod a chaque
+     changement de chiffre, et l'oeil suit le tremblement au lieu du nombre. */
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-  text-shadow: 0 2px 10px rgba(4, 40, 96, 0.55);
-  transition: color 0.2s ease;
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(8,74,124,0.85), 0 0 12px rgba(180,244,255,0.55);
 }
-.clock.warn { color: #ffe9a8; }
-.clock.crit {
-  color: #ffd0c2;
-  animation: crit 0.5s ease-in-out infinite;
+.speedUnit {
+  position: relative;
+  font-size: 0.60em;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  color: #d6f4ff;
+  text-shadow: 0 1px 0 rgba(8,74,124,0.7);
 }
-@keyframes crit {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.55; }
-}
-/* Un gain de temps eclaire le chrono en vert : la recompense est lisible
-   AVANT d'avoir lu le nouveau nombre. */
-.clock.gain { color: #d8ffe6; text-shadow: 0 0 20px rgba(90, 255, 150, 0.9); }
 
-/* --- multiplicateur */
+/* --- Jauge de boost. Le progres facon Vista : capsule creuse, remplissage en
+   bonbon raye, et le meme cap speculaire par-dessus le tout. */
+.gauge {
+  position: relative;
+  margin-top: 5px;
+  width: clamp(96px, 27vw, 132px);
+  height: 13px;
+  border-radius: 999px;
+  padding: 1.5px;
+  background: linear-gradient(180deg, #eef8fd 0%, #9dbccd 46%, #5c8399 62%, #e6f6ff 100%);
+  box-shadow: var(--aq-drop);
+}
+.gauge > .in {
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  /* Le creux : sombre, et sa lumiere vient du HAUT — l'inverse d'un volume
+     plein. C'est ce qui fait lire un trou plutot qu'une pastille. */
+  background: linear-gradient(180deg, #06304e 0%, #0a4463 55%, #0d5f86 100%);
+}
+.gauge .fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #b6ff72 0%, #6fdb2b 46.5%, #8bee3f 47.5%, #ccff92 100%);
+  will-change: transform;
+}
+.gauge .stripes {
+  position: absolute;
+  inset: 0 -40px 0 0;
+  background: repeating-linear-gradient(115deg,
+    rgba(255,255,255,0.42) 0 8px, rgba(255,255,255,0) 8px 20px);
+  animation: barber 0.62s linear infinite;
+  animation-play-state: paused;
+  opacity: 0.55;
+}
+@keyframes barber { to { transform: translateX(20px); } }
+/* Les rayures ne defilent QUE pendant la depense : une animation permanente
+   dans le coin de l'oeil devient du bruit, et on cesse de la voir bouger
+   precisement quand elle a quelque chose a dire. */
+.gauge.spending .stripes { animation-play-state: running; opacity: 1; }
+.gauge.spending .fill { background: linear-gradient(180deg, #fff3a8 0%, #ffd23f 46.5%, #ffe36b 47.5%, #fff8cc 100%); }
+.gauge.empty .fill { filter: saturate(0.35) brightness(0.8); }
+.gauge > .gloss {
+  position: absolute;
+  left: 3px; right: 3px; top: 2px;
+  height: 42%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.16));
+  pointer-events: none;
+}
+.gauge.gain { animation: gain 0.34s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes gain {
+  0% { transform: scaleY(1); filter: brightness(1); }
+  35% { transform: scaleY(1.42); filter: brightness(1.7); }
+  100% { transform: scaleY(1); filter: brightness(1); }
+}
+
+/* --- LE CHRONO. Element heros : il a droit a plus de matiere que le reste,
+   parce que c'est le seul chiffre qu'on lit en continu. */
+.clockpod { justify-self: center; }
+.clockpod > .in { padding: 0.16em 0.82em 0.30em; }
+.clockVal {
+  position: relative;
+  display: block;
+  font-size: clamp(30px, 9.2vw, 46px);
+  font-weight: 800;
+  line-height: 1.04;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(6,62,104,0.9), 0 0 16px rgba(170,240,255,0.5);
+}
+/* Barre de temps SOUS les chiffres, dans le pod. Elle donne la proportion —
+   « il m'en reste un tiers » — que le nombre seul ne donne jamais. */
+.clockbar {
+  position: absolute;
+  left: 10%; right: 10%; bottom: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(4, 44, 74, 0.5);
+  overflow: hidden;
+}
+.clockbar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #b6f6ff, #ffffff);
+  will-change: transform;
+}
+.clockpod.warn > .in { background: linear-gradient(180deg, #d99a17 0%, #b97a0c 46.5%, #e8ad1e 47.5%, #ffd970 84%, #fff0bd 100%); }
+.clockpod.warn .clockbar i { background: linear-gradient(90deg, #ffe9a8, #fffbe8); }
+
+/* --- Le glow critique. CINQ couches, parce qu'une seule est une couche de
+   placeholder : coeur chaud blanc, corps ambre, halo decale vers le rouge,
+   bloom additif, et deux respirations de periodes INCOMMENSURABLES pour que
+   l'oeil n'y trouve jamais de boucle. */
+.clockpod.crit > .in { background: linear-gradient(180deg, #d8471f 0%, #b23412 46.5%, #ee5f24 47.5%, #ff9a5c 84%, #ffd0a8 100%); }
+.clockpod.crit {
+  filter:
+    drop-shadow(0 0 1px rgba(255,255,255,0.95))
+    drop-shadow(0 0 7px rgba(255,206,120,0.92))
+    drop-shadow(0 0 20px rgba(255,96,48,0.62));
+  animation: critBeat 0.62s cubic-bezier(0.3, 0, 0.2, 1) infinite alternate;
+}
+.clockpod.crit::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(255,240,200,0.55) 0%, rgba(255,150,70,0.30) 38%, rgba(255,90,40,0) 72%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: bloomBreath 1.13s ease-in-out infinite alternate;
+  z-index: -1;
+}
+@keyframes critBeat { from { transform: scale(1); } to { transform: scale(1.045); } }
+@keyframes bloomBreath { from { opacity: 0.45; } to { opacity: 1; } }
+.clockpod.gain > .in { background: linear-gradient(180deg, #2fa85f 0%, #1d8b47 46.5%, #35c473 47.5%, #7cf0ab 84%, #ccffe0 100%); }
+
+/* --- Score et record. A droite, sans pod : la recompense se lit, elle ne se
+   surveille pas. Lui donner le meme poids qu'au chrono ferait deux centres. */
+/* Le score n'a pas de pod : trois pastilles vitrees feraient trois centres, et
+   l'oeil ne saurait plus lequel surveiller. Mais du texte nu a cote de deux
+   volumes en verre a l'air d'un oubli. La reponse est un RAIL — une ligne
+   chromee sous le nombre, avec une pastille lumineuse au bout : ca rattache le
+   score a la meme famille de materiaux sans lui donner le meme poids. */
+.scorestack {
+  justify-self: end;
+  text-align: right;
+  padding-top: 1px;
+  position: relative;
+}
+.scorestack::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  top: calc(clamp(23px, 7vw, 33px) + 4px);
+  width: clamp(52px, 15vw, 78px);
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    rgba(214,242,255,0) 0%, rgba(214,242,255,0.55) 42%, #ffffff 88%, #ffffff 100%);
+  box-shadow: 0 1px 0 rgba(6, 58, 100, 0.55), 0 0 8px rgba(150, 232, 255, 0.8);
+}
+.score.record ~ .best { color: #ffeba8; opacity: 0.95; }
+.score {
+  font-size: clamp(23px, 7vw, 33px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(6,58,100,0.9), 0 2px 10px rgba(6,58,100,0.5);
+  transition: color 0.2s ease-out;
+}
+.score.record {
+  color: #fff6c8;
+  text-shadow:
+    0 1px 0 rgba(120,74,6,0.9),
+    0 0 10px rgba(255,214,90,0.95),
+    0 0 26px rgba(255,150,40,0.55);
+}
+.best {
+  margin-top: 6px;
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #cfeaff;
+  opacity: 0.82;
+  text-shadow: 0 1px 0 rgba(6,58,100,0.8);
+}
+
+/* --- Multiplicateur : une pastille qui SORT du pod du chrono, comme une
+   etiquette agrafee. Elle n'apparait qu'au-dela de x1,35 (cf. Hud.ts). */
 .mult {
   position: absolute;
-  top: calc(62px + env(safe-area-inset-top));
+  top: calc(max(10px, env(safe-area-inset-top)) + 3.6em);
   left: 50%;
-  font-size: clamp(15px, 4.6vw, 21px);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #eafcff;
-  opacity: 0;
   transform: translateX(-50%) scale(0.7);
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  opacity: 0;
+  padding: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff8de 0%, #e0bc63 48%, #a8801f 66%, #fff3cc 100%);
+  box-shadow: 0 2px 8px -3px rgba(90, 58, 4, 0.6);
+  transition: opacity 0.18s ease-out, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mult::before {
+  content: '';
+  position: absolute;
+  left: 3px; right: 3px; top: 2px; height: 44%;
+  border-radius: 999px 999px 40% 40% / 999px 999px 6px 6px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.2));
+}
+.mult b {
+  position: relative;
+  display: block;
+  padding: 0.16em 0.66em 0.20em;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f7c53a 0%, #e0a412 46.5%, #f8c63c 47.5%, #ffe79a 100%);
+  font-size: clamp(13px, 3.9vw, 17px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: #4a2c00;
+  text-shadow: 0 1px 0 rgba(255,245,200,0.75);
 }
 .mult.on { opacity: 1; transform: translateX(-50%) scale(1); }
 .mult.bump { animation: bump 0.30s cubic-bezier(0.2, 1.3, 0.4, 1); }
 @keyframes bump {
-  0%   { transform: translateX(-50%) scale(1.55); color: #fff; }
+  0% { transform: translateX(-50%) scale(1); }
+  45% { transform: translateX(-50%) scale(1.24); }
   100% { transform: translateX(-50%) scale(1); }
 }
 
-/* --- banniere de figure */
+/* --- Banniere. Revelation en DEUX TEMPS : un eclair d'anticipation qui
+   s'ouvre, puis le texte qui s'installe. Une apparition instantanee n'a pas
+   de poids, quel que soit le style du texte. */
 .banner {
   position: absolute;
   left: 50%;
-  top: 42%;
-  transform: translate(-50%, -50%) scale(0.85);
-  text-align: center;
+  top: 34%;
+  transform: translate(-50%, -50%) scale(0.86);
   opacity: 0;
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  text-align: center;
+  transition: opacity 0.13s ease-out, transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.banner::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 132%; height: 168%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(255,255,255,0.34) 0%, rgba(140,235,255,0.16) 40%, rgba(140,235,255,0) 72%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.banner.show::before { animation: flashOpen 0.42s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes flashOpen {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+  30% { opacity: 1; }
+  100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
+}
 .banner b {
+  position: relative;
   display: block;
   font-size: clamp(30px, 11vw, 58px);
   font-weight: 800;
   line-height: 0.95;
-  letter-spacing: -0.02em;
-  text-shadow: 0 0 22px rgba(120, 240, 255, 0.85), 0 3px 10px rgba(4, 40, 96, 0.6);
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  text-shadow:
+    0 1px 0 rgba(6,58,100,0.9),
+    0 0 3px rgba(255,255,255,0.9),
+    0 0 22px rgba(120,240,255,0.85),
+    0 4px 14px rgba(4,40,96,0.6);
 }
 .banner i {
+  position: relative;
   display: block;
   font-style: normal;
   font-size: clamp(14px, 4.4vw, 20px);
   font-weight: 800;
-  opacity: 0.92;
-  margin-top: 0.15em;
+  letter-spacing: 0.04em;
+  margin-top: 0.16em;
+  opacity: 0.94;
+  font-variant-numeric: tabular-nums;
 }
-.banner.spin b { opacity: 0.72; font-size: clamp(24px, 8vw, 42px); }
-.banner.trick b { color: #fff3cf; text-shadow: 0 0 26px rgba(255, 208, 110, 0.9); }
-.banner.high b { color: #f0d8ff; text-shadow: 0 0 26px rgba(200, 107, 255, 0.9); }
-/* Glisse sur l'eau : le turquoise de la surface, pas le cyan du HUD. */
-.banner.wet b { color: #d6ffff; text-shadow: 0 0 30px rgba(80, 240, 235, 0.95); }
-/* Couler est le seul retour NEGATIF du jeu : il est le seul a etre eteint.
-   Pas de rouge — on n'a rien casse, on a juste perdu sa vitesse. */
-.banner.sunk b {
-  /* Eteint, mais pas illisible : le mot tombe sur de l'eau eblouissante, il
-     lui faut un halo SOMBRE et non le halo clair de tous les autres. */
+.banner.spin b { opacity: 0.74; font-size: clamp(24px, 8vw, 42px); }
+.banner.trick b { color: #fff3cf; text-shadow: 0 1px 0 rgba(96,58,4,0.85), 0 0 3px #fff, 0 0 26px rgba(255,196,80,0.95); }
+.banner.high  b { color: #f4dcff; text-shadow: 0 1px 0 rgba(58,10,96,0.85), 0 0 3px #fff, 0 0 26px rgba(196,110,255,0.95); }
+.banner.wet   b { color: #dcffff; text-shadow: 0 1px 0 rgba(4,72,96,0.85), 0 0 3px #fff, 0 0 30px rgba(80,240,235,0.95); }
+.banner.sunk  b {
   color: #e2f0f7;
-  text-shadow: 0 0 20px rgba(8, 48, 82, 0.95), 0 3px 12px rgba(4, 26, 52, 0.9);
   font-size: clamp(24px, 8.5vw, 44px);
+  text-shadow: 0 0 20px rgba(8,48,82,0.95), 0 3px 12px rgba(4,26,52,0.9);
 }
+.banner.sunk::before { display: none; }
 
-/* --- points volants */
+/* --- Points volants. Pool RESIDENT anime par l'API Web Animations : plus
+   aucune insertion ni suppression de noeud au-dessus du canvas. */
 .pops { position: absolute; inset: 0; }
 .pop {
   position: absolute;
   transform: translate(-50%, -50%);
   font-size: clamp(15px, 4.6vw, 22px);
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   opacity: 0;
-  text-shadow: 0 0 12px rgba(90, 220, 255, 0.9), 0 2px 4px rgba(4, 40, 96, 0.7);
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(6,58,100,0.9), 0 0 12px rgba(120,230,255,0.9);
 }
-/* Les points volants sont un POOL RESIDENT anime par l'API Web Animations
-   (cf. Hud.ts) : plus aucune insertion ni suppression de noeud au-dessus du
-   canvas, et la position passe par le transform au lieu de left/top. */
-.pop.big { font-size: clamp(20px, 6.4vw, 30px); color: #fff0ff; }
-.pop.time { color: #d8ffe6; text-shadow: 0 0 14px rgba(90, 255, 150, 0.9); }
+.pop.big { font-size: clamp(20px, 6.4vw, 30px); color: #fff2ff; text-shadow: 0 1px 0 rgba(58,10,96,0.85), 0 0 16px rgba(210,140,255,0.95); }
+.pop.time { color: #e2fff0; text-shadow: 0 1px 0 rgba(6,74,44,0.85), 0 0 14px rgba(90,255,150,0.95); }
 
-/* --- rappel de commandes, efface au premier saut */
+/* --- Rappel de commandes. Grave dans l'image plutot que pose dessus : une
+   plaque de plus en bas de l'ecran encombrerait la zone du pouce. */
 .hint {
   position: absolute;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  bottom: max(12px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  font-size: 0.86em;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  opacity: 0.72;
+  font-size: 0.80em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   white-space: nowrap;
-  transition: opacity 0.5s ease;
+  color: #eaf9ff;
+  opacity: 0.66;
+  text-shadow: 0 1px 0 rgba(6,58,100,0.9), 0 0 10px rgba(8,60,104,0.7);
+  transition: opacity 0.5s ease-out;
 }
 .hint.gone { opacity: 0; }
 
-/* Fin de partie : tout le transitoire s'efface, il ne reste que le score. */
 #hud.ended .hint,
 #hud.ended .mult,
 #hud.ended .banner,
+#hud.ended .bubbles,
 #hud.ended .pops { opacity: 0; }
-#hud.ended .clock { opacity: 0.35; }
+#hud.ended .topband { opacity: 0.28; transition: opacity 0.3s ease-out; }
 
-/* --- fin de partie */
+/* --- Fin de partie. La carte Aero au complet : biseau, corps a coupure, cap
+   speculaire, rebond. Le seul moment ou l'interface a le droit de prendre
+   toute la place. */
 .over {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(6, 60, 110, 0.28);
+  display: grid;
+  place-items: center;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.28s ease;
+  transition: opacity 0.26s ease-out, visibility 0.26s;
+  background: radial-gradient(ellipse at 50% 45%, rgba(6,52,96,0.42), rgba(6,52,96,0.66));
 }
 .over.show { opacity: 1; visibility: visible; }
 .panel {
-  min-width: min(84vw, 420px);
-  padding: 1.4em 1.6em 1.2em;
-  border-radius: 22px;
+  position: relative;
+  min-width: min(78vw, 340px);
+  padding: 2px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, #ffffff 0%, #cfe7f3 30%, #6e9ab1 54%, #47728c 76%, #eaf8ff 100%);
+  box-shadow: 0 18px 44px -18px rgba(4, 40, 84, 0.85);
+  transform: scale(0.86) translateY(14px);
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.over.show .panel { transform: scale(1) translateY(0); }
+.panel > .in {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  padding: 1.5em 1.6em 1.4em;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background:
-    linear-gradient(180deg,
-      rgba(255, 255, 255, 0.42) 0%,
-      rgba(255, 255, 255, 0.14) 49%,
-      rgba(255, 255, 255, 0.00) 50%,
-      rgba(255, 255, 255, 0.10) 100%),
-    linear-gradient(180deg, rgba(63, 180, 238, 0.88) 0%, rgba(12, 87, 201, 0.92) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    inset 0 -18px 30px rgba(2, 26, 82, 0.38),
-    0 18px 46px rgba(4, 26, 74, 0.45);
-  animation: panelIn 0.34s cubic-bezier(0.2, 1.2, 0.35, 1);
+  background: linear-gradient(180deg,
+    #1c8ed2 0%, #1170b4 46.5%, #1aa2d6 47.5%, #52d4f0 86%, #b3f2fc 100%);
 }
-@keyframes panelIn {
-  0%   { transform: scale(0.88) translateY(14px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+.panel > .in::before {
+  content: '';
+  position: absolute;
+  left: 3px; right: 3px; top: 2px;
+  height: 44%;
+  border-radius: 22px 22px 50% 50% / 22px 22px 26px 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.16));
+  pointer-events: none;
 }
-.record {
-  font-size: 0.86em;
+.panel .record {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 0.5em;
+  padding: 0.20em 0.8em 0.24em;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffeaa0 0%, #f2b81f 46.5%, #ffd44f 47.5%, #fff3c4 100%);
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.75), 0 2px 10px -3px rgba(120,80,4,0.7);
+  font-size: 0.76em;
   font-weight: 800;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: #fff3cf;
-  text-shadow: 0 0 16px rgba(255, 214, 110, 0.9);
-  margin-bottom: 0.35em;
+  color: #5a3600;
+  text-shadow: 0 1px 0 rgba(255,246,210,0.8);
 }
-.final {
+.panel .final {
+  position: relative;
   font-size: clamp(38px, 13vw, 62px);
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
+  color: #ffffff;
+  text-shadow: 0 2px 0 rgba(6,62,104,0.9), 0 0 26px rgba(160,240,255,0.6);
 }
-.stats {
+.panel .stats {
+  position: relative;
   display: flex;
   justify-content: center;
-  gap: 0.9em;
-  margin-top: 0.7em;
-  font-size: 0.86em;
-  font-weight: 700;
-  opacity: 0.9;
-}
-.bestline {
-  margin-top: 0.55em;
+  gap: 0.75em;
+  margin-top: 0.85em;
   font-size: 0.82em;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  opacity: 0.72;
-}
-.again {
-  margin-top: 1.1em;
-  font-size: 0.9em;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  animation: breathe 1.6s ease-in-out infinite;
+  font-variant-numeric: tabular-nums;
 }
-@keyframes breathe { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
+.panel .stats span {
+  padding: 0.22em 0.7em 0.26em;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(4,52,88,0.42), rgba(4,52,88,0.20));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(4,40,72,0.5);
+  color: #eafaff;
+}
+.panel .bestline {
+  position: relative;
+  margin-top: 0.85em;
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #d6f2ff;
+  opacity: 0.85;
+}
+.panel .again {
+  position: relative;
+  display: inline-block;
+  margin-top: 1.1em;
+  padding: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #cbe6f2 40%, #6d99b0 60%, #eaf8ff 100%);
+  box-shadow: 0 3px 12px -4px rgba(4,44,84,0.7);
+  animation: cta 1.9s ease-in-out infinite;
+}
+.panel .again u {
+  display: block;
+  /* Cible de tap : 44 px minimum. Meme si n'importe quel appui relance ici,
+     un bouton qui a l'air trop petit pour etre touche donne l'impression de
+     devoir viser — et on hesite avant de rejouer. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5em 1.9em 0.55em;
+  border-radius: 999px;
+  text-decoration: none;
+  background: linear-gradient(180deg, #8ae83f 0%, #5cc31c 46.5%, #79dd33 47.5%, #b6f77e 100%);
+  font-size: 0.96em;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #17400a;
+  text-shadow: 0 1px 0 rgba(220,255,190,0.8);
+}
+@keyframes cta {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.035); }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .boost.spending > i, .boost.gain,
-  .clock.crit, .mult.bump, .again, .panel { animation: none; }
-
+  .bubbles i, .gauge .stripes, .gauge.gain, .clockpod.crit, .clockpod.crit::after,
+  .mult.bump, .panel .again, .banner.show::before { animation: none; }
+  .clockpod.crit { transform: none; }
 }

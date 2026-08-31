@@ -700,3 +700,71 @@ Avant de valider un rendu, vérifier les cinq règles du doc 00 :
 Et le test final : **plisser les yeux.** Il doit rester trois masses —
 cyan en haut, vert en bas, un point bleu brillant au centre. Si le buddy
 se perd dans le vert, augmenter le rim, pas la taille.
+
+
+## 11. L'interface : Aqua peint, pas glassmorphism
+
+Le réflexe moderne pour « interface en verre » est le `backdrop-filter`. C'est
+un contresens sur deux plans.
+
+**Historique** : l'Aqua de 2004-2008 ne floutait rien — il n'en avait pas les
+moyens. Il **peignait** une réflexion. C'est pour ça que ces interfaces ont
+une signature aussi reconnaissable : ce ne sont pas des surfaces translucides,
+ce sont des objets en verre **plein**, éclairés.
+
+**Technique** : `backdrop-filter` relève et refloute la scène à chaque image.
+Au-dessus d'un canvas WebGL plein écran, sur un téléphone faible, c'est la
+chose la plus chère qu'on puisse poser. Un dégradé peint coûte un remplissage,
+une fois, sur une couche déjà promue.
+
+L'époque avait raison pour la mauvaise raison, et le résultat est à la fois
+plus juste et gratuit.
+
+### Les quatre couches, dans cet ordre
+
+| # | Couche | Rôle | Le piège |
+|---|---|---|---|
+| 1 | **Biseau chromé** | clair en haut → ardoise → **une dernière ligne claire tout en bas** | sans la lèvre du bas, l'objet n'a pas d'épaisseur |
+| 2 | **Corps** | dégradé avec une **coupure nette vers 47 %** | un fondu continu donne du plastique ; la cassure donne du verre |
+| 3 | **Cap spéculaire** | blanc à bord **franc** sur la moitié haute, avec sa propre courbure basse | un fondu jusqu'en bas tue l'effet |
+| 4 | **Rebond** | lueur diffuse contre le bord inférieur **intérieur** | sans elle, le volume est creux |
+
+La couche 2 est celle que tout le monde rate. **La coupure nette est l'Aqua.**
+
+### Ce qui n'est pas dans le pod
+
+Le score n'a **pas** de pod. Trois pastilles vitrées feraient trois centres et
+l'œil ne saurait plus lequel surveiller. Mais du texte nu à côté de deux
+volumes en verre a l'air d'un oubli. La réponse est un **rail** — une ligne
+chromée sous le nombre, avec une pastille lumineuse au bout : ça le rattache à
+la famille de matériaux sans lui donner le même poids.
+
+### Le glow critique a cinq couches
+
+Un `box-shadow: 0 0 40px` est un placeholder, pas un glow. Sous 4 secondes, le
+chrono empile : **cœur chaud** blanc (1 px), **corps** ambre (7 px), **halo**
+décalé vers le rouge (20 px), **bloom additif** en `mix-blend-mode: screen`, et
+**deux respirations de périodes incommensurables** — 0,62 s pour la pulsation,
+1,13 s pour le bloom — pour que l'œil n'y trouve jamais de boucle.
+
+### Détails qui ne se voient que quand ils manquent
+
+- **Chiffres tabulaires** partout (`font-variant-numeric: tabular-nums`). Sans
+  ça, la vitesse fait danser tout le pod à chaque changement de chiffre, et
+  l'œil suit le tremblement au lieu du nombre.
+- **Ombres portées colorées**, jamais grises. Une ombre neutre sous une
+  interface en plein jour est la signature la plus visible d'un rendu qui n'a
+  pas été regardé.
+- **Les rayures de la jauge ne défilent que pendant la dépense.** Une animation
+  permanente dans le coin de l'œil devient du bruit, et on cesse de la voir
+  bouger précisément quand elle a quelque chose à dire.
+- **Révélation en deux temps** sur les bannières : un éclair d'anticipation qui
+  s'ouvre, puis le texte qui s'installe. Une apparition instantanée n'a pas de
+  poids.
+- **Bande haute uniquement.** Le bas de l'écran est à la fois la zone du pouce
+  et le champ de jeu : deux raisons indépendantes de n'y rien mettre.
+
+`npm run shot:ui` capture les **sept états** — course, multiplicateur, boost,
+chrono critique, deux bannières, fin de partie. Une interface passe l'essentiel
+de son temps dans des états qu'une capture ordinaire ne montre jamais, et ce
+sont ceux qui portent le plus de matière.
