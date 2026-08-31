@@ -216,6 +216,30 @@ Sans les balises Open Graph, un lien collé dans une conversation n'affiche
 qu'une URL nue — pour un jeu qui se vend à l'œil, c'est la moitié du travail
 perdue.
 
+### Le mode diagnostic
+
+**Trois déclencheurs, et le premier ne suffisait pas.** `?diag=1` marche sur une
+page servie normalement — mais le jeu tourne le plus souvent dans une visionneuse
+d'artefacts, c'est-à-dire dans une **iframe qui a sa propre adresse**. La chaîne
+de requête tapée dans la barre du navigateur ne lui parvient jamais : l'outil
+était inaccessible exactement là où le joueur en a besoin. On l'ouvre donc aussi
+depuis l'intérieur — touche **F3** ou **I**, ou **trois doigts** posés en même
+temps (un doigt dirige, deux boostent ; trois est le premier geste libre).
+
+Le panneau se rafraîchit **au temps** (250 ms), jamais toutes les N images : un
+compteur d'images se fige précisément quand la cadence s'effondre, c'est-à-dire
+au moment où l'on regarde le panneau.
+
+Ce qu'il affiche, et pourquoi chaque ligne y est :
+
+| Ligne | Ce qu'elle tranche |
+|---|---|
+| `noires rendu` / `presentées` | le rendu a-t-il produit du noir, ou le compositeur va-t-il en **afficher** ? Ce ne sont pas les mêmes questions (§7 ter) |
+| `resize N evts -> M réels` | des événements en rafale sont bénins, le garde d'égalité les absorbe. Ce sont les redimensionnements **réels** qui réallouent le tampon — une page hôte dont la taille oscille en fait un par image |
+| `tampon` vs `fenêtre` | un désaccord entre les deux signale un redimensionnement resté en travers |
+| `DANS une iframe` | dit si l'on est embarqué, donc si un hôte peut composer par-dessus |
+| `scheme` | valeur calculée **et** valeur en ligne : c'était la cause du flash précédent, et un hôte peut la réécrire |
+
 ### `?diag=1`
 
 Le mode diagnostic tranche **une** question, et il faut la poser dans ces

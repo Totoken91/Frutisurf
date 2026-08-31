@@ -49,6 +49,17 @@ export class Engine {
   /** Le redimensionnement en attente doit ignorer le garde d'egalite. */
   private resizeForce = false;
 
+  /**
+   * Compteurs de diagnostic. La distinction est le tout : une page hote qui
+   * emet des evenements `resize` en rafale est benigne — le garde d'egalite
+   * les absorbe. Une page hote dont la taille OSCILLE reellement force une
+   * reallocation du tampon de dessin a chaque image, et ca, ca se voit.
+   */
+  resizeEvents = 0;
+  resizeApplied = 0;
+  /** Redimensionnements ignores parce que la fenetre mesurait zero. */
+  resizeSkipped = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.quality = detectQuality();
 
@@ -145,6 +156,7 @@ export class Engine {
    * jeu : redimensionner puis rendre dans la meme frame supprime la course.
    */
   private readonly queueResize = (): void => {
+    this.resizeEvents++;
     this.resizeQueued = true;
   };
 
@@ -171,11 +183,24 @@ export class Engine {
 
   /** Redimensionnement effectif. `force` ignore le garde d'egalite. */
   private apply(force: boolean): void {
-    // Jamais zero : une cible de rendu de largeur nulle rend une image vide.
-    const w = Math.max(1, Math.floor(innerWidth));
-    const h = Math.max(1, Math.floor(innerHeight));
+    const w = Math.floor(innerWidth);
+    const h = Math.floor(innerHeight);
+
+    // Une fenetre de taille NULLE n'est pas une taille : c'est une iframe qu'on
+    // vient de masquer, un onglet en cours de restauration, une page hote au
+    // milieu de son propre calcul de mise en page. L'ancienne version ramenait
+    // ca a 1x1 — un tampon d'un seul pixel, etire ensuite sur tout l'ecran
+    // quand la taille revient. On ATTEND plutot la prochaine mesure : le
+    // drapeau reste leve, donc la frame suivante reessaie.
+    if (w < 2 || h < 2) {
+      this.resizeSkipped++;
+      this.resizeQueued = true;
+      return;
+    }
+
     const ratio = this.pixelRatio();
     if (!force && w === this.lastW && h === this.lastH && ratio === this.lastRatio) return;
+    this.resizeApplied++;
     this.lastW = w;
     this.lastH = h;
     this.lastRatio = ratio;

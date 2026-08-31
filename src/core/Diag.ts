@@ -1,7 +1,10 @@
 import type { Game } from '../Game';
 
 /**
- * Sonde de diagnostic, activee par `?diag=1`.
+ * Sonde de diagnostic. Trois declencheurs : `?diag=1`, la touche F3 ou I, et
+ * trois doigts poses en meme temps — parce que dans une visionneuse d'artefacts
+ * la page tourne dans une iframe qui a sa propre adresse, et qu'aucune chaine
+ * de requete tapee dans la barre du navigateur ne lui parvient.
  *
  * Elle existe pour trancher UNE question et une seule : quand le joueur voit un
  * flash noir, est-ce que le jeu a rendu une image noire, ou est-ce que la page
@@ -27,6 +30,7 @@ const LONG_FRAME = 100; // ms : au-dela, le compositeur a hoquete
 
 interface Record {
   frames: number;
+  /** Images noires telles que RENDUES (sonde placee juste apres le rendu). */
   black: number;
   long: number;
   worst: number;
@@ -35,6 +39,8 @@ interface Record {
   hidden: number;
   lastBlack: number;
   nan: number;
+  /** Images NOIRES telles qu'elles seront presentees (sonde de fin de tick). */
+  presented: number;
 }
 
 export function attachDiag(game: Game): void {
@@ -48,6 +54,7 @@ export function attachDiag(game: Game): void {
     hidden: 0,
     lastBlack: -1,
     nan: 0,
+    presented: 0,
   };
   (window as unknown as Record & { __diag?: unknown }).__diag = rec;
 
@@ -63,6 +70,14 @@ export function attachDiag(game: Game): void {
     [0.5, 0.9],
   ];
 
+  const embedded = (() => {
+    try {
+      return window.top !== window.self;
+    } catch {
+      return true; // acces refuse = on est bien dans une iframe d'une autre origine
+    }
+  })();
+
   const canvas = game.engine.renderer.domElement;
   canvas.addEventListener('webglcontextlost', () => rec.ctxLost++);
   addEventListener('resize', () => rec.resizes++);
@@ -70,6 +85,28 @@ export function attachDiag(game: Game): void {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) rec.hidden++;
   });
+
+  // Sonde de FIN DE TICK : elle se reprogramme depuis sa propre execution, donc
+  // apres la boucle de jeu (qui se reprogramme, elle, en tete de la sienne).
+  // Elle passe donc en dernier et lit le tampon tel qu'il sera PRESENTE.
+  //
+  // C'est une question differente de « le jeu a-t-il dessine du noir ? », et
+  // c'est celle qui compte : n'importe quel code inscrit apres la boucle peut
+  // reallouer le tampon une fois le rendu termine, et un tampon realloue est
+  // noir. La sonde d'apres rendu ne peut structurellement pas le voir.
+  const tail = (): void => {
+    requestAnimationFrame(tail);
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    let max = 0;
+    for (const [fx, fy] of taps) {
+      gl.readPixels((w * fx) | 0, (h * fy) | 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const l = px[0] + px[1] + px[2];
+      if (l > max) max = l;
+    }
+    if (max < BLACK) rec.presented++;
+  };
+  requestAnimationFrame(tail);
 
   const originalRender = game.post.render.bind(game.post);
   let last = performance.now();
@@ -128,24 +165,39 @@ export function attachDiag(game: Game): void {
     return inline && inline !== computed ? `${computed} (inline:${inline})` : computed || '?';
   };
 
-  let tick = 0;
+  // Rafraichissement au TEMPS, pas toutes les N images. Un compteur d'images
+  // se fige precisement quand la cadence s'effondre — c'est-a-dire au moment ou
+  // l'on regarde le panneau.
+  let lastPaint = 0;
   const paint = (): void => {
     requestAnimationFrame(paint);
-    if (tick++ % 12) return;
+    const now = performance.now();
+    if (now - lastPaint < 250) return;
+    lastPaint = now;
+    const eng = game.engine;
+    const bad = rec.black + rec.presented;
     const verdict =
-      rec.black > 0
-        ? `RENDU EN CAUSE (${rec.black} images noires)`
+      bad > 0
+        ? `>> LE RENDU EST EN CAUSE (${bad} images noires)`
         : rec.frames > 600
-          ? 'rendu hors de cause'
-          : 'mesure en cours...';
+          ? '>> le rendu est HORS DE CAUSE'
+          : '>> mesure en cours...';
     el.textContent = [
-      `fps       ${game.state.fps.toFixed(0).padStart(3)}   qualite ${game.engine.quality}`,
+      `fps       ${game.state.fps.toFixed(0).padStart(3)}   qualite ${eng.quality}`,
       `images    ${rec.frames}`,
-      `noires    ${rec.black}${rec.lastBlack >= 0 ? `  (derniere: #${rec.lastBlack})` : ''}`,
+      `noires    rendu ${rec.black}   presentees ${rec.presented}` +
+        `${rec.lastBlack >= 0 ? `  (derniere #${rec.lastBlack})` : ''}`,
       `longues   ${rec.long}   pire ${rec.worst.toFixed(0)} ms`,
-      `contexte  ${rec.ctxLost} perte(s)   resize ${rec.resizes}   masquee ${rec.hidden}`,
-      `NaN       ${rec.nan}`,
-      `scheme    ${scheme()}`,
+      `contexte  ${rec.ctxLost} perte(s)   masquee ${rec.hidden}   NaN ${rec.nan}`,
+      // Le chiffre a surveiller est le DEUXIEME. Des evenements resize en
+      // rafale sont absorbes par le garde d'egalite ; ce sont les
+      // redimensionnements REELS qui reallouent le tampon, et une page hote
+      // dont la taille oscille en fait un par image.
+      `resize    ${eng.resizeEvents} evts -> ${eng.resizeApplied} reels` +
+        `${eng.resizeSkipped ? `   (${eng.resizeSkipped} tailles nulles)` : ''}`,
+      `tampon    ${gl.drawingBufferWidth}x${gl.drawingBufferHeight}` +
+        `   fenetre ${innerWidth}x${innerHeight}`,
+      `contexte  ${embedded ? 'DANS une iframe' : 'page autonome'}   scheme ${scheme()}`,
       ``,
       verdict,
     ].join('\n');
