@@ -3,6 +3,7 @@ import { GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { makeGrassTexture } from './GrassTexture';
 import { SUN_DIR } from './Sky';
+import { WEATHER_GLSL } from './Weather';
 import { terrainGLSL } from './Terrain';
 
 /**
@@ -100,6 +101,11 @@ export class Ground {
         uTime: { value: 0 },
         uSpeed: { value: 0 },
         uGrass: { value: grass.texture },
+        uCast: { value: new Vector3(0, 0, 0) },
+        // Ce qui reste d'eclairage a l'ombre : le ciel, donc du BLEU. Une ombre
+        // qui se contente d'assombrir est une ombre grise, et une ombre grise
+        // en plein jour est le signe le plus sur d'un rendu qui triche.
+        uSkyLight: { value: [0.32, 0.52, 0.72] },
         // Deux echelles pour casser la repetition. Les deux valeurs, multipliees
         // par 1000, donnent des entiers (620 et 85) : le sol replie sa
         // coordonnee Z modulo 1000 m, et un multiple non entier de la periode
@@ -131,8 +137,12 @@ export class Ground {
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
+        /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
+        uniform vec3 uCast;
+        uniform vec3 uSkyLight;
 
         ${GLSL_NOISE}
+        ${WEATHER_GLSL}
         ${terrainGLSL()}
 
         void main(){
@@ -301,6 +311,39 @@ export class Ground {
           //     le duvet argente d'une prairie a contre-jour.
           c += vec3(0.30, 0.40, 0.26) * graze * blade * detail * 0.55;
 
+          // --- OMBRES DE NUAGES.
+          //
+          //     Elles ne s'attenuent pas avec la distance : c'est au loin
+          //     qu'elles font le travail, en donnant au paysage une echelle
+          //     qu'un eclairage uniforme lui refuse.
+          // Nom distinct : shade est DEJA pris par la plage d'ombre des
+          // nappes de lumiere, quarante lignes plus haut et dans la meme
+          // portee. La redeclaration cassait la compilation du shader et le
+          // sol ne se dessinait plus DU TOUT : ce qu'on voyait a sa place
+          // etait le dome de ciel, d'ou l'image entierement delavee.
+          // (Et pas d'accent grave dans ces commentaires : ils vivent dans un
+          //  gabarit JS, un seul backtick termine la chaine.)
+          float cloudDark = cloudShade(vWorld.xz, uTime);
+          c = mix(c, c * 0.62 + uSkyLight * 0.055, cloudDark * 0.85);
+
+          // --- OMBRE PORTEE DU SURFEUR.
+          //
+          //     Analytique : une ellipse molle centree sur la projection du
+          //     disque le long des rayons du soleil. Une carte d'ombre pour un
+          //     seul objet couterait une passe entiere et un tampon de plus,
+          //     pour un resultat qu'une distance au centre decrit exactement.
+          //     Elle s'elargit et palit avec l'altitude — c'est elle qui dit au
+          //     joueur a quelle hauteur il vole.
+          //     Nom : PAS "cast", qui est un mot reserve en GLSL ES. Le
+          //     projet s'est deja fait avoir avec "patch".
+          float sr = length(vWorld.xz - uCast.xz) / (1.15 + uCast.y * 0.42);
+          float drop = (1.0 - smoothstep(0.45, 1.0, sr)) * exp(-uCast.y * 0.26);
+          c = mix(c, c * 0.52 + uSkyLight * 0.05, drop * 0.9);
+
+          // --- Rafale : le passage de la vague eclaircit brievement l'herbe,
+          //     les brins se couchant montrent leur face lisse au soleil.
+          c *= 1.0 + gustAt(vWorld.xz, uTime) * 0.055 * detail;
+
           // --- Brume d'horizon. Elle separe les plans lointains les uns des
           //     autres : sans elle, des collines a 300 m et a 900 m ont
           //     exactement la meme valeur et le relief s'aplatit.
@@ -327,8 +370,10 @@ export class Ground {
     this.mesh.renderOrder = -900;
   }
 
-  update(camPos: Vector3, origin: Vector3, time: number, speedN: number): void {
+  /** @param cast xz = centre de l'ombre portee du surfeur, y = hauteur de vol */
+  update(camPos: Vector3, origin: Vector3, time: number, speedN: number, cast: Vector3): void {
     const u = this.mat.uniforms;
+    u.uCast.value.copy(cast);
     u.uCam.value.copy(camPos);
     u.uOrigin.value.copy(origin);
     u.uTime.value = time;

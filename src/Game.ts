@@ -13,6 +13,7 @@ import { Controller, IDLE_INPUT } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
+import { SUN_DIR } from './world/Sky';
 import { terrainGradient, terrainHeight } from './world/Terrain';
 import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
@@ -61,6 +62,8 @@ export class Game {
   private trailPoint = new Vector3();
   private hits: BoosterHit[] = [];
   private probe = new Vector3();
+  private cast = new Vector3();
+  private sunPoint = new Vector3();
   private screen = new Vector3();
   /** Position au pas de simulation precedent : sert au test d'anneau. */
   private prevX = 0;
@@ -326,12 +329,23 @@ export class Game {
     this.syncSurfer(real);
 
     this.origin.set(this.controller.x, 0, this.controller.z);
+    // Ombre portee : on projette le disque au sol LE LONG DES RAYONS du
+    // soleil. Une ombre posee a la verticale trahirait immediatement l'absence
+    // de calcul d'eclairage — c'est le decalage qui la rend credible, et c'est
+    // aussi lui qui dit au joueur a quelle hauteur il se trouve.
+    {
+      const c = this.controller;
+      const h = Math.max(0, c.y - c.groundY);
+      const k = h / Math.max(0.25, SUN_DIR.y);
+      this.cast.set(c.x - SUN_DIR.x * k, h, c.z - SUN_DIR.z * k);
+    }
     this.world.update(
       this.origin,
       this.engine.camera.position,
       this.time,
       this.controller.speedNorm,
       real,
+      this.cast,
     );
 
     this.updateFx(real);
@@ -388,6 +402,19 @@ export class Game {
       this.vanish.x * 0.5 + 0.5,
       this.vanish.y * 0.5 + 0.5,
     );
+    // --- Rais de lumiere : ils ont besoin de la position du soleil A L'ECRAN.
+    //     On projette un point tres lointain dans sa direction depuis la
+    //     camera. Hors cadre, l'effet s'eteint progressivement plutot que d'un
+    //     coup : une coupure franche se verrait comme un clignotement des que
+    //     le soleil frole le bord.
+    this.sunPoint.copy(this.engine.camera.position).addScaledVector(SUN_DIR, 1200);
+    this.sunPoint.project(this.engine.camera);
+    const sx = this.sunPoint.x * 0.5 + 0.5;
+    const sy = -this.sunPoint.y * 0.5 + 0.5;
+    const behind = this.sunPoint.z > 1;
+    const edge = Math.max(Math.abs(sx - 0.5), Math.abs(sy - 0.5));
+    this.post.surf.setSun(sx, sy, behind ? 0 : 1 - clamp((edge - 0.5) / 0.45, 0, 1));
+
     this.post.setCombo(c.combo);
 
     // Le repere de crete est SONORE : sans interface, c'est lui qui dit quand

@@ -7,9 +7,11 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
+import { GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { terrainGLSL } from './Terrain';
+import { WEATHER_GLSL } from './Weather';
 
 /**
  * Le champ de touffes.
@@ -107,6 +109,7 @@ export class GrassBlades {
         uBase: { value: vec3('grassNear') },
         uTip: { value: vec3('grassStreak') },
         uGlow: { value: vec3('grassHorizon') },
+        uSkyLight: { value: [0.32, 0.52, 0.72] },
       },
       vertexShader: /* glsl */ `
         attribute vec2 iCell;
@@ -114,8 +117,10 @@ export class GrassBlades {
         uniform vec3 uOrigin;
         uniform float uTime, uSpeed, uCell, uGrid, uRadius;
         uniform vec3 uSun;
-        varying float vV, vTint, vLight, vGlint;
+        varying float vV, vTint, vLight, vGlint, vShade;
 
+        ${GLSL_NOISE}
+        ${WEATHER_GLSL}
         ${terrainGLSL()}
 
         float h21(vec2 p){
@@ -154,8 +159,14 @@ export class GrassBlades {
 
           // Le vent couche les touffes, et la vitesse du joueur les couche
           // davantage : le sol participe a la sensation de course.
+          // Vent de fond, plus la RAFALE : c'est la vague qui traverse le champ
+          // qu'on lit comme du vent, pas l'inclinaison moyenne.
           float wind = sin(uTime * 1.9 + wp.x * 0.35 + wp.y * 0.21) * 0.5 + 0.5;
-          float lay = (0.12 + wind * 0.18 + uSpeed * 0.26) * v * v;
+          float gust = gustAt(wp, uTime);
+          float lay = (0.10 + wind * 0.14 + gust * 0.34 + uSpeed * 0.26) * v * v;
+          // La meme ombre de nuage que le sol, lue au meme endroit : sans ca les
+          // brins resteraient au soleil dans une plage d'ombre.
+          vShade = cloudShade(wp, uTime);
 
           vec3 local = vec3(position.x * (1.0 - v * 0.82) * 0.032, v * hgt, lay * hgt);
           vec2 rot = vec2(cos(ang), sin(ang));
@@ -184,8 +195,8 @@ export class GrassBlades {
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform vec3 uBase, uTip, uGlow;
-        varying float vV, vTint, vLight, vGlint;
+        uniform vec3 uBase, uTip, uGlow, uSkyLight;
+        varying float vV, vTint, vLight, vGlint, vShade;
         void main(){
           // Degrade base -> pointe en carre : l'ombre reste au pied, la
           // lumiere ne prend que sur le dernier tiers. Lineaire, un brin lit
@@ -198,7 +209,8 @@ export class GrassBlades {
           c += uGlow * pow(vV, 3.0) * 0.40;
           // Eclat de pointe : c'est le gloss Frutiger Aero applique au vegetal,
           // et il ne prend que sur les brins reellement tournes vers le soleil.
-          c += vec3(0.95, 1.0, 0.80) * vGlint * pow(vV, 6.0) * 0.85;
+          c += vec3(0.95, 1.0, 0.80) * vGlint * pow(vV, 6.0) * 0.85 * (1.0 - vShade);
+          c = mix(c, c * 0.62 + uSkyLight * 0.055, vShade * 0.85);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

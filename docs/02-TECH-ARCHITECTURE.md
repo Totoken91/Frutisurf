@@ -31,6 +31,8 @@ src/
 │   ├── Ground.ts            grille en éventail déplacée par Terrain
 │   ├── GrassTexture.ts      tuile de brins générée au boot (normale + albédo)
 │   ├── GrassBlades.ts       touffes instanciées, dispersées par cellule monde
+│   ├── Weather.ts           ombres de nuages + rafales, lues par le sol ET les brins
+│   ├── Motes.ts             pollen en suspension, lumineux à contre-jour
 │   ├── City.ts              skyline de cristal
 │   ├── Boosters.ts          colonnes de vitesse, semées en chaîne
 │   └── Rings.ts             anneaux de verre à franchir (bas et hauts)
@@ -187,6 +189,7 @@ npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
 npm run check:flicker         # aucune frame noire sur une partie complète
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 npm run check:theme           # le jeu reste en plein jour en mode sombre
+npm run check:shaders         # aucun shader cassé, profil bureau ET téléphone
 ```
 
 ## 8. Aucune frame noire

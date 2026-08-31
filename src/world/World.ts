@@ -14,6 +14,7 @@ import { Rings } from './Rings';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
+import { Motes } from './Motes';
 import { createEnvironment } from './Environment';
 import { createSky, SUN_DIR } from './Sky';
 import type { Quality } from '../core/Engine';
@@ -25,6 +26,7 @@ import type { Quality } from '../core/Engine';
 export class World {
   readonly ground: Ground;
   readonly blades: GrassBlades | null;
+  readonly motes: Motes;
   readonly clouds: Clouds;
   readonly city = new City();
   readonly boosters: Boosters;
@@ -52,6 +54,7 @@ export class World {
     );
     this.boosters = new Boosters(dense ? 6 : 5);
     this.rings = new Rings(dense ? 8 : 6);
+    this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
 
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
@@ -62,6 +65,7 @@ export class World {
     scene.add(this.clouds.mesh);
     scene.add(this.boosters.mesh);
     scene.add(this.rings.veil, this.rings.group);
+    scene.add(this.motes.mesh);
 
     // Key : les highlights speculaires du verre.
     const key = new DirectionalLight(0xffffff, 2.6);
@@ -84,16 +88,17 @@ export class World {
     this.rings.reseedAll(originZ);
   }
 
-  update(origin: Vector3, camPos: Vector3, time: number, speedN: number, dt: number): void {
+  update(origin: Vector3, camPos: Vector3, time: number, speedN: number, dt: number, cast: Vector3): void {
     // Le dome de ciel SUIT la camera. Fixe a l'origine, son bord finissait par
     // traverser la camera (le ciel scintillait), puis on en sortait et tout
     // passait au noir — apres environ 70 s de jeu a vitesse de croisiere.
     this.sky.position.copy(camPos);
-    this.ground.update(camPos, origin, time, speedN);
+    this.ground.update(camPos, origin, time, speedN, cast);
     this.blades?.update(origin, time, speedN);
     this.clouds.update(origin, time);
     this.city.update(origin);
     this.boosters.update(origin, time);
     this.rings.update(origin, time, dt);
+    this.motes.update(origin, time);
   }
 }

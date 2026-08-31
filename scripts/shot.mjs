@@ -44,9 +44,18 @@ for (const t of shots) {
   console.log('shot ->', name);
 }
 
+// Les erreurs de compilation GLSL passent par la console et ne cassent RIEN
+// de visible cote script : le maillage disparait, c'est tout. Elles sont donc
+// remontees en PREMIER et en clair, sinon une capture "reussie" peut masquer
+// un sol qui ne se dessine plus.
+const glsl = errors.filter((e) => /ERROR: \d+:\d+|shader|GLSL/i.test(e));
+if (glsl.length) {
+  console.log('\n!!! SHADER CASSE !!!');
+  glsl.slice(0, 10).forEach((e) => e.split('\n').slice(0, 4).forEach((l) => console.log('  ', l)));
+}
 if (errors.length) {
-  console.log('\n--- CONSOLE ERRORS ---');
-  errors.slice(0, 12).forEach((e) => console.log(' ', e));
+  console.log(`\n--- ${errors.length} erreur(s) console ---`);
+  errors.slice(0, 8).forEach((e) => console.log(' ', e.slice(0, 220)));
   process.exitCode = 1;
 } else {
   console.log('no console errors');

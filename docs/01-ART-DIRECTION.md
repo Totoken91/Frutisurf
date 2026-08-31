@@ -482,6 +482,95 @@ par image — pas la géométrie. Vingt-cinq mille triangles à shader trivial n
 coûtent rien, et sans eux le premier plan redevient l'aplat vert que le jeu
 vient justement de quitter.
 
+## 9. L'atmosphère
+
+Cinq additions, choisies pour ce qu'elles apportent et non pour ce qu'elles
+coûtent.
+
+### Les ombres de nuages
+
+**Le détail qui donne son échelle à un paysage ouvert.** Une plaine uniformément
+éclairée n'a pas de taille : on ne sait pas si elle fait cent mètres ou dix
+kilomètres. Des plages d'ombre de deux cents mètres qui la traversent lentement
+répondent à la question sans un mot.
+
+Leur contour est **franc**. Étalé, il se confond avec une variation d'albédo et
+ne se lit plus comme une ombre. Et elles ne s'atténuent **pas** avec la distance
+— c'est justement au loin qu'elles font leur travail.
+
+Ce qui reste à l'ombre n'est pas du gris : c'est la lumière du **ciel**, donc du
+bleu. Une ombre qui se contente d'assombrir est le signe le plus sûr d'un rendu
+qui triche.
+
+Le sol et les touffes lisent la **même fonction au même endroit** (`Weather.ts`).
+Sans ça, les brins resteraient en plein soleil dans une plage d'ombre et le
+décor se dissocierait en deux couches.
+
+### L'ombre portée du surfeur
+
+Analytique : une ellipse molle centrée sur la projection du disque **le long des
+rayons du soleil**. Une ombre posée à la verticale trahirait immédiatement
+l'absence de calcul d'éclairage — c'est le décalage qui la rend crédible, et
+c'est aussi lui qui dit au joueur à quelle hauteur il vole. Elle s'élargit et
+pâlit avec l'altitude.
+
+Une carte d'ombre pour un seul objet coûterait une passe entière et un tampon de
+plus, pour un résultat qu'une distance au centre décrit exactement.
+
+### Les rafales
+
+Un vent constant se lit comme une inclinaison figée. C'est la **vague** qui
+traverse le champ qu'on lit comme du vent — elle donne son épaisseur à l'air.
+
+### Les rais de lumière
+
+Un flou radial depuis le soleil qui n'accumule que ce qui dépasse un seuil. Les
+crêtes et les nuages qui passent devant découpent donc les rais tout seuls :
+c'est de l'occlusion gratuite, obtenue sans jamais savoir ce qu'il y a dans la
+scène.
+
+Trois réglages, trois erreurs corrigées :
+
+1. **le seuil.** À 0,72 il laissait passer le ciel entier : chaque pixel
+   accumulait douze échantillons de ciel clair et l'image virait au blanc ;
+2. **la luminance, pas le canal.** Un anneau cyan saturé dépasse 0,9 sur son
+   canal vert sans être une source de lumière. Seul ce qui est vraiment *blanc*
+   alimente un rai ;
+3. **le bruit de gradient entrelacé.** Douze échantillons régulièrement espacés
+   rendaient douze copies fantômes de chaque objet lumineux — on voyait le
+   personnage reproduit en escalier dans le ciel. Un départ décalé les échange
+   contre du grain ; mais un décalage tiré au *hasard* donnait de la neige
+   blanche sur toute l'image. L'IGN, conçu pour ça, se répartit uniformément sur
+   chaque petit voisinage : l'œil le lit comme un lissé.
+
+Plus un plafond : un rai reste un **voile**, jamais une source.
+
+### Le pollen
+
+Quelques centaines de grains qui dérivent, presque invisibles de dos et lumineux
+face au soleil. Le détail le moins cher et le plus rentable du projet : il donne
+au vide entre la caméra et l'horizon une **matière**. Sans lui, l'air d'un jeu
+est parfaitement transparent, ce qui n'arrive jamais dehors un jour de soleil.
+
+C'est le *contraste* entre les grains face au soleil et ceux qui lui tournent le
+dos qui fait la profondeur ; un pollen d'intensité uniforme n'est qu'un semis de
+points blancs.
+
+### Deux pièges GLSL, encore
+
+Le sol a cessé de se dessiner **entièrement** pendant trois captures, et ce
+qu'on voyait à sa place — le dôme de ciel — donnait une image délavée qu'on
+pouvait prendre pour un problème de post-traitement.
+
+- `shade` était **déjà déclaré** quarante lignes plus haut, dans la même portée ;
+- `cast` est un **mot réservé** en GLSL ES, comme `patch` avant lui.
+
+Deux erreurs de compilation, aucun symptôme lisible : un maillage qui ne
+compile pas disparaît, c'est tout. D'où `npm run check:shaders`, qui charge le
+jeu en profil bureau **et** téléphone et échoue si la console porte la moindre
+erreur GLSL. Et `npm run shot` remonte désormais ces erreurs en premier et en
+clair, au lieu de les noyer dans la liste des 404.
+
 ## 5. Garde-fous
 
 Avant de valider un rendu, vérifier les cinq règles du doc 00 :
