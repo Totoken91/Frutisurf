@@ -59,6 +59,28 @@ export const HEX = {
   waterDeep: 0x1a86b8,
   waterFoam: 0xf1ffff,
 
+  // --- LE SABLE.
+  //
+  // Un jaune franc lirait « bac a sable » et casserait la gamme du jeu, qui
+  // n'a que du cyan et du chartreuse. Le sable Frutiger Aero est un ocre TRES
+  // clair, tirant sur le rose : il tient sa chaleur de sa teinte, pas de sa
+  // saturation, et c'est ce qui lui permet de cohabiter avec un turquoise
+  // sature sans faire tache.
+  //
+  // Le sable mouille n'est pas le sable sec assombri : il est plus SATURE et
+  // plus froid, parce que le film d'eau lui rend le ciel. Un simple
+  // assombrissement donne de la boue.
+  //
+  // Valeurs volontairement BASSES. Un sable clair est un reflexe de peintre,
+  // pas de moteur : dans un pipeline lineaire avec bloom, un beige a 240/255
+  // sature immediatement et la greve part en blanc. Le sable doit se tenir a
+  // la MEME luminance que l'herbe voisine et ne se distinguer que par sa
+  // teinte — c'est le seul moyen d'obtenir du chaud sans obtenir du blanc.
+  sandDry: 0xd4bc84,
+  sandPale: 0xe8d5a6,
+  sandWet: 0x9d8a62,
+  sandShell: 0xf6ecd8,
+
   cityFace: 0x75cedc,
   cityLit: 0xc8e4ec,
   cityDeep: 0x2da7c3,

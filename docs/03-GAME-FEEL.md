@@ -561,6 +561,24 @@ téléphone à 120 Hz et deux fois plus lentement à 30. Un retour visuel dont l
 durée dépend de l'écran ne se règle pas. C'est désormais une exponentielle en
 temps, calée pour valoir exactement l'ancienne vitesse à 60 Hz.
 
+## 4 decies. L'armement ne fait plus d'aspirateur
+
+Maintenir pour armer nourrissait le bourdon de charge : une note tenue dont la
+hauteur suivait l'élan. Au bout de deux secondes de maintien, ça s'entend comme
+un **aspirateur**.
+
+La règle qui manquait : un son **continu** ne convient qu'à un état qu'on
+**subit** — le vent, la vitesse, la glisse sur l'eau. Une action volontaire et
+brève se **ponctue**.
+
+L'armement a donc trois **paliers** — 33 %, 66 %, 100 % — marqués par un tic
+court. Trois tics espacés disent la même chose qu'une note qui monte, mais on
+peut les **compter** : lâcher au bon moment devient une décision au lieu d'une
+estimation. Et surtout ils s'arrêtent.
+
+Le troisième sonne une quinte au-dessus avec une harmonique : c'est le seul dont
+le joueur a vraiment besoin, puisqu'il dit « c'est plein, lâche ».
+
 ## 5. Le saut
 
 ```

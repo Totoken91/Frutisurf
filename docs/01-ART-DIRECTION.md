@@ -552,6 +552,69 @@ C'est le *contraste* entre les grains face au soleil et ceux qui lui tournent le
 dos qui fait la profondeur ; un pollen d'intensité uniforme n'est qu'un semis de
 points blancs.
 
+## 10 bis. La grève
+
+L'herbe s'arrêtait net sur la ligne de flottaison. Une découpe à la courbe de
+niveau, parfaitement régulière — un liseré peint, pas une côte.
+
+### Perturber la hauteur, pas adoucir le seuil
+
+Ce qui fait une grève naturelle, c'est qu'elle n'a **pas** de largeur constante :
+elle s'étale dans les creux, se pince sur les pointes, et sa limite haute est
+déchiquetée par les langues de sable qui remontent dans l'herbe.
+
+On obtient tout ça en perturbant la **hauteur** avant de la seuiller, plutôt
+qu'en adoucissant le seuil. Adoucir donne un dégradé régulier ; perturber donne
+une côte. Trois échelles de bruit s'y superposent — les anses (0,055), les
+langues (0,17), la dentelure fine (0,62) — et une quatrième, très basse (0,010),
+fait varier la largeur elle-même sur des centaines de mètres.
+
+> La largeur est une **hauteur**, pas une distance au sol. Sur une pente douce
+> elle donne une plage large, sur une pente raide un simple ourlet — exactement
+> le comportement d'une vraie côte, gratuitement.
+
+### Le sable doit être sombre
+
+Un sable clair est un réflexe de peintre, pas de moteur. Dans un pipeline
+linéaire avec bloom, un beige à 240/255 sature immédiatement et toute la grève
+part en blanc — c'est ce qu'a donné le premier essai, à `0xf2e2b4`.
+
+Le sable se tient à la **même luminance que l'herbe voisine** et ne s'en
+distingue que par sa **teinte**. C'est le seul moyen d'obtenir du chaud sans
+obtenir du blanc.
+
+De même, le sable mouillé n'est pas du sable sec assombri : il est plus **saturé
+et plus froid**, parce que le film d'eau lui renvoie le ciel. Un simple
+assombrissement donne de la boue.
+
+### Le grain se joue sur trois échelles, et c'est la plus large qui compte
+
+Les deux fréquences fines ne survivent qu'au premier plan : au-delà elles
+passent sous le pixel, s'y moyennent, et la grève redevient un aplat. Une
+variation **large** — des plaques de sable plus clair et plus sombre sur une
+dizaine de mètres — reste lisible à toute distance.
+
+S'y ajoutent la **laisse de mer** (les lignes que l'eau laisse en se retirant,
+qui suivent la ligne de flottaison donc la hauteur), de rares éclats de
+coquillage, et une frange d'écume sèche tout en bas.
+
+Le fond du lac est **du sable, pas de l'herbe noyée** : il vire au turquoise en
+profondeur mais garde son grain, ce qui rend les hauts-fonds lisibles à travers
+la surface.
+
+### Les touffes lisent le MÊME masque
+
+`GrassBlades` recalcule la grève avec les mêmes bruits, les mêmes fréquences et
+la même largeur variable. Une touffe verte plantée au milieu du sable trahirait
+immédiatement que les deux couches ne se parlent pas. Quelques oyats survivent
+en haut de plage : une coupure nette est moins crédible qu'une frange
+clairsemée.
+
+### `patch` est un mot réservé
+
+Troisième fois que ce piège coûte une session, après `cast` et `shade`. Un
+maillage dont le shader ne compile pas **disparaît sans un mot**.
+
 ## 10. L'eau
 
 ### Un niveau, pas des lacs

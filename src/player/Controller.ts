@@ -36,6 +36,8 @@ export interface SurfEvents {
   /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
   onLipEnter?: () => void;
   onBooster?: (combo: number) => void;
+  /** Palier d'elan de saut franchi : 1, 2 ou 3 (arme a fond). */
+  onWindStep?: (step: number) => void;
   /** Entree sur l'eau. @param planing vrai si on l'aborde assez vite. */
   onWater?: (planing: boolean) => void;
   /** On s'enfonce : la vitesse etait insuffisante. */
@@ -180,6 +182,8 @@ export class Controller {
    * C'est ce qui permet d'ANTICIPER une crete au lieu de reagir dessus.
    */
   jumpWind = 0;
+  /** Dernier palier d'elan franchi, pour n'emettre le tic qu'une fois. */
+  private windStep = 0;
   private jumpHeldPrev = false;
   private sinceGrounded = 0;
   private jumpedThisAir = false;
@@ -430,7 +434,21 @@ export class Controller {
 
     // L'elan monte aussi EN VOL : on peut armer pendant un plane et relacher
     // juste avant de toucher, pour repartir des le contact.
-    if (held) this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
+    if (held) {
+      this.jumpWind = Math.min(1, this.jumpWind + dt * 2.0);
+      // Trois PALIERS, pas une rampe continue. Un ressenti d'armement doit
+      // etre rythme : trois tics espaces disent la meme chose qu'une note qui
+      // monte, mais on peut les compter — donc lacher au bon moment devient
+      // une decision et non une estimation. Et surtout ils s'arretent, alors
+      // qu'une nappe tenue devient un aspirateur au bout de deux secondes.
+      const step = this.jumpWind >= 0.99 ? 3 : this.jumpWind >= 0.66 ? 2 : this.jumpWind >= 0.33 ? 1 : 0;
+      if (step > this.windStep) {
+        this.windStep = step;
+        this.events.onWindStep?.(step);
+      }
+    } else {
+      this.windStep = 0;
+    }
     this.sinceGrounded = this.airborne ? this.sinceGrounded + dt : 0;
     if (this.launchLock > 0) this.launchLock -= dt;
     if (this.bufferTimer > 0) this.bufferTimer -= dt;
@@ -439,15 +457,18 @@ export class Controller {
       if (!this.airborne) {
         this.launch(effective, this.lipFactor, this.jumpWind);
         this.jumpWind = 0;
+        this.windStep = 0;
       } else if (this.sinceGrounded < COYOTE && !this.jumpedThisAir) {
         // Coyote : on a roule par-dessus la crete et appuye un poil trop tard.
         this.launch(effective, this.lipFactor, this.jumpWind);
         this.jumpWind = 0;
+        this.windStep = 0;
       } else {
         // Trop tot : on garde l'intention pour l'appliquer au contact.
         this.bufferTimer = BUFFER;
         this.bufferWind = this.jumpWind;
         this.jumpWind = 0;
+        this.windStep = 0;
       }
     }
 

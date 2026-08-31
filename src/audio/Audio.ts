@@ -327,6 +327,25 @@ export class Audio {
     }
   }
 
+  /**
+   * Palier d'elan de saut. Trois tics courts et montants, jamais une nappe.
+   *
+   * L'armement produisait auparavant une note TENUE dont la hauteur suivait
+   * l'elan : au bout de deux secondes de maintien, ca s'entendait comme un
+   * aspirateur. Un son continu ne convient qu'a un etat qu'on subit — le vent,
+   * la vitesse ; une action volontaire et breve se PONCTUE.
+   *
+   * Le troisieme tic, celui du plein elan, sonne une quinte au-dessus et
+   * s'accompagne d'une harmonique : c'est le seul dont le joueur a vraiment
+   * besoin, puisqu'il dit « c'est plein, lache ».
+   */
+  windStep(step: number): void {
+    const full = step >= 3;
+    this.blip(520 * Math.pow(2, (step - 1) / 12 * 3.5), full ? 0.09 : 0.045,
+              'triangle', full ? 0.075 : 0.038);
+    if (full) this.blip(1560, 0.13, 'sine', 0.035, 2080);
+  }
+
   /** Compte a rebours des dernieres secondes. */
   tick(urgent: boolean): void {
     this.blip(urgent ? 1560 : 1040, 0.05, 'square', urgent ? 0.055 : 0.035);

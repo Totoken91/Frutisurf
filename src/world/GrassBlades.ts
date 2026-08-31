@@ -157,7 +157,21 @@ export class GrassBlades {
           // Rien ne pousse dans l'eau : la hauteur tombe a zero des que le
           // sol passe sous la ligne de flottaison, avec une frange de
           // vegetation rase juste au-dessus.
-          float dry = smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 1.4, terrainHeightAt(wp, dist));
+          // Rien ne pousse sur la greve, et la limite doit etre EXACTEMENT
+          // celle que le sol dessine — meme bruit, memes frequences, meme
+          // largeur variable. Une touffe verte plantee au milieu du sable
+          // trahirait immediatement que les deux couches ne se parlent pas.
+          float gh = terrainHeightAt(wp, dist);
+          float above = gh - WATER_LEVEL;
+          float shoreWide = 2.0 + fbm2(wp * 0.010) * 4.0;
+          float ragged = (fbm3(wp * 0.055) - 0.5) * 2.1
+                       + (fbm2(wp * 0.17) - 0.5) * 0.8
+                       + (fbm2(wp * 0.62) - 0.5) * 0.24;
+          float sand = clamp(1.0 - smoothstep(0.0, shoreWide, above + ragged), 0.0, 1.0);
+          sand = smoothstep(0.02, 0.78, sand);
+          // Quelques oyats survivent en haut de plage : la coupure nette est
+          // moins credible qu'une frange clairsemee.
+          float dry = (1.0 - sand * 0.92) * smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 0.6, gh);
           float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade * dry;
           float v = uv.y;
 

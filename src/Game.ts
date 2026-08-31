@@ -110,6 +110,7 @@ export class Game {
         }
       },
       onLipEnter: () => this.audio.lip(),
+      onWindStep: (step) => this.audio.windStep(step),
       onBooster: (combo) => {
         this.rig.punch(0.20, 11);
         this.state.popFlash = Math.max(this.state.popFlash, 0.85);
@@ -481,7 +482,14 @@ export class Game {
       Math.abs(c.steer.value),
       // L'elan du saut partage le bourdon de charge avec le carve : deux
       // tensions, un seul son qui monte, ca reste lisible.
-      Math.max(c.carveCharge, c.jumpWind * 0.85),
+      // L'ELAN DE SAUT NE NOURRIT PLUS LE BOURDON.
+      //
+      // Maintenir pour armer produisait une note tenue de plusieurs secondes,
+      // qui montait puis restait — un aspirateur. Un son continu ne convient
+      // qu'a un etat qu'on SUBIT (le vent, la vitesse) ; l'armement est une
+      // action volontaire et breve, il se marque, il ne se joue pas en nappe.
+      // Il a desormais son tic de palier (voir Controller.onWindStep).
+      c.carveCharge,
       c.airborne,
       c.gliding,
       c.planing,

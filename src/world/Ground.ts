@@ -106,6 +106,10 @@ export class Ground {
         // qui se contente d'assombrir est une ombre grise, et une ombre grise
         // en plein jour est le signe le plus sur d'un rendu qui triche.
         uSkyLight: { value: [0.32, 0.52, 0.72] },
+        uSandDry: { value: vec3('sandDry') },
+        uSandPale: { value: vec3('sandPale') },
+        uSandWet: { value: vec3('sandWet') },
+        uSandShell: { value: vec3('sandShell') },
         // Deux echelles pour casser la repetition. Les deux valeurs, multipliees
         // par 1000, donnent des entiers (620 et 85) : le sol replie sa
         // coordonnee Z modulo 1000 m, et un multiple non entier de la periode
@@ -134,6 +138,7 @@ ${GLSL_SAFE}
         varying vec3 vWorld;
         varying vec3 vNormal;
         uniform vec3 uNear, uMid, uFar, uHorizon, uShadow, uStreak, uSun, uCam;
+        uniform vec3 uSandDry, uSandPale, uSandWet, uSandShell;
         uniform vec3 uOrigin;
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
@@ -355,15 +360,95 @@ ${GLSL_SAFE}
           //     exactement la meme valeur et le relief s'aplatit.
           c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.50, 0.99, f) * 0.42);
 
-          // --- LA RIVE. Une bande de terre mouillee au-dessus de la ligne de
-          //     flottaison, et un fond assombri en dessous. Sans elle, l'herbe
-          //     plongeait dans l'eau sans transition, comme une decoupe.
+          // --- LA PLAGE.
+          //
+          //     L'herbe s'arretait net sur la ligne de flottaison : une decoupe
+          //     a la courbe de niveau, parfaitement reguliere, qui se lisait
+          //     comme un lisere peint. Ce qui fait une greve naturelle, c'est
+          //     qu'elle n'a PAS de largeur constante — elle s'etale dans les
+          //     creux, se pince sur les pointes, et sa limite haute est
+          //     dechiquetee par les langues de sable qui remontent dans l'herbe.
+          //
+          //     On obtient tout ca en perturbant la HAUTEUR avant de la seuiller,
+          //     plutot qu'en adoucissant le seuil. Adoucir donnerait un degrade
+          //     regulier ; perturber donne une cote.
           float above = vWorld.y - WATER_LEVEL;
-          float wet = 1.0 - smoothstep(0.0, 2.2, above);
-          c = mix(c, c * vec3(0.52, 0.62, 0.55), wet * 0.75);
-          // Sous l'eau : le fond vire au turquoise sombre et perd son detail.
+
+          // Largeur de la greve : basse frequence, donc elle varie sur des
+          // centaines de metres, comme un littoral.
+          // Attention : cette largeur est une HAUTEUR, pas une distance au sol.
+          // Sur une pente douce elle donne une greve large, sur une pente raide
+          // un simple lisere — ce qui est exactement le comportement d'une vraie
+          // cote, mais il faut la calibrer genereusement pour qu'elle se voie
+          // meme la ou le relief plonge.
+          float shoreWide = 2.0 + fbm2(vWorld.xz * 0.010) * 4.0;
+          // Trois echelles de decoupe : les anses, les langues de sable qui
+          // remontent dans l'herbe, et la dentelure fine du bord. C'est cette
+          // superposition qui empeche de lire une courbe de niveau.
+          float ragged = (fbm3(vWorld.xz * 0.055) - 0.5) * 2.1
+                       + (fbm2(vWorld.xz * 0.17) - 0.5) * 0.8
+                       + (fbm2(vWorld.xz * 0.62) - 0.5) * 0.24;
+          float sand = 1.0 - smoothstep(0.0, shoreWide, above + ragged);
+          sand = clamp(sand, 0.0, 1.0);
+          // Le haut de plage se MELANGE a l'herbe au lieu de s'arreter : une
+          // frontiere nette entre deux aplats se lit comme un masque de
+          // decoupe, quelle que soit la finesse du contour.
+          sand = smoothstep(0.02, 0.78, sand);
+
+          if (sand > 0.002) {
+            // Le sable MOUILLE n'est pas du sable sec assombri : il est plus
+            // sature et plus froid, parce que le film d'eau lui renvoie le ciel.
+            // Assombrir seulement donnerait de la boue.
+            float dryness = smoothstep(-0.1, shoreWide * 0.55, above);
+            vec3 sc = mix(uSandWet, uSandDry, dryness);
+            sc = mix(sc, uSandPale, smoothstep(0.45, 1.0, dryness) * 0.55);
+
+            // Le GRAIN, sur TROIS echelles, et c'est la premiere qui compte le
+            // plus. Les deux fines ne survivent qu'au premier plan : au-dela
+            // elles passent sous le pixel, s'y moyennent, et la greve redevient
+            // un aplat beige. Une variation LARGE — des plaques de sable plus
+            // clair et plus sombre sur une dizaine de metres — reste lisible a
+            // toute distance, et c'est elle qui empeche l'aplat.
+            // Nomme broad, et surtout PAS patch : patch est un mot RESERVE
+            // en GLSL ES, comme cast avant lui. Troisieme fois que ce piege
+            // coute une session : un maillage qui ne compile pas disparait
+            // sans un mot d'explication.
+            float broad = fbm2(vWorld.xz * 0.085);
+            float coarse = fbm3(vWorld.xz * 1.7);
+            float fine = fbm2(vWorld.xz * 9.0);
+            sc *= 0.86 + broad * 0.24 + coarse * 0.14 * detail + fine * 0.09 * detail;
+            // Les plaques les plus claires tirent vers le blanc chaud : du sable
+            // sec souffle par le vent, qui s'accumule en haut de greve.
+            sc = mix(sc, uSandPale, smoothstep(0.60, 0.92, broad) * dryness * 0.45);
+
+            // La LAISSE DE MER : les lignes que la mer laisse en se retirant.
+            // Elles suivent la ligne de flottaison, donc la hauteur, et c'est
+            // le detail qui dit « plage » plutot que « terrain beige ».
+            float tide = sin((above + ragged * 0.35) * 5.4) * 0.5 + 0.5;
+            tide = smoothstep(0.48, 0.96, tide) * (1.0 - dryness * 0.7);
+            sc = mix(sc, sc * vec3(0.82, 0.81, 0.86), tide * 0.9);
+
+            // Eclats de coquillage : de rares points tres clairs, seuil haut
+            // sur un bruit fin. Rares, sinon ca fait du sel.
+            float shell = smoothstep(0.93, 0.995, fine) * detail;
+            sc = mix(sc, uSandShell, shell * 0.7);
+
+            // Frange d'ecume seche tout en bas, la ou l'eau vient de partir.
+            float lick = (1.0 - smoothstep(-0.35, 0.55, above + ragged * 0.2));
+            sc = mix(sc, uSandShell, lick * 0.35);
+
+            c = mix(c, sc, sand);
+          }
+
+          // Sous l'eau : le fond est du SABLE, pas de l'herbe noyee. Il vire au
+          // turquoise en profondeur, mais il garde son grain — c'est ce qui rend
+          // les hauts-fonds lisibles a travers la surface.
           float sunk = smoothstep(0.0, -1.6, above);
-          c = mix(c, mix(c, vec3(0.05, 0.30, 0.34), 0.72), sunk);
+          if (sunk > 0.002) {
+            vec3 bed = uSandWet * (0.92 + fbm3(vWorld.xz * 1.3) * 0.16);
+            bed = mix(bed, vec3(0.05, 0.30, 0.34), smoothstep(0.0, -3.4, above) * 0.82);
+            c = mix(c, bed, sunk);
+          }
 
           // --- Contre-jour. Le soleil est devant : la derniere bande d'herbe
           //     avant le ciel est traversee par la lumiere et s'allume. Sans
