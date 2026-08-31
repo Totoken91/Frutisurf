@@ -14,7 +14,7 @@ import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
 import { SUN_DIR } from './world/Sky';
-import { terrainGradient, terrainHeight } from './world/Terrain';
+import { terrainGradient, terrainHeight, WATER_LEVEL } from './world/Terrain';
 import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
 
@@ -27,6 +27,9 @@ const RING_TIME_HIGH = 4.0;
 const PAD_TIME = 1.1;
 /** Temps rendu par tour complet de vrille. */
 const TRICK_TIME = 0.9;
+/** Temps rendu par traversee d'eau reussie, par tranche de 10 m glisses. */
+const SKIM_TIME_PER_10M = 0.55;
+const SKIM_TIME_MAX = 4.5;
 
 /** Ramene un angle dans (-PI, PI]. */
 function wrapAngle(a: number): number {
@@ -63,7 +66,10 @@ export class Game {
   private hits: BoosterHit[] = [];
   private probe = new Vector3();
   private cast = new Vector3();
-  private sunPoint = new Vector3();
+  /** x, z du surfeur et force du sillage, envoyes au shader d'eau. */
+  private wake = new Vector3();
+  /** Force du sillage lissee : il enfle et se resorbe, il ne clignote pas. */
+  private wakeAmount = 0;
   private screen = new Vector3();
   /** Position au pas de simulation precedent : sert au test d'anneau. */
   private prevX = 0;
@@ -130,6 +136,45 @@ export class Game {
         this.rig.punch(0.22, 11);
         this.state.popFlash = Math.max(this.state.popFlash, 0.9);
         this.spray.burst(this.contactPoint(), 80, 1.25, this.time);
+        this.buzz(24);
+      },
+      onWater: (planing) => {
+        // La gerbe d'entree part TOUJOURS : c'est elle qui rend le contact
+        // avec l'eau physique. Ce qui change, c'est ce qui suit.
+        this.spray.foam = 1;
+        this.spray.burst(this.contactPoint(), planing ? 110 : 70, planing ? 1.5 : 1.0, this.time);
+        this.shock.spawn(this.contactPoint(), planing ? 1.1 : 0.7, this.time, WATER_LEVEL);
+        this.audio.splash(planing);
+        this.rig.punch(planing ? 0.16 : 0.10, planing ? 8 : 4);
+        // Pas de banniere a l'ENTREE : le lac suivant arrive neuf secondes
+        // plus tard, une banniere a chaque rive occuperait l'ecran en
+        // permanence. La recompense se lit a la sortie, quand elle est acquise.
+        if (planing) {
+          this.state.popFlash = Math.max(this.state.popFlash, 0.7);
+          this.buzz(16);
+        }
+      },
+      onSink: () => {
+        // Couler ne doit pas se lire comme un accident graphique : gros
+        // ralenti visuel, camera qui plonge, son grave. On PERD, ca se voit.
+        this.rig.punch(0.30, -12);
+        this.spray.foam = 1;
+        this.spray.burst(this.contactPoint(), 130, 0.9, this.time);
+        this.shock.spawn(this.contactPoint(), 1.3, this.time, WATER_LEVEL);
+        this.audio.sink();
+        this.hud.banner('COULÉ', '', 'sunk');
+        this.buzz(45);
+      },
+      onSkim: (meters, points) => {
+        const gain = Math.min(SKIM_TIME_MAX, (meters / 10) * SKIM_TIME_PER_10M);
+        this.run.addTime(gain);
+        this.timeGain(gain);
+        this.hud.banner(`GLISSE ${Math.round(meters)}m`, `+${points}`, 'wet');
+        this.popAt(this.contactPoint(), `+${points}`, 'big');
+        this.audio.skim(meters);
+        this.rig.punch(0.20, 10);
+        this.state.popFlash = Math.max(this.state.popFlash, 0.85);
+        this.spray.burst(this.contactPoint(), 90, 1.3, this.time);
         this.buzz(24);
       },
       onLand: (impact, quality) => {
@@ -254,6 +299,8 @@ export class Game {
     this.yaw = 0;
     this.lastTick = -1;
     this.acc = 0;
+    this.wakeAmount = 0;
+    this.spray.foam = 0;
   }
 
   private endRun(): void {
@@ -339,6 +386,14 @@ export class Game {
       const k = h / Math.max(0.25, SUN_DIR.y);
       this.cast.set(c.x - SUN_DIR.x * k, h, c.z - SUN_DIR.z * k);
     }
+    // Le sillage enfle et se resorbe : coupe net, il claquerait a chaque
+    // entree et sortie de rive.
+    {
+      const c = this.controller;
+      const target = c.planing ? 1 : c.sunk ? 0.45 : 0;
+      this.wakeAmount += (target - this.wakeAmount) * Math.min(1, real * 7);
+      this.wake.set(c.x, c.z, this.wakeAmount);
+    }
     this.world.update(
       this.origin,
       this.engine.camera.position,
@@ -346,6 +401,7 @@ export class Game {
       this.controller.speedNorm,
       real,
       this.cast,
+      this.wake,
     );
 
     this.updateFx(real);
@@ -372,8 +428,15 @@ export class Game {
     const contact = this.contactPoint();
 
     this.spray.update(this.time);
+    // Ecume ou herbe : decide a la SOURCE, chaque particule garde sa nature.
+    this.spray.foam = c.onWater ? 1 : 0;
     if (!c.airborne) {
-      this.spray.emit(contact, c.steer.value, this.state.speed, Math.abs(c.steer.value), dt, this.time);
+      // En glisse la carre brasse en permanence, meme droit devant : c'est ce
+      // debit continu qui fait sentir la portance.
+      const spread = c.planing
+        ? Math.max(0.45, Math.abs(c.steer.value))
+        : Math.abs(c.steer.value);
+      this.spray.emit(contact, c.steer.value, this.state.speed, spread, dt, this.time);
     }
 
     this.trail.update(
@@ -386,7 +449,9 @@ export class Game {
       c.speedNorm,
       c.carveCharge,
       c.airborne,
-      (x, z) => terrainHeight(x, z),
+      // La trace se pose sur la SURFACE : sur l'eau elle doit flotter, pas
+      // suivre le fond du lac.
+      (x, z) => Math.max(terrainHeight(x, z), WATER_LEVEL),
     );
     this.shock.update(this.time);
 
@@ -402,19 +467,6 @@ export class Game {
       this.vanish.x * 0.5 + 0.5,
       this.vanish.y * 0.5 + 0.5,
     );
-    // --- Rais de lumiere : ils ont besoin de la position du soleil A L'ECRAN.
-    //     On projette un point tres lointain dans sa direction depuis la
-    //     camera. Hors cadre, l'effet s'eteint progressivement plutot que d'un
-    //     coup : une coupure franche se verrait comme un clignotement des que
-    //     le soleil frole le bord.
-    this.sunPoint.copy(this.engine.camera.position).addScaledVector(SUN_DIR, 1200);
-    this.sunPoint.project(this.engine.camera);
-    const sx = this.sunPoint.x * 0.5 + 0.5;
-    const sy = -this.sunPoint.y * 0.5 + 0.5;
-    const behind = this.sunPoint.z > 1;
-    const edge = Math.max(Math.abs(sx - 0.5), Math.abs(sy - 0.5));
-    this.post.surf.setSun(sx, sy, behind ? 0 : 1 - clamp((edge - 0.5) / 0.45, 0, 1));
-
     this.post.setCombo(c.combo);
 
     // Le repere de crete est SONORE : sans interface, c'est lui qui dit quand
@@ -427,6 +479,8 @@ export class Game {
       Math.max(c.carveCharge, c.jumpWind * 0.85),
       c.airborne,
       c.gliding,
+      c.planing,
+      c.sunk,
     );
   }
 
@@ -463,7 +517,17 @@ export class Game {
     });
 
     // En l'air le disque pique du nez ; en plane il se cabre pour porter.
-    const airPitch = c.gliding ? -0.24 : c.airborne ? 0.18 : 0;
+    // Sur l'eau il se cabre AUSSI, comme une coque qui dechausse : c'est la
+    // silhouette qui dit qu'on porte au lieu de labourer.
+    const airPitch = c.gliding
+      ? -0.24
+      : c.airborne
+        ? 0.18
+        : c.planing
+          ? -0.15
+          : c.sunk
+            ? 0.10
+            : 0;
     s.tilt.rotation.x += (airPitch - s.tilt.rotation.x) * Math.min(1, dt * 7);
 
     // Rotation propre du CD : elle monte avec la vitesse et la charge. Ecrite

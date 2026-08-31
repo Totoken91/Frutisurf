@@ -405,6 +405,88 @@ fixé l'écart à 0,55 et le roulis à 0,68.
 L'ensemble est agrandi d'un sixième : le sujet occupait trop peu de place à
 l'écran pour qu'on lise ces décalages.
 
+## 4 octies. L'eau : glisser ou couler
+
+C'est le premier obstacle du jeu qui **teste la vitesse** au lieu de tester la
+visée. Anneaux, colonnes et crêtes demandent tous de mettre le disque au bon
+endroit ; l'eau demande d'y arriver assez vite. Un jeu de vitesse a besoin d'au
+moins une porte qui n'admet que la vitesse, sinon rien ne pousse jamais à
+accélérer au-delà du confortable.
+
+### Aucun lac n'est placé
+
+Il y a une constante, `WATER_LEVEL = -5.5`, et l'eau remplit tout ce que le
+relief laisse en dessous. Les rives sont donc les **courbes de niveau** du
+terrain : organiques, toutes différentes, gratuites. Le même chiffre sert au
+CPU (`isWater`) et au GPU (`terrainGLSL()`), donc la rive vue à l'écran est
+exactement celle où la physique bascule.
+
+Le niveau a été choisi sur des mesures, pas à l'œil (`npm run check:water`) :
+
+| Mesure | Valeur |
+|---|---|
+| Part du parcours sous l'eau | 17,6 % |
+| Lacs rencontrés | 35 pour 6 km, soit un toutes les ~9 s |
+| Largeur moyenne dans le couloir | 47 m, ~1,5 s de traversée |
+
+Assez fréquent pour être une mécanique, assez court pour que rater ne
+condamne pas la partie.
+
+### Le seuil, et pourquoi il y en a deux
+
+| | Vitesse effective | Effet |
+|---|---|---|
+| Entrer en glisse | > 25 m/s | le disque porte, on reste à la surface |
+| Rester en glisse | > 19 m/s | hystérésis |
+| Sinon | — | on s'enfonce d'un mètre, la vitesse tombe vers 5 m/s |
+
+Un seuil unique ferait **clignoter** la glisse au milieu d'une nappe : la
+vitesse oscille naturellement autour de sa cible, et le joueur verrait le disque
+plonger et ressortir sans avoir rien fait. L'écart de 6 m/s entre entrée et
+maintien est ce qui rend la traversée lisible. `check:water` compte les
+bascules et échoue au-delà de six sur douze secondes.
+
+Une fois enfoncé, on ne remonte pas : la traversée est **jouée à l'entrée**.
+Pouvoir se rattraper en cours de nappe supprimerait la décision.
+
+### Ce que la glisse change au pilotage
+
+Sur l'eau la surface est plate : ni pente, ni courbure, donc ni frein de montée
+ni décollage naturel. On cesse d'un coup de sentir le relief, et c'est
+précisément la sensation recherchée. L'adhérence tombe à ×0,62 — le disque
+**dérive**, le virage devient long et doux. Coulé, elle tombe à ×0,35 : on ne
+dirige presque plus.
+
+Le plancher de vitesse de 9 m/s est levé quand on est coulé. C'est le seul
+endroit du jeu où le surfeur peut descendre à rien, et il faut qu'il le puisse :
+sans cela, « couler » ne serait qu'un changement de décor.
+
+### La récompense est payée à la SORTIE
+
+Elle ne compte qu'une fois la rive atteinte : `90 + 9 × mètres`, un combo, du
+boost, un bonus de vitesse et jusqu'à 4,5 s au chrono. Payée à l'entrée, elle
+serait un bonus qu'on encaisse en touchant l'eau ; payée à la sortie, elle est
+une **performance**.
+
+### Les retours
+
+| Signal | Glisse | Coulé |
+|---|---|---|
+| Son | plouf clair + nappe de clapot continue | note qui **tombe**, nappe étouffée à 280 Hz |
+| Caméra | coup de FOV +8 | coup de FOV **−12** |
+| Silhouette | le disque se cabre (−0,15) | il pique (+0,10), le buddy immergé jusqu'au cou |
+| Surface | sillage en V et écume centrale | remous, pas de sillage |
+| HUD | `GLISSE 47m +512` à la sortie | `COULÉ`, le seul retour éteint du jeu |
+
+Le sillage en V n'est pas un ornement : c'est le **seul** retour qui reste
+visible quand la caméra est basse et que le disque disparaît derrière le buddy.
+Sans lui, glisser et flotter se ressemblent. Il est mélangé à l'eau *avant* les
+paillettes — posé après, il les effaçait et devenait une bande de peinture
+blanche mate au milieu d'une surface qui scintille partout ailleurs.
+
+Rien à l'**entrée** côté HUD : le lac suivant arrive neuf secondes plus tard,
+une bannière à chaque rive occuperait l'écran en permanence.
+
 ## 5. Le saut
 
 ```
@@ -449,6 +531,12 @@ grandeur du jeu.
 - **Charge de carve** : sinus dont la hauteur monte d'une tierce mineure sur la charge.
 - **Pop** : quinte juste, dont l'intensité suit la charge.
 - **Atterrissage** : sinus grave 70 Hz, decay 180 ms.
+- **Glisse sur l'eau** : bruit blanc en bande large (900 Hz → 2.6 kHz avec la
+  vitesse) modulé par un LFO à 5,5 Hz. Sans le LFO c'est une soufflerie ; avec
+  lui, c'est de l'eau qui passe sous la planche.
+- **Plouf** : bruit filtré dont la bande **monte** (2.6 → 5.2 kHz) si l'on
+  rebondit, et **tombe** (900 → 260 Hz) si l'on s'enfonce. Le joueur sait à
+  l'oreille avant de le voir.
 
 Tout démarre au premier geste utilisateur (politique autoplay).
 
@@ -467,10 +555,15 @@ absolu casse la fluidité du carve.
 
 ## 9. Critères de recette
 
-Quatre vérifications automatiques tiennent ces critères (`npm run check`,
-`check:air`, `check:input`, `check:run`). Les trois premières simulent le
-contrôleur **sans rendu** : si le feeling dépend d'un effet visuel, c'est que
-les ressorts sont ratés.
+Cinq vérifications automatiques tiennent ces critères (`npm run check`,
+`check:air`, `check:input`, `check:run`, `check:water`). Toutes sauf
+`check:input` simulent le contrôleur **sans rendu** : si le feeling dépend d'un
+effet visuel, c'est que les ressorts sont ratés.
+
+`check:water` traverse une vraie nappe à cinq vitesses, de part et d'autre des
+deux seuils, et exige que les deux issues restent atteignables et clairement
+séparées — plus une vitesse de sortie au moins deux fois plus haute en glissant
+qu'en coulant, sans quoi l'erreur ne coûte rien.
 
 `check:air` fait rouler quatre pilotes sur le même terrain — un qui ne saute
 jamais, un qui saute au hasard, un qui saute sur la crête, un qui plane — et

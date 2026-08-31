@@ -15,8 +15,6 @@ uniform float uBoost;      // 0..1
 uniform float uCharge;     // 0..1
 uniform float uFlash;      // 0..1
 uniform vec2  uCenter;     // point de fuite en UV
-uniform vec2  uSunUv;      // position du soleil a l'ecran, en UV
-uniform float uRays;       // 0 = soleil hors cadre, 1 = pleinement visible
 
 float hash12(vec2 p){
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -63,57 +61,6 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   col += vec3(0.20, 0.60, 0.75) * uFlash * 0.28;
   // La charge tire vers le blanc sur les bords : la tension monte.
   col += vec3(0.55, 0.85, 1.0) * uCharge * smoothstep(0.45, 1.0, dist) * 0.08;
-
-  // --- RAIS DE LUMIERE.
-  //
-  // Un flou radial DEPUIS LE SOLEIL, qui n'accumule que ce qui depasse un
-  // seuil de luminance : les pixels de ciel sature autour de l'astre, et rien
-  // d'autre. Les cretes et les nuages qui passent devant decoupent donc les
-  // rais tout seuls — c'est de l'occlusion gratuite, obtenue sans jamais
-  // savoir ce qu'il y a dans la scene.
-  //
-  // Douze echantillons : en dessous les rais se resolvent en bandes, au-dessus
-  // on paie sans rien voir de plus.
-  //
-  // Le SEUIL est le reglage critique. A 0,72 il laissait passer le ciel entier :
-  // chaque pixel de l'ecran accumulait douze echantillons de ciel clair et
-  // l'image entiere virait au blanc. A 0,90 seuls le coeur du soleil et les
-  // sommets de nuages qu'il brule alimentent les rais — ce qui est exactement
-  // ce qui doit les alimenter.
-  if (uRays > 0.01) {
-    vec2 stride = (uv - uSunUv) * (0.42 / 16.0);
-    // Depart DITHERE. Douze echantillons espaces regulierement rendent douze
-    // copies fantomes de chaque objet lumineux — on voyait le personnage
-    // reproduit en escalier dans le ciel. Decaler le depart d'une fraction de
-    // pas, differente a chaque pixel, echange ces copies contre du grain, et
-    // l'oeil lit du grain comme un volume.
-    // Bruit de gradient entrelace plutot que bruit blanc. Concu pour ca : sa
-    // repartition est uniforme sur chaque petit voisinage, donc l'oeil le lit
-    // comme un lisse et non comme du grain. Le hachage aleatoire donnait une
-    // neige blanche sur toute l'image.
-    float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-    vec2 pos = uv - stride * ign;
-    float w = 1.0;
-    vec3 shaft = vec3(0.0);
-    for (int i = 0; i < 16; i++) {
-      pos -= stride;
-      vec3 s = texture2D(inputBuffer, pos).rgb;
-      // Seuil sur la LUMINANCE et non par canal : un anneau cyan sature
-      // depasse 0,9 sur son canal vert sans etre pour autant une source de
-      // lumiere. Seul ce qui est vraiment BLANC alimente un rai.
-      //
-      // Et un seuil PROGRESSIF, pas une coupure : avec une coupure franche,
-      // un echantillon compte ou ne compte pas, la variance d'un pixel a
-      // l'autre est maximale, et le tirage aleatoire du depart la transforme
-      // en grain blanc sur toute l'image. La rampe divise cette variance.
-      float lum = dot(s, vec3(0.2126, 0.7152, 0.0722));
-      shaft += s * smoothstep(0.90, 1.02, lum) * w;
-      w *= 0.90;
-    }
-    // Plafond : un rai reste un voile, jamais une source. Sans lui, un pixel
-    // dont le rayon traverse le coeur du soleil de bout en bout brule.
-    col += min(shaft * (1.0 / 16.0), vec3(0.22)) * vec3(1.00, 0.96, 0.84) * uRays * 3.2;
-  }
 
   // --- Vignette douce.
   col *= 1.0 - smoothstep(0.42, 1.05, dist) * 0.28;
@@ -166,8 +113,6 @@ export class SurfEffect extends Effect {
         ['uCharge', new Uniform(0)],
         ['uFlash', new Uniform(0)],
         ['uCenter', new Uniform(new Vector2(0.5, 0.5))],
-        ['uSunUv', new Uniform(new Vector2(0.5, 1.2))],
-        ['uRays', new Uniform(0)],
       ]),
     });
   }
@@ -184,11 +129,4 @@ export class SurfEffect extends Effect {
     (u.get('uCenter')!.value as Vector2).set(safe(cx), safe(cy));
   }
 
-  /** Position du soleil a l'ecran et intensite des rais. */
-  setSun(x: number, y: number, strength: number): void {
-    (this.uniforms.get('uSunUv')!.value as Vector2).set(safe(x), safe(y));
-    this.uniforms.get('uRays')!.value = Number.isFinite(strength)
-      ? Math.max(0, Math.min(1, strength))
-      : 0;
-  }
 }

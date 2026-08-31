@@ -522,28 +522,24 @@ plus, pour un résultat qu'une distance au centre décrit exactement.
 Un vent constant se lit comme une inclinaison figée. C'est la **vague** qui
 traverse le champ qu'on lit comme du vent — elle donne son épaisseur à l'air.
 
-### Les rais de lumière
+### Les rais de lumière, essayés puis retirés
 
-Un flou radial depuis le soleil qui n'accumule que ce qui dépasse un seuil. Les
-crêtes et les nuages qui passent devant découpent donc les rais tout seuls :
-c'est de l'occlusion gratuite, obtenue sans jamais savoir ce qu'il y a dans la
-scène.
+Un flou radial depuis le soleil qui n'accumulait que ce qui dépassait un seuil,
+de sorte que les crêtes et les nuages découpaient les rais tout seuls. Trois
+réglages successifs ont corrigé un ciel entièrement blanchi (seuil trop bas),
+des rais alimentés par des anneaux cyan saturés (seuil par canal au lieu de la
+luminance), puis douze copies fantômes du personnage en escalier dans le ciel
+(échantillons régulièrement espacés, réglés par un bruit de gradient entrelacé).
 
-Trois réglages, trois erreurs corrigées :
+Techniquement correct, et **retiré quand même** : le flou est radial depuis le
+soleil, donc il étire la lumière de *tout* ce qui dépasse le seuil, y compris
+les objets proches. Un anneau ou une colonne de vitesse au premier plan se
+mettait à traîner une comète dirigée vers un point de l'écran sans rapport avec
+lui. Un rai est censé venir d'**une source lointaine** ; appliqué uniformément,
+l'effet dit le contraire et l'œil le refuse immédiatement.
 
-1. **le seuil.** À 0,72 il laissait passer le ciel entier : chaque pixel
-   accumulait douze échantillons de ciel clair et l'image virait au blanc ;
-2. **la luminance, pas le canal.** Un anneau cyan saturé dépasse 0,9 sur son
-   canal vert sans être une source de lumière. Seul ce qui est vraiment *blanc*
-   alimente un rai ;
-3. **le bruit de gradient entrelacé.** Douze échantillons régulièrement espacés
-   rendaient douze copies fantômes de chaque objet lumineux — on voyait le
-   personnage reproduit en escalier dans le ciel. Un départ décalé les échange
-   contre du grain ; mais un décalage tiré au *hasard* donnait de la neige
-   blanche sur toute l'image. L'IGN, conçu pour ça, se répartit uniformément sur
-   chaque petit voisinage : l'œil le lit comme un lissé.
-
-Plus un plafond : un rai reste un **voile**, jamais une source.
+Ce qui reste : la couronne du soleil est dans le dôme de ciel lui-même, où elle
+n'a besoin d'aucune passe de post-traitement pour être à sa place.
 
 ### Le pollen
 
@@ -555,6 +551,63 @@ est parfaitement transparent, ce qui n'arrive jamais dehors un jour de soleil.
 C'est le *contraste* entre les grains face au soleil et ceux qui lui tournent le
 dos qui fait la profondeur ; un pollen d'intensité uniforme n'est qu'un semis de
 points blancs.
+
+## 10. L'eau
+
+### Un niveau, pas des lacs
+
+Il n'y a pas de lac dans le projet. Il y a `WATER_LEVEL = -5.5` et un plan
+parfaitement plat, découpé au `discard` partout où le terrain repasse au-dessus.
+Les rives sont donc les **courbes de niveau** du relief : organiques, toutes
+différentes, et exactes — parce que la même constante sert au CPU et au GPU. Une
+étendue d'eau dessinée à la main aurait coûté un éditeur, une sérialisation et
+un risque de désaccord entre ce qu'on voit et ce sur quoi on glisse.
+
+La géométrie est la **même grille en éventail** que le sol : dense sous le nez de
+la caméra, lâche au loin, ancrée au joueur par les mêmes pas entiers de maille.
+
+### Ce qui fait qu'une surface est de l'eau
+
+Une nappe turquoise posée sur l'herbe reste du plastique. Quatre termes, dans
+l'ordre où ils comptent :
+
+1. **Les paillettes.** Le terme décisif, et il doit être **dur** :
+   `pow(N·H, 340) × 5`. Un spéculaire large donne du satin ; c'est une multitude
+   de points nets qui donne du liquide au soleil.
+2. **Le Fresnel.** Le ciel se réfléchit à l'incidence rasante. Sans lui, une
+   étendue vue de loin n'est qu'une tache bleue.
+3. **La profondeur.** Turquoise clair sur les hauts-fonds, ardoise au large, et
+   une opacité qui suit : c'est ce dégradé qui fait exister le **volume** sous
+   la surface.
+4. **Les rides**, deux couches de fbm qui dérivent en **sens contraire**. Une
+   seule couche donne un motif qui glisse en bloc, et l'œil lit tout de suite
+   une texture qu'on translate.
+
+L'écume de rive suit la ligne de flottaison, donc encore la courbe de niveau :
+gratuite et toujours juste.
+
+### Le sillage
+
+Deux branches en V ouvertes à ~20°, plus le remous central. Il **bombe** la
+normale en plus de blanchir la couleur : une traînée blanche sans relief est
+peinte sur l'eau, elle ne la déplace pas.
+
+Il est mélangé **avant** les paillettes. Posé après, il les effaçait, et le
+sillage devenait une bande mate au milieu d'une surface qui scintille partout
+ailleurs — exactement l'inverse de l'effet voulu.
+
+### Le défaut le plus voyant du projet, corrigé au passage
+
+Les particules de gerbe n'avaient **aucun masque** : chaque particule était le
+quad lui-même. Sur des brins d'herbe verts, personne ne l'avait vu ; en écume
+presque blanche et en mélange additif, la gerbe est devenue une pluie de
+**carrés nets**. Une ellipse inscrite dans le quad, à bord adouci, règle les
+deux cas d'un coup. L'écume est en outre volontairement rentrée (α ×0,55) : un
+blanc en additif sature immédiatement et se met à bloomer en pavé.
+
+Les particules gardent leur nature **au spawn**, dans un attribut par instance.
+En uniforme global, les brins verts encore en vol viraient au blanc à l'instant
+où l'on touchait l'eau, et l'écume redevenait verte en touchant la rive.
 
 ### Deux pièges GLSL, encore
 

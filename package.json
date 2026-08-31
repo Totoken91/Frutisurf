@@ -16,7 +16,8 @@
     "check:run": "esbuild scripts/run-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/run.mjs --log-level=error && node node_modules/.cache/run.mjs",
     "check:flicker": "node scripts/flicker-check.mjs",
     "check:theme": "node scripts/theme-check.mjs",
-    "check:shaders": "node scripts/shader-check.mjs"
+    "check:shaders": "node scripts/shader-check.mjs",
+    "check:water": "esbuild scripts/water-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/water.mjs --log-level=error && node node_modules/.cache/water.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.36.4",

@@ -276,6 +276,17 @@ html, body {
 .banner.spin b { opacity: 0.72; font-size: clamp(24px, 8vw, 42px); }
 .banner.trick b { color: #fff3cf; text-shadow: 0 0 26px rgba(255, 208, 110, 0.9); }
 .banner.high b { color: #f0d8ff; text-shadow: 0 0 26px rgba(200, 107, 255, 0.9); }
+/* Glisse sur l'eau : le turquoise de la surface, pas le cyan du HUD. */
+.banner.wet b { color: #d6ffff; text-shadow: 0 0 30px rgba(80, 240, 235, 0.95); }
+/* Couler est le seul retour NEGATIF du jeu : il est le seul a etre eteint.
+   Pas de rouge — on n'a rien casse, on a juste perdu sa vitesse. */
+.banner.sunk b {
+  /* Eteint, mais pas illisible : le mot tombe sur de l'eau eblouissante, il
+     lui faut un halo SOMBRE et non le halo clair de tous les autres. */
+  color: #e2f0f7;
+  text-shadow: 0 0 20px rgba(8, 48, 82, 0.95), 0 3px 12px rgba(4, 26, 52, 0.9);
+  font-size: clamp(24px, 8.5vw, 44px);
+}
 
 /* --- points volants */
 .pops { position: absolute; inset: 0; }

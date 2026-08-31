@@ -40,6 +40,9 @@ export class Audio {
   private chargeGain!: GainNode;
   private glideGain!: GainNode;
   private glideFilter!: BiquadFilterNode;
+  private skimGain!: GainNode;
+  private skimFilter!: BiquadFilterNode;
+  private skimLfo!: OscillatorNode;
   private white!: AudioBuffer;
   private started = false;
   muted = false;
@@ -110,6 +113,29 @@ export class Audio {
     glide.connect(this.glideFilter).connect(this.glideGain).connect(this.master);
     glide.start();
 
+    // --- Nappe de glisse sur l'eau. Un passe-bande LARGE et bas, module par
+    // un LFO lent : c'est le clapot sous la planche. Il doit etre reconnaissable
+    // en une demi-seconde, sinon la traversee ne se distingue pas du sol.
+    const skim = ctx.createBufferSource();
+    skim.buffer = this.white;
+    skim.loop = true;
+    this.skimFilter = ctx.createBiquadFilter();
+    this.skimFilter.type = 'bandpass';
+    this.skimFilter.frequency.value = 900;
+    this.skimFilter.Q.value = 0.5;
+    this.skimGain = ctx.createGain();
+    this.skimGain.gain.value = 0;
+    skim.connect(this.skimFilter).connect(this.skimGain).connect(this.master);
+    skim.start();
+    // Le LFO ouvre et referme le filtre : sans lui le bruit est une soufflerie,
+    // avec lui c'est de l'eau qui passe.
+    this.skimLfo = ctx.createOscillator();
+    this.skimLfo.frequency.value = 5.5;
+    const lfoAmt = ctx.createGain();
+    lfoAmt.gain.value = 520;
+    this.skimLfo.connect(lfoAmt).connect(this.skimFilter.frequency);
+    this.skimLfo.start();
+
     if (ctx.state === 'suspended') void ctx.resume();
   }
 
@@ -124,6 +150,8 @@ export class Audio {
     charge: number,
     airborne: boolean,
     gliding = false,
+    planing = false,
+    sunk = false,
   ): void {
     if (!this.ctx) return;
     const t = this.now();
@@ -142,6 +170,16 @@ export class Audio {
 
     this.glideGain.gain.setTargetAtTime(gliding ? 0.11 : 0, t, 0.18);
     this.glideFilter.frequency.setTargetAtTime(gliding ? 2400 + speedNorm * 1600 : 2400, t, 0.2);
+
+    // Glisse sur l'eau : un lit sonore continu, plus fort et plus haut que le
+    // crissement d'herbe. Coule, il s'etouffe — on est SOUS la surface.
+    const wet = planing ? 0.19 + speedNorm * 0.10 : sunk ? 0.05 : 0;
+    this.skimGain.gain.setTargetAtTime(wet, t, planing ? 0.05 : 0.22);
+    this.skimFilter.frequency.setTargetAtTime(
+      sunk ? 280 : 900 + speedNorm * 1700,
+      t,
+      0.12,
+    );
   }
 
   private blip(
@@ -249,6 +287,46 @@ export class Audio {
     }
   }
 
+  /**
+   * Entree dans l'eau. Deux sons distincts pour deux issues distinctes : la
+   * gerbe claire de celui qui rebondit sur la surface, le "plouf" grave de
+   * celui qui s'enfonce. Le joueur doit savoir a l'oreille, avant de le voir.
+   */
+  splash(planing: boolean): void {
+    if (!this.ctx) return;
+    const t = this.now();
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.white;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(planing ? 2600 : 900, t);
+    f.frequency.exponentialRampToValueAtTime(planing ? 5200 : 260, t + 0.3);
+    f.Q.value = 0.7;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(planing ? 0.20 : 0.26, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (planing ? 0.32 : 0.5));
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t);
+    src.stop(t + 0.6);
+    if (planing) this.blip(880, 0.20, 'sine', 0.07, 1480);
+  }
+
+  /** On coule. Une note qui TOMBE : c'est l'echec, il doit s'entendre chuter. */
+  sink(): void {
+    this.blip(220, 0.55, 'sine', 0.14, 62);
+    this.blip(147, 0.7, 'triangle', 0.08, 55, 0.06);
+  }
+
+  /** Traversee reussie : arpege montant, plus long si la nappe etait large. */
+  skim(meters: number): void {
+    const n = Math.min(4, 2 + Math.floor(meters / 26));
+    for (let i = 0; i < n; i++) {
+      this.blip(587 * Math.pow(2, (i * 5) / 12), 0.20, 'triangle', 0.11, undefined, i * 0.06);
+      this.blip(587 * Math.pow(2, (i * 5) / 12 + 1), 0.26, 'sine', 0.05, undefined, i * 0.06);
+    }
+  }
+
   /** Compte a rebours des dernieres secondes. */
   tick(urgent: boolean): void {
     this.blip(urgent ? 1560 : 1040, 0.05, 'square', urgent ? 0.055 : 0.035);
@@ -264,6 +342,7 @@ export class Audio {
     this.slideGain.gain.setTargetAtTime(0, t, 0.3);
     this.chargeGain.gain.setTargetAtTime(0, t, 0.2);
     this.glideGain.gain.setTargetAtTime(0, t, 0.3);
+    this.skimGain.gain.setTargetAtTime(0, t, 0.3);
   }
 
   setMuted(m: boolean): void {

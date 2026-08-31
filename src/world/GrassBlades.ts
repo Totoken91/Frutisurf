@@ -154,7 +154,11 @@ export class GrassBlades {
           // un arbuste plante dans une pelouse tondue.
           // Un brin sur huit depasse nettement les autres : une hauteur
           //  uniforme donne un tapis tondu, pas une prairie.
-          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade;
+          // Rien ne pousse dans l'eau : la hauteur tombe a zero des que le
+          // sol passe sous la ligne de flottaison, avec une frange de
+          // vegetation rase juste au-dessus.
+          float dry = smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 1.4, terrainHeightAt(wp, dist));
+          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade * dry;
           float v = uv.y;
 
           // Le vent couche les touffes, et la vitesse du joueur les couche

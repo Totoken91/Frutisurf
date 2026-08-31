@@ -75,6 +75,14 @@ d'accrocher l'air. Elle ne se prend qu'une fois par vol.
 
 Retombe dans une **pente descendante** : ça amortit et ça relance.
 
+**L'eau** : des lacs coupent la plaine toutes les neuf secondes environ. Arrive
+au-dessus de 25 m/s et le disque **porte** — il laisse un sillage en V, le
+relief cesse d'un coup de se faire sentir, et la traversée est payée à la sortie
+en points, en combo, en boost et en secondes. Arrive plus lentement et tu
+**coules** : le buddy s'enfonce jusqu'au cou, la vitesse tombe à rien, et tu
+ressors de l'autre rive au pas. C'est le seul obstacle du jeu qui teste la
+vitesse plutôt que la visée.
+
 **Le boost est une ressource**, pas une touche à tenir. Les figures le
 remplissent — slalom, sauts timés, planés, réceptions propres — et le boost le
 vide. À dépense égale, jouer proprement rapporte plus du double.
@@ -97,8 +105,8 @@ npm run shot          # capture Playwright, a comparer a docs/reference.jpg
 requete externe, qui se pose n'importe où et s'ouvre tel quel sur un
 téléphone. La page n'a aucun mobilier — le jeu occupe tout l'écran.
 
-Les deux `check` simulent le contrôleur **sans rendu** : si le feeling dépend
-d'un effet visuel, c'est que les ressorts sont ratés.
+Ces `check` simulent le contrôleur **sans rendu** (sauf `check:input`) : si le
+feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
 
 - `check` : le carve enchaîné doit battre la ligne droite. Actuellement **+52 %**.
 - `check:air` : cinq pilotes automatiques sur le même terrain. Chaque palier de
@@ -111,6 +119,11 @@ d'un effet visuel, c'est que les ressorts sont ratés.
   deux contrôles précédents pilotent `jumpHeld` directement — ils valident le
   modèle de saut, jamais le chemin qui va de l'événement au contrôleur. C'est
   exactement là que le saut tactile s'est cassé sans que rien ne le voie.
+- `check:water` : traverse une vraie nappe à cinq vitesses, de part et d'autre
+  des deux seuils. Les deux issues doivent rester atteignables et clairement
+  séparées, l'hystérésis doit tenir (pas de glisse qui clignote au milieu du
+  lac), et sortir en glissant doit laisser au moins **deux fois** la vitesse de
+  sortir en coulant — sinon l'erreur ne coûte rien.
 
 `scripts/shot.mjs` accepte `SHOT_DRIVE` pour piloter une pose précise :
 

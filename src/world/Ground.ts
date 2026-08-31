@@ -349,6 +349,16 @@ export class Ground {
           //     exactement la meme valeur et le relief s'aplatit.
           c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.50, 0.99, f) * 0.42);
 
+          // --- LA RIVE. Une bande de terre mouillee au-dessus de la ligne de
+          //     flottaison, et un fond assombri en dessous. Sans elle, l'herbe
+          //     plongeait dans l'eau sans transition, comme une decoupe.
+          float above = vWorld.y - WATER_LEVEL;
+          float wet = 1.0 - smoothstep(0.0, 2.2, above);
+          c = mix(c, c * vec3(0.52, 0.62, 0.55), wet * 0.75);
+          // Sous l'eau : le fond vire au turquoise sombre et perd son detail.
+          float sunk = smoothstep(0.0, -1.6, above);
+          c = mix(c, mix(c, vec3(0.05, 0.30, 0.34), 0.72), sunk);
+
           // --- Contre-jour. Le soleil est devant : la derniere bande d'herbe
           //     avant le ciel est traversee par la lumiere et s'allume. Sans
           //     ce lisere, la plaine se termine par une decoupe de papier.

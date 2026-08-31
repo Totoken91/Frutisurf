@@ -23,6 +23,12 @@ export interface GameState {
   spinTurns: number;
   /** Multiplicateur de score courant. */
   mult: number;
+  /** Au-dessus d'une etendue d'eau. */
+  onWater: boolean;
+  /** File sur la surface. */
+  planing: boolean;
+  /** S'est enfonce, faute de vitesse. */
+  sunk: boolean;
   popFlash: number;
   fps: number;
   started: boolean;
@@ -45,6 +51,9 @@ export const createState = (): GameState => ({
   lipFactor: 0,
   spinTurns: 0,
   mult: 1,
+  onWater: false,
+  planing: false,
+  sunk: false,
   popFlash: 0,
   fps: 60,
   started: false,

@@ -49,6 +49,16 @@ export const HEX = {
   discDriftB: 0xc86bff,
   discDriftC: 0xffe066,
 
+  // --- L'eau. Turquoise franc en eau basse, bleu ardoise au large, ecume
+  // presque blanche mais jamais grise : un blanc neutre sur du turquoise lit
+  // comme de la mousse de savon.
+  waterShallow: 0x6fe8e0,
+  // Le fond ne doit PAS virer à l'ardoise : un bleu désaturé en eau profonde
+  // lit comme un lac de montagne, pas comme du Frutiger Aero. On garde du
+  // cyan jusqu'au bout, on ne baisse que la valeur.
+  waterDeep: 0x1a86b8,
+  waterFoam: 0xf1ffff,
+
   cityFace: 0x75cedc,
   cityLit: 0xc8e4ec,
   cityDeep: 0x2da7c3,

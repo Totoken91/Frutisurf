@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { clamp, damp, Decay, lerp, smoothstep } from '../core/Spring';
 import { fbm2D } from '../core/Noise';
-import { terrainHeight } from '../world/Terrain';
+import { terrainHeight, WATER_LEVEL } from '../world/Terrain';
 import type { Controller } from '../player/Controller';
 
 /**
@@ -52,7 +52,10 @@ export class CameraRig {
     this.pos.z = damp(this.pos.z, targetZ, k * 1.6, dt);
 
     // Garde-fou : la camera ne rentre jamais dans une colline derriere le surfeur.
-    const clearance = terrainHeight(this.pos.x, this.pos.z) + 1.6;
+    // La garde au sol se prend sur la SURFACE, eau comprise : passer sous le
+    // plan d'eau donnerait une frame vue du dessous, turquoise opaque.
+    const clearance =
+      Math.max(terrainHeight(this.pos.x, this.pos.z), WATER_LEVEL) + 1.6;
     if (this.pos.y < clearance) this.pos.y = clearance;
 
     this.shake.step(dt);

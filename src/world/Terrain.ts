@@ -58,6 +58,22 @@ const LAYERS: readonly Layer[] = [
   { a: 0.16, fz: 0.2992, fx: 0.1024, p: 2.08, fade: [180, 320] },
 ];
 
+/**
+ * Niveau de l'eau, en metres.
+ *
+ * Il n'y a PAS de lacs places a la main : il y a un niveau, et l'eau remplit
+ * tout ce que le relief laisse en dessous. Les rives suivent donc les courbes
+ * de niveau du terrain, elles sont organiques et differentes a chaque fois,
+ * pour le prix d'une constante.
+ *
+ * -5,5 m mesure sur le terrain reel : 17,6 % de la course sous l'eau, une
+ * etendue tous les 260 m (une toutes les neuf secondes en croisiere), 46 m de
+ * large en moyenne — une seconde et demie de glisse. C'est le rythme voulu :
+ * assez frequent pour que la mecanique compte, assez court pour que la
+ * traversee reste une figure et non un couloir.
+ */
+export const WATER_LEVEL = -5.5;
+
 /** Amplitude cumulee : sert a caler la camera et les garde-fous. */
 export const TERRAIN_MAX = LAYERS.reduce((s, l) => s + l.a, 0);
 
@@ -66,6 +82,20 @@ export function terrainHeight(x: number, z: number): number {
   let h = 0;
   for (const l of LAYERS) h += l.a * Math.sin(l.fz * z + l.fx * x + l.p);
   return h;
+}
+
+/** Vrai si le point est sous le niveau de l'eau. */
+export function isWater(x: number, z: number): boolean {
+  return terrainHeight(x, z) < WATER_LEVEL;
+}
+
+/**
+ * Profondeur d'eau au point, en metres. Zero sur la terre ferme.
+ * Sert a la physique : au-dela d'une certaine profondeur on ne touche plus le
+ * fond, et c'est la vitesse seule qui decide si l'on flotte ou si l'on coule.
+ */
+export function waterDepth(x: number, z: number): number {
+  return Math.max(0, WATER_LEVEL - terrainHeight(x, z));
 }
 
 /** Gradient analytique (dh/dx, dh/dz). */
@@ -104,6 +134,7 @@ export function terrainGLSL(): string {
 
   return /* glsl */ `
 // --- GENERE depuis src/world/Terrain.ts : ne pas editer a la main ---
+const float WATER_LEVEL = ${WATER_LEVEL.toFixed(3)};
 float terrainHeightAt(vec2 p, float d){
   float h = 0.0;
 ${terms}

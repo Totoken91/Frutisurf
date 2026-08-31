@@ -1,5 +1,5 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
-import { terrainHeight } from '../world/Terrain';
+import { terrainHeight, WATER_LEVEL } from '../world/Terrain';
 import type { GameState } from '../core/GameState';
 
 /**
@@ -36,6 +36,12 @@ export interface SurfEvents {
   /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
   onLipEnter?: () => void;
   onBooster?: (combo: number) => void;
+  /** Entree sur l'eau. @param planing vrai si on l'aborde assez vite. */
+  onWater?: (planing: boolean) => void;
+  /** On s'enfonce : la vitesse etait insuffisante. */
+  onSink?: () => void;
+  /** Traversee reussie. @param meters longueur glissee sur la surface. */
+  onSkim?: (meters: number, points: number) => void;
   /** Anneau franchi. @param high anneau haut, celui qui demande un saut. */
   onRing?: (high: boolean, combo: number, points: number) => void;
   /** Anneau manque : sert au retour sonore, aucune penalite. */
@@ -110,6 +116,23 @@ const SPIN_LOCK = 0.72;
 const BURST = 1.15;
 
 /**
+ * L'eau.
+ *
+ * Une etendue ne se franchit qu'a la VITESSE : au-dela du seuil le disque
+ * dechausse et file sur la surface, en dessous il s'enfonce. C'est la seule
+ * mecanique du jeu qui punisse le fait d'etre lent, et elle donne enfin une
+ * raison de garder sa vitesse au lieu de la depenser en figures.
+ *
+ * Deux seuils et non un : on decroche a 25 m/s mais on reste en glisse tant
+ * qu'on tient 19. Un seuil unique ferait clignoter l'etat a la moindre
+ * variation, et le joueur ne comprendrait pas ce qui lui arrive.
+ */
+const PLANE_ENTER = 25;
+const PLANE_KEEP = 19;
+/** Enfoncement du disque une fois coule. */
+const SINK_DEPTH = 1.0;
+
+/**
  * Economie du boost. Ce n'est plus une touche qu'on tient : c'est une
  * RESSOURCE que les figures remplissent. Sans ca, le boost n'a pas de cout et
  * enchainer des figures ne sert a rien.
@@ -135,6 +158,17 @@ export class Controller {
   curvature = 0;
   /** 0..1, maximal pile au sommet d'une crete roulable. */
   lipFactor = 0;
+
+  // --- Eau
+  /** Vrai des que le sol sous le surfeur passe sous la ligne de flottaison. */
+  onWater = false;
+  /** Vrai quand il file SUR la surface. */
+  planing = false;
+  /** Vrai quand il s'est enfonce, jusqu'a la rive suivante. */
+  sunk = false;
+  /** Profondeur d'eau sous lui, en metres. */
+  depth = 0;
+  private skimMeters = 0;
 
   // --- Vol
   gliding = false;
@@ -256,6 +290,55 @@ export class Controller {
 
   /** Releve le relief autour du surfeur : hauteur, pente, courbure, crete. */
   private probeTerrain(): void {
+    // --- L'eau d'abord : elle REMPLACE le relief quand elle est la.
+    const floor = terrainHeight(this.x, this.z);
+    this.depth = Math.max(0, WATER_LEVEL - floor);
+    const over = this.depth > 0.12;
+    const wasPlaning = this.planing;
+    const wasSunk = this.sunk;
+
+    if (!over) {
+      // Retour sur la terre ferme : on remet tout a plat.
+      this.planing = false;
+      this.sunk = false;
+    } else if (!this.sunk) {
+      const eff = this.speed + this.bonus.value;
+      this.planing = this.planing ? eff > PLANE_KEEP : eff > PLANE_ENTER;
+      if (!this.planing) this.sunk = true;
+    }
+
+    if (over && !this.onWater) this.events.onWater?.(this.planing);
+    if (this.sunk && !wasSunk) {
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.events.onSink?.();
+    }
+    // Traversee reussie : elle ne compte qu'a la SORTIE, une fois la rive
+    // atteinte. Recompensee a la sortie et pas a l'entree, elle reste une
+    // performance et non un bonus qu'on encaisse en touchant l'eau.
+    if (wasPlaning && !this.planing && !over && this.skimMeters > 6) {
+      const points = Math.round((90 + this.skimMeters * 9) * this.mult);
+      this.score += points;
+      this.combo += 1;
+      this.comboTimer = 3.2;
+      this.reward(0.10 + Math.min(0.28, this.skimMeters * 0.006));
+      this.bonus.add(4 + Math.min(10, this.skimMeters * 0.18));
+      this.events.onSkim?.(this.skimMeters, points);
+    }
+    if (!over) this.skimMeters = 0;
+    this.onWater = over;
+
+    if (this.planing || this.sunk) {
+      // Une surface d'eau est PLATE : ni pente, ni courbure, donc ni frein de
+      // montee ni decollage naturel. C'est aussi ce qui rend la traversee si
+      // douce — on cesse d'un coup de sentir le relief.
+      this.groundY = this.planing ? WATER_LEVEL : WATER_LEVEL - SINK_DEPTH;
+      this.slopeTravel = 0;
+      this.curvature = 0;
+      this.lipFactor = 0;
+      return;
+    }
+
     // L'avant est en -Z.
     const h0 = terrainHeight(this.x, this.z);
     const hf = terrainHeight(this.x, this.z - LIP_SPAN);
@@ -315,12 +398,22 @@ export class Controller {
     if (this.boosting && !forced) this.boost = Math.max(0, this.boost - BOOST_DRAIN * dt);
     else if (!this.boosting) this.boost = Math.min(1, this.boost + BOOST_REGEN * dt);
     const target = this.cruise() + (this.boosting ? 13 : 0);
-    this.speed += (target - this.speed) * (1 - Math.exp(-2.4 * dt));
+    if (this.sunk) {
+      // Coule : l'eau freine BRUTALEMENT. C'est le cout de l'erreur, et il doit
+      // se sentir tout de suite — sinon "couler" n'est qu'un changement de
+      // decor. On ressort de l'autre rive au pas.
+      this.speed += (5 - this.speed) * (1 - Math.exp(-3.4 * dt));
+    } else {
+      this.speed += (target - this.speed) * (1 - Math.exp(-2.4 * dt));
+    }
 
     // La pente tire ou retient. Coefficient sous la gravite reelle : on veut
     // que le relief se SENTE, pas qu'il dicte la course.
     if (!this.airborne) {
-      this.speed = Math.max(this.braking ? 0 : 9, this.speed - this.slopeTravel * 16 * dt);
+      // Le plancher de vitesse ne s'applique PAS quand on est coule : c'est
+      // precisement la que le jeu doit pouvoir descendre a rien.
+      const floorSpeed = this.sunk || this.braking ? 0 : 9;
+      this.speed = Math.max(floorSpeed, this.speed - this.slopeTravel * 16 * dt);
     }
 
     this.bonus.step(dt);
@@ -453,11 +546,17 @@ export class Controller {
     // Autorite laterale relevee avec l'elargissement du couloir : il faut
     // pouvoir traverser la nouvelle largeur entre deux anneaux, sinon un
     // terrain plus large n'est qu'un terrain ou l'on rate davantage.
-    const grip = this.airborne ? 0.64 * (1 - 0.72 * this.spinLock) : 0.52;
+    let grip = this.airborne ? 0.64 * (1 - 0.72 * this.spinLock) : 0.52;
+    // En glisse sur l'eau le disque ne mord plus : il DERIVE. Le virage
+    // devient long et doux, et c'est ce qui rend la traversee si agreable.
+    if (this.planing) grip *= 0.62;
+    // Coule, on ne dirige presque plus.
+    if (this.sunk) grip *= 0.35;
     const lateral = st * effective * grip;
     this.x += lateral * dt;
     this.z -= effective * dt;
     this.distance += effective * dt;
+    if (this.planing) this.skimMeters += effective * dt;
 
     if (Math.abs(this.x) > CORRIDOR) {
       const over = Math.abs(this.x) - CORRIDOR;
@@ -573,6 +672,9 @@ export class Controller {
     s.gliding = this.gliding;
     s.lipFactor = this.airborne ? 0 : this.lipFactor;
     s.spinTurns = Math.abs(this.spin) / (Math.PI * 2);
+    s.onWater = this.onWater;
+    s.planing = this.planing;
+    s.sunk = this.sunk;
     s.mult = this.mult;
     s.popFlash = lerp(s.popFlash, 0, 0.12);
   }
@@ -602,6 +704,11 @@ export class Controller {
     this.spin = 0;
     this.spinLock = 0;
     this.lastTurns = 0;
+    this.onWater = false;
+    this.planing = false;
+    this.sunk = false;
+    this.depth = 0;
+    this.skimMeters = 0;
     this.steer.snap(0);
     this.lean.snap(0);
     this.speed = 18;

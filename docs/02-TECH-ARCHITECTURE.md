@@ -32,6 +32,7 @@ src/
 │   ├── GrassTexture.ts      tuile de brins générée au boot (normale + albédo)
 │   ├── GrassBlades.ts       touffes instanciées, dispersées par cellule monde
 │   ├── Weather.ts           ombres de nuages + rafales, lues par le sol ET les brins
+│   ├── Water.ts             plan à WATER_LEVEL découpé au discard par le relief
 │   ├── Motes.ts             pollen en suspension, lumineux à contre-jour
 │   ├── City.ts              skyline de cristal
 │   ├── Boosters.ts          colonnes de vitesse, semées en chaîne
@@ -41,10 +42,10 @@ src/
 │   ├── Disc.ts              le CD + shader de diffraction
 │   ├── Controller.ts        physique de glisse (doc 03 §2-3)
 │   ├── Trail.ts             ruban derrière le disque
-│   └── Spray.ts             particules d'herbe
+│   └── Spray.ts             particules d'herbe et d'écume
 ├── fx/
 │   ├── PostFX.ts            bloom → SurfEffect → SMAA
-│   ├── SurfEffect.ts        radial blur + speed lines + aberration + vignette
+│   ├── SurfEffect.ts        speed lines + aberration + vignette + étalonnage
 │   ├── ShockRing.ts         anneaux d'impact
 │   └── CameraRig.ts         ressort, FOV, roll, bruit, shake
 ├── hud/
@@ -119,6 +120,12 @@ des deux côtés, et surtout **dérivables analytiquement**. La pente et la
 courbure sortent d'un `cos`, sans échantillonner — c'est ce qui rend la
 détection de crête exacte plutôt qu'approchée.
 
+C'est la même source qui décide de l'eau : `WATER_LEVEL` est exporté depuis
+`Terrain.ts` et injecté dans le chunk GLSL. La rive vue à l'écran (un `discard`
+sur `terrainHeight < WATER_LEVEL`) est donc **exactement** celle où la physique
+bascule en glisse — un décalage de quelques centimètres entre les deux se
+verrait immédiatement, le disque planant sur de l'herbe ou coulant sur du sec.
+
 La grille de sol est un **éventail ancré sur le joueur** : rangées serrées
 devant lui (1,2 m) puis écartement géométrique jusqu'à l'horizon, largeur qui
 croît avec la distance pour couvrir le champ de vision quel que soit le rapport
@@ -186,6 +193,7 @@ npm run check          # le carve doit payer plus qu'une ligne droite
 npm run check:air      # élan, timing, plané, économie de boost
 npm run check:input    # clavier ET tactile arment puis déclenchent le saut
 npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
+npm run check:water    # on glisse assez vite, on coule trop lent, et ça coûte
 npm run check:flicker         # aucune frame noire sur une partie complète
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 npm run check:theme           # le jeu reste en plein jour en mode sombre

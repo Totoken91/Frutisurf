@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
-import { terrainHeight } from './Terrain';
+import { terrainHeight, WATER_LEVEL } from './Terrain';
 
 /**
  * Les plots de vitesse.
@@ -241,7 +241,7 @@ export class Boosters {
 
       // La colonne reste VERTICALE meme en pente : c'est un faisceau, pas un
       // objet pose, et l'incliner le rendrait moins lisible sans rien gagner.
-      p.pos.y = terrainHeight(p.pos.x, p.pos.z);
+      p.pos.y = Math.max(terrainHeight(p.pos.x, p.pos.z), WATER_LEVEL);
       this.m.compose(p.pos, this.q, this.scale);
       this.mesh.setMatrixAt(i, this.m);
     }

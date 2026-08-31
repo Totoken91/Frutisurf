@@ -29,8 +29,15 @@ export class Spray {
   private aVel: InstancedBufferAttribute;
   private aBirth: InstancedBufferAttribute;
   private aSeed: InstancedBufferAttribute;
+  private aFoam: InstancedBufferAttribute;
   private rng = new Rng(31337);
   private emitDebt = 0;
+  /**
+   * 0 = herbe arrachee, 1 = ecume. Ecrit AU SPAWN et non en uniforme global :
+   * sinon les brins verts encore en vol vireraient au blanc a l'instant ou
+   * l'on touche l'eau, et l'ecume redeviendrait verte en touchant la rive.
+   */
+  foam = 0;
 
   constructor(count = 700) {
     this.count = count;
@@ -45,19 +52,23 @@ export class Spray {
     const birth = new Float32Array(count).fill(-999);
     const seed = new Float32Array(count);
     for (let i = 0; i < count; i++) seed[i] = this.rng.next();
+    const foam = new Float32Array(count);
 
     this.aPos = new InstancedBufferAttribute(pos, 3);
     this.aVel = new InstancedBufferAttribute(vel, 3);
     this.aBirth = new InstancedBufferAttribute(birth, 1);
     this.aSeed = new InstancedBufferAttribute(seed, 1);
+    this.aFoam = new InstancedBufferAttribute(foam, 1);
     this.aPos.setUsage(35048); // DynamicDrawUsage
     this.aVel.setUsage(35048);
     this.aBirth.setUsage(35048);
+    this.aFoam.setUsage(35048);
 
     geo.setAttribute('iPos', this.aPos);
     geo.setAttribute('iVel', this.aVel);
     geo.setAttribute('iBirth', this.aBirth);
     geo.setAttribute('iSeed', this.aSeed);
+    geo.setAttribute('iFoam', this.aFoam);
 
     this.mat = new ShaderMaterial({
       transparent: true,
@@ -69,17 +80,21 @@ export class Spray {
         uGravity: { value: GRAVITY },
         uColA: { value: vec3('grassMid') },
         uColB: { value: vec3('grassHorizon') },
+        uFoamA: { value: vec3('waterFoam') },
+        uFoamB: { value: vec3('waterShallow') },
       },
       vertexShader: /* glsl */ `
         attribute vec3 iPos, iVel;
-        attribute float iBirth, iSeed;
+        attribute float iBirth, iSeed, iFoam;
         uniform float uTime, uLife, uGravity;
-        varying float vAge, vSeed;
+        varying float vAge, vSeed, vFoam;
+        varying vec2 vQuad;
 
         void main(){
           float age = uTime - iBirth;
           vAge = clamp(age / uLife, 0.0, 1.0);
           vSeed = iSeed;
+          vFoam = iFoam;
 
           if (age < 0.0 || age > uLife) {
             // Particule morte : on la replie sur un point degenere.
@@ -99,20 +114,34 @@ export class Spray {
           vec3 right = normalize(cross(up, fwd));
 
           float fade = 1.0 - vAge;
-          float w = (0.085 + iSeed * 0.055) * fade;
-          float h = w * (1.8 + min(length(vel) * 0.34, 7.0));
+          float w = (0.085 + iSeed * 0.055) * fade * (1.0 + iFoam * 0.55);
+          // Une gouttelette s'etire beaucoup moins qu'un brin : elle est ronde.
+          float h = w * mix(1.8 + min(length(vel) * 0.34, 7.0), 1.5, iFoam);
 
+          vQuad = position.xy * 2.0; // -1 .. 1 sur le quad
           vec3 p = center + right * position.x * w + up * position.y * h;
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform vec3 uColA, uColB;
-        varying float vAge, vSeed;
+        uniform vec3 uColA, uColB, uFoamA, uFoamB;
+        varying float vAge, vSeed, vFoam;
+        varying vec2 vQuad;
         void main(){
+          // MASQUE. Sans lui la particule est le quad lui-meme : sur de
+          // l'herbe verte ca passe, mais une gerbe d'ecume blanche devient une
+          // pluie de CARRES nets — le defaut le plus voyant de tout le jeu.
+          // Ellipse inscrite dans le quad, bord adouci.
+          float r = length(vQuad);
+          float mask = 1.0 - smoothstep(0.45, 1.0, r);
+          if (mask <= 0.002) discard;
+
           // Le brin s'eclaircit en vieillissant, comme s'il prenait la lumiere.
-          vec3 c = mix(uColA, uColB, vSeed * 0.6 + vAge * 0.4);
-          float a = (1.0 - vAge) * (1.0 - vAge) * 0.9;
+          float k = vSeed * 0.6 + vAge * 0.4;
+          vec3 c = mix(mix(uColA, uColB, k), mix(uFoamA, uFoamB, k), vFoam);
+          // L'ecume est presque blanche : en additif elle sature tout de suite
+          // et se met a bloomer en pave. On la rentre volontairement.
+          float a = (1.0 - vAge) * (1.0 - vAge) * 0.9 * mask * mix(1.0, 0.55, vFoam);
           gl_FragColor = vec4(c * (0.8 + vAge * 0.6), a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -131,9 +160,11 @@ export class Spray {
     this.aPos.setXYZ(i, origin.x, origin.y, origin.z);
     this.aVel.setXYZ(i, vel.x, vel.y, vel.z);
     this.aBirth.setX(i, time);
+    this.aFoam.setX(i, this.foam);
     this.aPos.needsUpdate = true;
     this.aVel.needsUpdate = true;
     this.aBirth.needsUpdate = true;
+    this.aFoam.needsUpdate = true;
   }
 
   /**

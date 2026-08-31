@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
-import { terrainHeight } from './Terrain';
+import { terrainHeight, WATER_LEVEL } from './Terrain';
 
 /**
  * Les anneaux de verre. C'est EUX qui font le jeu.
@@ -277,7 +277,10 @@ export class Rings {
     const x = centred
       ? r.range(-SPREAD * 0.22, SPREAD * 0.22)
       : this.side * r.range(SPREAD * 0.30, SPREAD);
-    ring.pos.set(x, terrainHeight(x, z) + (high ? HIGH_Y : LOW_Y), z);
+    // Un anneau au-dessus d'une etendue se cale sur la SURFACE et non sur le
+    // fond : sinon il serait a moitie noye et deviendrait infranchissable.
+    const floorY = Math.max(terrainHeight(x, z), WATER_LEVEL);
+    ring.pos.set(x, floorY + (high ? HIGH_Y : LOW_Y), z);
     ring.high = high;
     ring.alive = true;
     ring.flash = 0;
