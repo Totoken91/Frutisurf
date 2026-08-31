@@ -200,6 +200,38 @@ npm run check:theme           # le jeu reste en plein jour en mode sombre
 npm run check:shaders         # aucun shader cassé, profil bureau ET téléphone
 ```
 
+## 7 bis. Déploiement web
+
+Le dépôt se déploie **tel quel** sur Vercel : `vercel.json` fixe le framework
+(Vite), la commande de build et la sortie (`dist/`). Une seule subtilité —
+l'`installCommand` porte `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`. Playwright est
+une dépendance de développement (les vérifications automatiques pilotent un vrai
+navigateur) et son script de post-installation télécharge plusieurs centaines de
+mégaoctets de navigateurs dont un build de production n'a aucun usage.
+
+`public/` est copié à la racine du site : icônes, manifeste et image de partage.
+Sans les balises Open Graph, un lien collé dans une conversation n'affiche
+qu'une URL nue — pour un jeu qui se vend à l'œil, c'est la moitié du travail
+perdue.
+
+### `?diag=1`
+
+Le mode diagnostic tranche **une** question, et il faut la poser dans ces
+termes : quand le joueur voit un flash noir, est-ce que le jeu a rendu une image
+noire, ou est-ce que la page qui l'héberge a laissé voir sa toile de fond ?
+
+La sonde lit le tampon de dessin après *chaque* rendu — un flash d'une image ne
+se photographie pas — et affiche un compteur en clair :
+
+- `noires > 0` : le rendu est en cause, c'est réparable dans ce code ;
+- `noires = 0` alors que ça clignote : le tampon était valide à chaque image, le
+  noir vient du compositeur, de l'iframe hôte ou d'un changement de thème.
+  **Aucune** correction côté WebGL ne peut l'atteindre.
+
+Elle est chargée en import dynamique et activée par l'URL uniquement :
+`readPixels` synchronise le pipeline graphique, ce qui n'a rien à faire dans une
+partie normale.
+
 ## 8. Aucune frame noire
 
 Le joueur voyait « flicker noir parfois ». Un flash d'une seule frame ne se

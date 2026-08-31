@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Le CD, pas le bonhomme : a 16 px un buddy MSN n'est qu'une tache bleue,
+       alors qu'un disque garde sa silhouette (rond + trou central) jusqu'au
+       bout. C'est la forme qui doit survivre a la reduction, pas le sujet. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d6fe0"/>
+      <stop offset="1" stop-color="#4cc4f2"/>
+    </linearGradient>
+    <linearGradient id="drift" x1="0.1" y1="0.1" x2="0.9" y2="0.9">
+      <stop offset="0" stop-color="#c86bff"/>
+      <stop offset="0.35" stop-color="#35e4f9"/>
+      <stop offset="0.6" stop-color="#ffe066"/>
+      <stop offset="1" stop-color="#1a94ba"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.35" cy="0.28" r="0.7">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#sky)"/>
+  <circle cx="32" cy="33" r="23" fill="url(#drift)"/>
+  <circle cx="32" cy="33" r="23" fill="url(#sheen)"/>
+  <circle cx="32" cy="33" r="23" fill="none" stroke="#eaf8ff" stroke-opacity="0.85" stroke-width="1.6"/>
+  <circle cx="32" cy="33" r="8" fill="#daecf4"/>
+  <circle cx="32" cy="33" r="3.4" fill="url(#sky)"/>
+</svg>
