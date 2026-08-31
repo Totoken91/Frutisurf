@@ -200,6 +200,7 @@ npm run check:flicker:resize  # idem, sous tempête de redimensionnement
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 npm run check:theme           # le jeu reste en plein jour en mode sombre
 npm run check:shaders         # aucun shader cassé, profil bureau ET téléphone
+npm run check:perf            # profil par soustraction + objets trop près de la caméra
 ```
 
 ## 7 bis. Déploiement web
@@ -304,6 +305,86 @@ rendu, et une sonde de fin de tick qui se reprogramme depuis sa propre exécutio
 elle qui voit le bug ; l'ancienne affiche `noires=0` sur le code fautif. Une
 vérification qui ne peut pas échouer ne prouve rien : celle-ci a été confrontée
 au code d'avant correction, où elle rapporte bien une image noire présentée.
+
+## 7 quater. Ce qui coûte, mesuré
+
+Le joueur n'arrivait plus à faire tourner le jeu. On ne devine pas ce qui est
+cher : `scripts/perf-check.mjs` **cache un maillage et regarde ce que l'image
+reprend**, scène figée pour que toutes les configurations soient mesurées au
+même endroit du parcours.
+
+Trois pièges, tous rencontrés, tous fermés dans le script :
+
+1. **Chronométrer `render()` ne mesure rien.** L'appel empile des commandes et
+   rend la main avant que le travail soit fait : on mesurait le temps de
+   préparation JS. C'est l'**intervalle entre images** qu'il faut prendre.
+2. **Le premier passage paie la compilation des shaders.** Mesuré en premier, le
+   cas de référence sortait systématiquement plus lent, et chaque maillage
+   semblait alors économiser un quart de l'image. Une chauffe est jetée.
+3. **La machine dérive** sur une session de plusieurs minutes. D'où un **témoin**
+   : on remesure la référence à la fin, et l'écart donne le **plancher de bruit**
+   du banc. Toute économie du même ordre est nulle.
+
+Le témoin a mesuré **26 % de dérive**. Le tableau se lit donc ainsi :
+
+| Poste | Mesuré | Verdict |
+|---|---|---|
+| sol | 50 % | **réel**, +24 points au-dessus du bruit |
+| brins | 41 % | **réel**, +15 points |
+| nuages, ville, pollen, plots | 27–28 % | au niveau du bruit : **nuls** |
+| eau | 3 % | sous le bruit |
+
+Sans le témoin, on aurait « optimisé » la ville — une silhouette à l'horizon.
+
+### Le nombre d'octaves se choisit sur la fréquence
+
+Le sol appelait `fbm()` **trois fois par pixel**, soit quinze octaves, et
+`cloudShade()` deux fois de plus — lues aussi par les brins et par l'eau, donc
+payées trois fois. Or un champ basse fréquence n'a que faire de ses octaves
+hautes : à l'écran elles tombent sous le pixel, elles ne produisent que du coût
+et du scintillement.
+
+`fbm2()` et `fbm3()` sont **normalisées sur la même plage** que `fbm()` — sans
+ça, changer le nombre d'octaves décalerait la couleur au lieu de seulement
+l'alléger. Bilan : 15 octaves → 7 dans le sol, 10 → 4 dans les ombres de nuages.
+
+### Le repli de qualité ne pouvait descendre qu'une fois
+
+`downgraded` était un **booléen**. Un téléphone parti en `high` tombait en
+`medium` et, s'il ramait toujours à huit images par seconde, y restait pour la
+durée de la partie : le seul palier qui l'aurait sauvé n'était jamais atteint.
+C'est maintenant un compteur, la fenêtre de mesure passe de 120 à 45 images (à
+huit images par seconde, 120 images font quinze secondes avant le moindre
+soulagement), et une fois en `low` il reste un dernier levier — **la
+résolution**, le seul qui agisse proportionnellement sur tout, puisque le coût
+est lié au fragment.
+
+## 7 quinquies. Les objets qui entrent dans l'objectif
+
+Le joueur : « ça pourrait être des objets qui viennent sur la caméra une
+fraction de seconde ». Mesure, sur une partie normale :
+
+```
+anneau    au plus près  -0.98 m   2 images AVEC LA CAMÉRA DEDANS
+colonne   au plus près  -0.01 m   4 images AVEC LA CAMÉRA DEDANS
+```
+
+Évidemment : le surfeur **traverse** les anneaux et les colonnes, donc la caméra
+les traverse une fraction de seconde plus tard. Un tore et un voile translucides
+**double face**, un cylindre de 6,4 m vu de l'intérieur — ça remplit tout le
+cadre. Et à vingt images par seconde, quatre images font **deux cents
+millisecondes** de plein écran. Ce qu'on appelle « un flash » à bas régime est
+souvent un objet trop proche vu trop longtemps.
+
+Le remède est un **fondu de proximité** (`smoothstep(0.8, 6.5, distance)`)
+appliqué aux anneaux, aux colonnes et aux gouttelettes de gerbe — qui partent
+vers l'arrière à une quinzaine de mètres par seconde et finissaient collées à
+l'objectif. Il est calculé **par sommet** : il ne coûte rien, et sur une grande
+surface il fait mieux que disparaître d'un bloc — la partie qui entre dans
+l'objectif s'efface pendant que le reste tient.
+
+Le pollen avait déjà le sien. C'est ce précédent qui aurait dû faire poser la
+question pour tout le reste.
 
 ## 8. Aucune frame noire
 

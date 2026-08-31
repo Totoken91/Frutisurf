@@ -23,7 +23,11 @@ export const WEATHER_GLSL = /* glsl */ `
 // qu'elle raconte l'echelle du paysage.
 float cloudShade(vec2 p, float t){
   vec2 q = p * 0.0052 + vec2(t * 0.0165, t * 0.0098);
-  float m = fbm(q) * 0.68 + fbm(q * 2.7 + 11.3) * 0.32;
+  // Deux octaves suffisent : le champ tourne a 0,005, et le smoothstep serre
+  // qui suit durcit le bord de toute facon — les octaves hautes n'y survivent
+  // pas. Ce chunk est lu par le sol, les brins ET l'eau : dix octaves par pixel
+  // y etaient payees trois fois.
+  float m = fbm2(q) * 0.68 + fbm2(q * 2.7 + 11.3) * 0.32;
   return smoothstep(0.44, 0.62, m);
 }
 

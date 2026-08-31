@@ -87,7 +87,7 @@ export class Spray {
         attribute vec3 iPos, iVel;
         attribute float iBirth, iSeed, iFoam;
         uniform float uTime, uLife, uGravity;
-        varying float vAge, vSeed, vFoam;
+        varying float vAge, vSeed, vFoam, vNear;
         varying vec2 vQuad;
 
         void main(){
@@ -119,13 +119,18 @@ export class Spray {
           float h = w * mix(1.8 + min(length(vel) * 0.34, 7.0), 1.5, iFoam);
 
           vQuad = position.xy * 2.0; // -1 .. 1 sur le quad
+          // La gerbe part vers l'ARRIERE — jusqu'a une quinzaine de metres par
+          // seconde en z — et la camera est a une dizaine de metres derriere.
+          // Une gouttelette additive collee a l'objectif est un flash blanc
+          // plein cadre. On l'eteint avant qu'elle n'y arrive.
+          vNear = smoothstep(0.5, 3.0, distance(cameraPosition, center));
           vec3 p = center + right * position.x * w + up * position.y * h;
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }
       `,
       fragmentShader: /* glsl */ `
         uniform vec3 uColA, uColB, uFoamA, uFoamB;
-        varying float vAge, vSeed, vFoam;
+        varying float vAge, vSeed, vFoam, vNear;
         varying vec2 vQuad;
         void main(){
           // MASQUE. Sans lui la particule est le quad lui-meme : sur de
@@ -141,7 +146,7 @@ export class Spray {
           vec3 c = mix(mix(uColA, uColB, k), mix(uFoamA, uFoamB, k), vFoam);
           // L'ecume est presque blanche : en additif elle sature tout de suite
           // et se met a bloomer en pave. On la rentre volontairement.
-          float a = (1.0 - vAge) * (1.0 - vAge) * 0.9 * mask * mix(1.0, 0.55, vFoam);
+          float a = (1.0 - vAge) * (1.0 - vAge) * 0.9 * mask * mix(1.0, 0.55, vFoam) * vNear;
           gl_FragColor = vec4(c * (0.8 + vAge * 0.6), a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

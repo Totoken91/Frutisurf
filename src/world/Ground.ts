@@ -177,8 +177,11 @@ export class Ground {
           //     Deux octaves de bruit aux MEMES frequences en x et en z : les
           //     taches sont rondes, elles defilent avec le sol au lieu de
           //     glisser dessus, et rien n'a plus de direction privilegiee.
-          float m1 = fbm(vec2(p.x * 0.062, p.y * 0.062));
-          float m2 = fbm(vec2(p.x * 0.021, p.y * 0.021));
+          // Trois octaves pour le motif fin, deux pour le motif large : au-dela
+          // le detail tombe sous le pixel. Mesure : le sol represente 39 % de
+          // l'image, et ces deux appels en etaient la plus grosse part.
+          float m1 = fbm3(vec2(p.x * 0.062, p.y * 0.062));
+          float m2 = fbm2(vec2(p.x * 0.021, p.y * 0.021));
           float streak = m1 * 0.55 + m2 * 0.45;
           streak = mix(0.5, streak, 1.32 + uSpeed * 0.45);
           streak = clamp(streak, 0.0, 1.0);
@@ -278,7 +281,9 @@ export class Ground {
           //     ou l'autre assombrissait — et le resultat etait un vert boueux
           //     pour le prix de vingt octaves de bruit par pixel.
           vec2 sweepUv = vec2(vWorld.x * 0.0042 + vWorld.z * 0.0016, vWorld.z * 0.0068);
-          float sweep = fbm(sweepUv);
+          // Frequence 0,005 : la cinquieme octave de ce champ a une periode de
+          // douze centimetres monde, invisible a cette echelle.
+          float sweep = fbm2(sweepUv);
           // Dose asymetrique : on ASSOMBRIT plus qu'on n'eclaircit. Eclaircir
           // fort delave le vert electrique qui fait l'identite du jeu, alors
           // qu'une plage d'ombre lui redonne du contraste sans rien lui oter.

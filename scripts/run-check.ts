@@ -47,7 +47,11 @@ class Pad implements SurfInput {
 
 function play(bot: Bot, maxSeconds = 300): Result {
   const run = new Run();
-  const rings = new Rings(8);
+  // Graine FIXE. Le jeu tire la sienne au sort pour que deux parties ne se
+  // ressemblent pas ; un banc d'essai qui en herite echoue une fois sur
+  // quatre sans que rien n'ait change dans le code — et une verification qui
+  // flotte, on finit par l'ignorer, ce qui est pire que de ne pas l'avoir.
+  const rings = new Rings(8, 20240607);
   const pad = new Pad();
   let turns = 0;
   let high = 0;

@@ -103,6 +103,11 @@ export class Boosters {
           vAlpha = iAlpha;
           vSeed = iSeed;
           vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          // Fondu de proximite : la camera traverse la colonne (mesure a -0,01 m,
+          // jusqu'a quatre images d'affilee) puisque le surfeur la traverse pour la
+          // ramasser. Un cylindre double face de 6,4 m de large vu de l'interieur,
+          // c'est un mur translucide sur tout l'ecran.
+          vAlpha *= smoothstep(0.8, 6.5, distance(cameraPosition, wp.xyz));
           vNormalW = normalize(mat3(instanceMatrix) * normal);
           vViewW = normalize(cameraPosition - wp.xyz);
           gl_Position = projectionMatrix * viewMatrix * wp;

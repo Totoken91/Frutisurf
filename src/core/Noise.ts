@@ -70,6 +70,25 @@ float fbm(vec2 p){
   for(int i=0;i<5;i++){ s += a*vnoise(p); p *= 2.03; a *= 0.5; }
   return s;
 }
+// Variantes ECONOMES, a choisir sur la FREQUENCE du champ et non par habitude.
+// Un champ basse frequence n'a que faire de ses octaves hautes : a l'ecran
+// elles tombent sous le pixel, elles ne produisent que du cout et du
+// scintillement. Le sol appelait fbm() trois fois par pixel, soit quinze
+// octaves, dont deux tiers invisibles.
+//
+// Chacune est normalisee sur la MEME plage que fbm() : sans ca, changer le
+// nombre d'octaves decalerait la couleur au lieu de seulement l'alleger.
+// Somme des amplitudes : 5 octaves 0,96875 / 3 octaves 0,875 / 2 octaves 0,75.
+float fbm3(vec2 p){
+  float s = 0.0, a = 0.5;
+  for(int i=0;i<3;i++){ s += a*vnoise(p); p *= 2.03; a *= 0.5; }
+  return s * (0.96875 / 0.875);
+}
+float fbm2(vec2 p){
+  float s = 0.0, a = 0.5;
+  for(int i=0;i<2;i++){ s += a*vnoise(p); p *= 2.03; a *= 0.5; }
+  return s * (0.96875 / 0.75);
+}
 vec3 hue2rgb(float h){
   return clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0);
 }

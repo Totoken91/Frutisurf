@@ -86,6 +86,22 @@ const GLASS = /* glsl */ `
     vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
     vN = normalize(mat3(instanceMatrix) * normal);
     vV = normalize(cameraPosition - wp.xyz);
+
+    // --- FONDU DE PROXIMITE.
+    //
+    // La camera traverse REELLEMENT les anneaux : mesure a -0,98 m, une a deux
+    // images d'affilee, a chaque anneau franchi — le surfeur passe dedans, la
+    // camera le suit une fraction de seconde plus tard. Un tore et un voile
+    // translucides DOUBLE FACE dans lesquels on entre remplissent tout le
+    // cadre, et a vingt images par seconde deux images font cent millisecondes
+    // de plein ecran. Ce n'est pas un effet, c'est un accident — et c'est
+    // exactement ce que le joueur decrivait par « des objets qui viennent sur
+    // la camera une fraction de seconde ».
+    //
+    // Le fondu est calcule PAR SOMMET et non par pixel : il ne coute rien, et
+    // sur une grande surface il fait mieux que disparaitre d'un bloc — la
+    // partie qui arrive dans l'objectif s'efface pendant que le reste tient.
+    vAlpha *= smoothstep(0.8, 6.5, distance(cameraPosition, wp.xyz));
     gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
@@ -100,6 +116,8 @@ export class Rings {
   private q = new Quaternion();
   private scale = new Vector3(1, 1, 1);
   private rng = new Rng(4471);
+  /** Graine imposee par un banc d'essai, sinon indefinie (semis aleatoire). */
+  private fixedSeed?: number;
   private aAlpha: InstancedBufferAttribute;
   private aFlash: InstancedBufferAttribute;
   private vAlpha: InstancedBufferAttribute;
@@ -108,7 +126,13 @@ export class Rings {
   private side = 1;
   private highStreak = 0;
 
-  constructor(count = 8) {
+  /**
+   * @param seed graine du semis. Laissee libre, elle est TIREE AU SORT pour que
+   *   deux parties ne proposent jamais le meme parcours. Les bancs d'essai la
+   *   fixent : une verification dont le resultat depend d'un tirage n'echoue
+   *   pas, elle flotte — et une vérif qui flotte, on finit par l'ignorer.
+   */
+  constructor(count = 8, fixedSeed?: number) {
     const torus = new TorusGeometry(RING_R, TUBE, 10, 46);
     const disc = new CircleGeometry(RING_R - TUBE, 44);
 
@@ -228,12 +252,13 @@ export class Rings {
     for (let i = 0; i < count; i++) {
       this.rings.push({ pos: new Vector3(0, 0, 1e6), high: false, alive: true, flash: 0, seed: seed[i] });
     }
+    this.fixedSeed = fixedSeed;
     this.reseedAll(0);
   }
 
   /** Remise a zero complete : relance de partie. */
   reseedAll(originZ: number): void {
-    this.rng = new Rng(4471 + Math.floor(Math.random() * 100000));
+    this.rng = new Rng(this.fixedSeed ?? 4471 + Math.floor(Math.random() * 100000));
     this.side = 1;
     this.highStreak = 0;
     for (const r of this.rings) r.pos.z = 1e6;

@@ -35,7 +35,17 @@ export class Engine {
   /** Repli automatique si la moyenne glissante depasse 20 ms (docs/02 §5). */
   private frameAcc = 0;
   private frameCount = 0;
-  private downgraded = false;
+  /**
+   * Nombre de replis deja consentis. C'etait un BOOLEEN : le moteur ne pouvait
+   * donc descendre qu'UNE fois. Un telephone parti en `high` tombait en
+   * `medium`, et s'il ramait toujours a huit images par seconde il y restait
+   * pour la duree de la partie — le seul palier qui l'aurait sauve n'etait
+   * jamais atteint. On autorise desormais la descente complete, avec un delai
+   * entre deux marches pour laisser la mesure se refaire sur le nouveau reglage
+   * plutot que sur l'ancien.
+   */
+  private drops = 0;
+  private dropCooldown = 0;
   onQualityDrop: ((q: Quality) => void) | null = null;
 
   // Derniere taille reellement appliquee. Sur telephone la barre d'adresse qui
@@ -126,9 +136,16 @@ export class Engine {
     this.queueForced();
   };
 
+  /**
+   * Plancher de resolution, abaisse par le repli automatique quand meme le
+   * palier `low` ne suffit pas. Rendre moins de pixels est le seul levier qui
+   * agit sur TOUT — sol, brins, eau, post-traitement — proportionnellement.
+   */
+  private ratioFloor = 1;
+
   private pixelRatio(): number {
     const cap = this.quality === 'high' ? 2 : this.quality === 'medium' ? 1.5 : 1;
-    return Math.min(devicePixelRatio || 1, cap);
+    return Math.min(devicePixelRatio || 1, cap) * this.ratioFloor;
   }
 
   /**
@@ -219,16 +236,28 @@ export class Engine {
 
   /** Appele chaque frame avec le temps d'image en ms. */
   sampleFrame(ms: number): void {
-    if (this.downgraded) return;
+    if (this.quality === 'low' && this.drops >= 2) return;
+    if (this.dropCooldown > 0) {
+      this.dropCooldown -= ms;
+      return;
+    }
     this.frameAcc += ms;
     this.frameCount++;
-    if (this.frameCount < 120) return;
+    // Fenetre plus courte que les 120 images d'origine : a huit images par
+    // seconde, 120 images font quinze secondes avant le moindre soulagement.
+    if (this.frameCount < 45) return;
     const avg = this.frameAcc / this.frameCount;
     this.frameAcc = 0;
     this.frameCount = 0;
-    if (avg > 20 && this.quality !== 'low') {
-      this.quality = this.quality === 'high' ? 'medium' : 'low';
-      this.downgraded = true;
+    if (avg > 20) {
+      // Deux leviers, dans cet ordre. Le palier de qualite change la SCENE
+      // (densite des brins, taille des cibles) ; une fois en `low`, il ne reste
+      // que la resolution, et c'est le levier le plus rentable de tous puisque
+      // le cout est lie au fragment.
+      if (this.quality !== 'low') this.quality = this.quality === 'high' ? 'medium' : 'low';
+      else this.ratioFloor = 0.75;
+      this.drops++;
+      this.dropCooldown = 1500;
       this.onQualityDrop?.(this.quality);
       // setPixelRatio change la taille du tampon de dessin : sans ce passage
       // par apply(), le composer gardait ses cibles a l'ANCIENNE resolution et
