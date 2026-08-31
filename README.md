@@ -92,6 +92,24 @@ tranche, le spray s'intensifie, le son monte d'une tierce. Relâche au bon momen
 et tout se libère d'un coup : poussée, FOV qui s'ouvre, hitstop de 45 ms,
 combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 
+## Jouer en ligne
+
+Le dépôt se déploie **tel quel** sur Vercel : `vercel.json` fixe le framework
+(Vite), la commande de build et `dist/` en sortie. Rien d'autre à configurer.
+
+L'`installCommand` porte `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` : Playwright est
+une dépendance de développement — les vérifications pilotent un vrai navigateur —
+et son script de post-installation télécharge plusieurs centaines de mégaoctets
+dont un build de production n'a aucun usage.
+
+Ajouter `?diag=1` à l'URL affiche une sonde de diagnostic. Elle lit le tampon de
+dessin après chaque rendu — un flash d'une image ne se photographie pas — et
+tranche la seule question qui compte quand l'écran clignote :
+
+- `noires > 0` : le rendu est en cause, c'est réparable dans ce code ;
+- `noires = 0` alors que ça clignote : le tampon était valide à chaque image, le
+  noir vient du compositeur, de la page hôte ou d'un changement de thème.
+
 ## Vérifier le rendu
 
 ```bash

@@ -195,6 +195,7 @@ npm run check:input    # clavier ET tactile arment puis déclenchent le saut
 npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
 npm run check:water    # on glisse assez vite, on coule trop lent, et ça coûte
 npm run check:flicker         # aucune frame noire sur une partie complète
+npm run check:flicker:resize  # idem, sous tempête de redimensionnement
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
 npm run check:theme           # le jeu reste en plein jour en mode sombre
 npm run check:shaders         # aucun shader cassé, profil bureau ET téléphone
@@ -231,6 +232,53 @@ se photographie pas — et affiche un compteur en clair :
 Elle est chargée en import dynamique et activée par l'URL uniquement :
 `readPixels` synchronise le pipeline graphique, ce qui n'a rien à faire dans une
 partie normale.
+
+## 7 ter. La course entre le redimensionnement et le rendu
+
+Le joueur signalait toujours des flashs noirs après la correction de
+`color-scheme`. La sonde d'alors n'en trouvait aucun — et c'était **structurel**,
+pas de la malchance : elle lisait le tampon *à l'intérieur* de `post.render()`,
+donc elle répondait à « le jeu a-t-il dessiné une image noire ? » alors que la
+question était « le compositeur va-t-il **afficher** une image noire ? ».
+
+Ce ne sont pas les mêmes. N'importe quel `requestAnimationFrame` inscrit après
+la boucle de jeu peut réallouer le tampon de dessin une fois le rendu terminé,
+et **un tampon réalloué est noir** : la spécification WebGL le remet à noir
+transparent, ce qu'un contexte en `alpha: false` présente en noir opaque. La
+couleur d'effacement ne sauve rien — elle ne s'applique qu'aux appels à
+`clear()`, jamais à la réallocation.
+
+Le déroulé exact :
+
+```
+frame N     la boucle se réarme (rAF), rend, PUIS un événement resize
+            arrive et programme son propre rAF pour la frame suivante
+frame N+1   la boucle s'exécute d'abord (elle était inscrite en premier)
+            et rend.  PUIS le rAF de redimensionnement appelle setSize,
+            qui réalloue le tampon.  La frame N+1 est présentée NOIRE.
+```
+
+Deux endroits déclenchaient ça, et le second est le plus vicieux :
+
+1. `queueResize` programmait son propre `requestAnimationFrame` — c'est le cas
+   ci-dessus, et il se joue à chaque rétraction de la barre d'adresse mobile ou
+   à chaque redimensionnement d'iframe par une page hôte ;
+2. `sampleFrame()` appelait `apply(true)` sur un repli de qualité. Il est appelé
+   en **fin** de boucle, donc après le rendu : même réallocation, même noir. Il
+   ne se joue qu'une fois par session, sur un appareil lent — donc typiquement
+   dans les premières secondes de jeu sur téléphone.
+
+La correction est la même pour les deux : ne plus jamais redimensionner hors de
+la boucle. `queueResize` ne lève qu'un drapeau, `flushResize()` le consomme **en
+tête** de la frame, et redimensionner-puis-rendre dans la même frame supprime la
+course.
+
+`scripts/flicker-check.mjs` porte désormais **deux** sondes : celle d'après
+rendu, et une sonde de fin de tick qui se reprogramme depuis sa propre exécution
+— elle passe donc en dernier et lit le tampon tel qu'il sera présenté. C'est
+elle qui voit le bug ; l'ancienne affiche `noires=0` sur le code fautif. Une
+vérification qui ne peut pas échouer ne prouve rien : celle-ci a été confrontée
+au code d'avant correction, où elle rapporte bien une image noire présentée.
 
 ## 8. Aucune frame noire
 

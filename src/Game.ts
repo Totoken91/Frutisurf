@@ -317,6 +317,11 @@ export class Game {
 
   private readonly frame = (now: number): void => {
     requestAnimationFrame(this.frame);
+    // EN TETE, avant tout le reste : un redimensionnement realloue le tampon de
+    // dessin, et un tampon realloue est noir tant que rien ne l'a repeint. Il
+    // doit donc toujours etre suivi d'un rendu DANS LA MEME FRAME (cf.
+    // Engine.flushResize).
+    this.engine.flushResize();
     const real = Math.min((now - this.last) / 1000, 0.1);
     this.last = now;
     this.time += real;

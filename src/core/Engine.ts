@@ -46,6 +46,8 @@ export class Engine {
   private lastH = 0;
   private lastRatio = 0;
   private resizeQueued = false;
+  /** Le redimensionnement en attente doit ignorer le garde d'egalite. */
+  private resizeForce = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.quality = detectQuality();
@@ -107,9 +109,10 @@ export class Engine {
   private readonly onRestored = (): void => {
     this.contextLost = false;
     // Tout est a reconstruire : on force le passage par apply() en invalidant
-    // la taille memorisee.
+    // la taille memorisee. Mais via la FILE, pas tout de suite : l'evenement
+    // peut tomber n'importe quand dans la frame, y compris apres le rendu.
     this.lastW = 0;
-    this.apply(true);
+    this.queueForced();
   };
 
   private pixelRatio(): number {
@@ -120,15 +123,51 @@ export class Engine {
   /**
    * Un seul redimensionnement par frame, quel que soit le nombre d'evenements.
    * Les rafales de la barre d'adresse mobile en emettent une dizaine d'affilee.
+   *
+   * On ne fait ici QUE lever un drapeau. La version precedente programmait son
+   * propre `requestAnimationFrame`, et c'etait une COURSE avec le rendu :
+   *
+   *   frame N    la boucle de jeu se rearme (rAF), rend, puis un evenement
+   *              resize arrive et programme son rAF pour la frame suivante ;
+   *   frame N+1  la boucle de jeu s'execute d'abord — elle etait inscrite en
+   *              premier — et rend. PUIS le rAF de redimensionnement appelle
+   *              setSize, qui REALLOUE le tampon de dessin.
+   *
+   * Un tampon reattribue est vide, et la specification WebGL le remet a noir
+   * transparent ; avec `alpha: false` cela se presente en noir OPAQUE. La
+   * couleur d'effacement ne le sauve pas : elle ne s'applique qu'aux appels a
+   * `clear()`, pas a la reallocation. La frame N+1 se retrouve donc presentee
+   * avec un tampon noir jamais redessine — un flash d'exactement une image,
+   * exactement au moment ou la barre d'adresse se retracte ou ou la page hote
+   * redimensionne son iframe.
+   *
+   * Le drapeau est consomme par `flushResize()`, appele EN TETE de la boucle de
+   * jeu : redimensionner puis rendre dans la meme frame supprime la course.
    */
   private readonly queueResize = (): void => {
-    if (this.resizeQueued) return;
     this.resizeQueued = true;
-    requestAnimationFrame(() => {
-      this.resizeQueued = false;
-      this.apply(false);
-    });
   };
+
+  /** Programme un redimensionnement force pour la prochaine frame. */
+  private queueForced(): void {
+    this.resizeQueued = true;
+    this.resizeForce = true;
+  }
+
+  /**
+   * Applique le redimensionnement en attente, s'il y en a un.
+   *
+   * A appeler au DEBUT de la boucle de jeu et nulle part ailleurs : c'est
+   * l'ordre redimensionnement-puis-rendu qui garantit qu'aucun tampon
+   * fraichement realloue n'est jamais presente sans avoir ete peint.
+   */
+  flushResize(): void {
+    if (!this.resizeQueued) return;
+    const force = this.resizeForce;
+    this.resizeQueued = false;
+    this.resizeForce = false;
+    this.apply(force);
+  }
 
   /** Redimensionnement effectif. `force` ignore le garde d'egalite. */
   private apply(force: boolean): void {
@@ -169,7 +208,15 @@ export class Engine {
       // setPixelRatio change la taille du tampon de dessin : sans ce passage
       // par apply(), le composer gardait ses cibles a l'ANCIENNE resolution et
       // la passe finale se retrouvait desalignee avec le canvas.
-      this.apply(true);
+      //
+      // Mais PAS ici. sampleFrame() est appele en fin de boucle, APRES le
+      // rendu : reallouer le tampon a cet instant le laisse noir jusqu'a la
+      // frame suivante, et le compositeur presente ce noir. C'est la meme
+      // course que celle du redimensionnement, et elle se joue une fois par
+      // session sur un appareil lent — donc typiquement dans les premieres
+      // secondes de jeu sur telephone. On la met en file : la prochaine frame
+      // redimensionne PUIS rend.
+      this.queueForced();
     }
   }
 
