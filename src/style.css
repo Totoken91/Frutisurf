@@ -1,3 +1,29 @@
+/*
+ * LE FLASH NOIR VENAIT D'ICI.
+ *
+ * Le jeu est un plein jour fixe : il ne doit jamais repondre au mode sombre du
+ * lecteur. Cette declaration existait, je l'ai perdue en reecrivant ce fichier,
+ * et le symptome est revenu dans la foulee.
+ *
+ * Sans `color-scheme: light`, un lecteur en mode sombre donne au document une
+ * TOILE DE FOND noire — la surface que le navigateur peint sous tout le reste.
+ * Elle ne se voit jamais tant que la page est composee normalement, mais chaque
+ * hoquet du compositeur (montee de couche, rafale de redimensionnement,
+ * defilement de la page hote, pression memoire) la laisse apparaitre le temps
+ * d'une image. C'est un noir qu'AUCUNE correction cote WebGL ne peut atteindre :
+ * la sonde lit le tampon de dessin, qui lui est parfaitement valide — d'ou deux
+ * mille images sans rien trouver.
+ *
+ * `!important` est indispensable : la visionneuse d'artefacts ecrit
+ * `documentElement.style.colorScheme` EN LIGNE quand le lecteur choisit un
+ * theme, et seule une declaration importante d'auteur passe devant un style en
+ * ligne normal.
+ */
+:root {
+  color-scheme: light !important;
+  background: #15cee8;
+}
+
 /* Base minimale : le rendu occupe tout l'ecran, l'interface flotte dessus. */
 * { box-sizing: border-box; }
 
@@ -40,6 +66,12 @@ html, body {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* Couche de composition STABLE, declaree une fois pour toutes. Sans elle, le
+     navigateur promeut et retrograde l'interface au gre des animations, et
+     chaque bascule force un nouveau rendu de la couche du canvas juste
+     dessous. `contain` borne en plus les recalculs a cette couche. */
+  transform: translateZ(0);
+  contain: layout paint;
   user-select: none;
   -webkit-user-select: none;
   font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -110,22 +142,33 @@ html, body {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.32);
 }
+/* Mise a l'echelle et non largeur : animer `width` declenche une mise en page
+   et une peinture a chaque image, en continu, juste au-dessus du canvas.
+   `transform` ne coute qu'une composition. Le degrade etant vertical, l'etirer
+   horizontalement ne le deforme pas. */
 .boost > i {
   display: block;
   height: 100%;
-  width: 0%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
   border-radius: 999px;
   background: linear-gradient(180deg, #d6ffe6 0%, #48fd76 42%, #14b34e 100%);
   box-shadow: 0 0 9px rgba(72, 253, 118, 0.8);
-  transition: width 0.09s linear;
+  /* Aucune transition CSS : la valeur est ecrite a CHAQUE image depuis le
+     code. Une transition par-dessus une valeur reecrite en continu se
+     relance sans fin et reste bloquee pres de son point de depart — la jauge
+     restait a zero malgre un `scaleX(0.5)` en ligne. */
 }
 /* A sec, la jauge vire au rouge : on comprend sans texte pourquoi ca ne boost plus. */
 .boost.empty > i {
   background: linear-gradient(180deg, #ffd9d0 0%, #ff7a5c 45%, #c2341a 100%);
   box-shadow: 0 0 9px rgba(255, 122, 92, 0.75);
 }
+/* Pulsation en OPACITE et non en `filter` : un filtre anime cree une couche de
+   composition supplementaire au-dessus du canvas et la repeint a chaque image. */
 .boost.spending > i { animation: drain 0.42s ease-in-out infinite; }
-@keyframes drain { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
+@keyframes drain { 0%, 100% { opacity: 1; } 50% { opacity: 0.66; } }
 
 /* Un gain de figure fait flasher le contour : le retour arrive AVANT que la
    barre n'ait fini de bouger, donc on relie le geste a la recompense. */
@@ -176,8 +219,8 @@ html, body {
   animation: crit 0.5s ease-in-out infinite;
 }
 @keyframes crit {
-  0%, 100% { text-shadow: 0 2px 10px rgba(4,40,96,.55); }
-  50%      { text-shadow: 0 0 18px rgba(255, 120, 90, 0.95), 0 2px 10px rgba(4,40,96,.55); }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
 /* Un gain de temps eclaire le chrono en vert : la recompense est lisible
    AVANT d'avoir lu le nouveau nombre. */
@@ -245,14 +288,11 @@ html, body {
   opacity: 0;
   text-shadow: 0 0 12px rgba(90, 220, 255, 0.9), 0 2px 4px rgba(4, 40, 96, 0.7);
 }
-.pop.go { animation: popRise 0.95s cubic-bezier(0.15, 0.75, 0.3, 1) forwards; }
+/* Les points volants sont un POOL RESIDENT anime par l'API Web Animations
+   (cf. Hud.ts) : plus aucune insertion ni suppression de noeud au-dessus du
+   canvas, et la position passe par le transform au lieu de left/top. */
 .pop.big { font-size: clamp(20px, 6.4vw, 30px); color: #fff0ff; }
 .pop.time { color: #d8ffe6; text-shadow: 0 0 14px rgba(90, 255, 150, 0.9); }
-@keyframes popRise {
-  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
-  18%  { opacity: 1; transform: translate(-50%, -55%) scale(1.12); }
-  100% { opacity: 0; transform: translate(-50%, -150%) scale(0.95); }
-}
 
 /* --- rappel de commandes, efface au premier saut */
 .hint {
@@ -355,8 +395,7 @@ html, body {
 @keyframes breathe { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .boost > i { transition: none; }
   .boost.spending > i, .boost.gain,
   .clock.crit, .mult.bump, .again, .panel { animation: none; }
-  .pop.go { animation-duration: 0.6s; }
+
 }

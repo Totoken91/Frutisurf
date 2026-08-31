@@ -22,11 +22,6 @@ function money(v: number): string {
   return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
 }
 
-interface Pop {
-  el: HTMLElement;
-  until: number;
-}
-
 export class Hud {
   private speedVal: HTMLElement;
   private boostBar: HTMLElement;
@@ -47,8 +42,17 @@ export class Hud {
   private bannerTimer = 0;
   private lastScoreShown = -1;
   private lastClock = '';
-  private pops: Pop[] = [];
-  private free: HTMLElement[] = [];
+  /**
+   * Pool RESIDENT de points volants.
+   *
+   * L'ancienne version creait puis retirait un noeud a chaque gain. Au-dessus
+   * d'un canvas WebGL plein ecran, insérer et supprimer des elements dans une
+   * couche superposee force le navigateur a recomposer l'arbre de couches — et
+   * sur telephone chaque recomposition peut coûter une image. Les noeuds sont
+   * desormais crees une fois et recycles ; seule leur animation change.
+   */
+  private popPool: HTMLElement[] = [];
+  private popNext = 0;
   private now = 0;
 
   constructor(private root: HTMLElement) {
@@ -88,6 +92,14 @@ export class Hud {
     this.popRoot = pick('pops');
     this.overEl = pick('over');
     this.hintEl = pick('hint');
+
+    for (let i = 0; i < 14; i++) {
+      const el = document.createElement('div');
+      el.className = 'pop';
+      el.style.opacity = '0';
+      this.popRoot.appendChild(el);
+      this.popPool.push(el);
+    }
   }
 
   /** Le rappel de commandes s'efface des que le joueur a saute une fois. */
@@ -101,16 +113,31 @@ export class Hud {
    * c'est ce qui relie le geste au gain sans que l'oeil quitte le jeu.
    */
   pop(text: string, x: number, y: number, kind = ''): void {
-    const el = this.free.pop() ?? document.createElement('div');
+    const el = this.popPool[this.popNext];
+    this.popNext = (this.popNext + 1) % this.popPool.length;
     el.className = `pop ${kind}`;
     el.textContent = text;
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-    this.popRoot.appendChild(el);
-    // Force le redemarrage de l'animation sur un element recycle.
-    void el.offsetWidth;
-    el.classList.add('go');
-    this.pops.push({ el, until: this.now + 1.0 });
+
+    // La POSITION passe par le transform, pas par left/top : ainsi toute
+    // l'animation reste sur le compositeur, sans une seule mise en page.
+    const at = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    const frames: Keyframe[] = [
+      { opacity: 0, transform: `${at} translate(-50%, -30%) scale(0.7)`, offset: 0 },
+      { opacity: 1, transform: `${at} translate(-50%, -55%) scale(1.12)`, offset: 0.18 },
+      { opacity: 0, transform: `${at} translate(-50%, -150%) scale(0.95)`, offset: 1 },
+    ];
+    if (typeof el.animate !== 'function') {
+      // Navigateur sans API Web Animations : le point ne s'anime pas, mais il
+      // ne doit surtout pas rester colle a l'ecran.
+      el.style.opacity = '0';
+      return;
+    }
+    for (const a of el.getAnimations?.() ?? []) a.cancel();
+    el.animate(frames, {
+      duration: 950,
+      easing: 'cubic-bezier(0.15, 0.75, 0.3, 1)',
+      fill: 'forwards',
+    });
   }
 
   /** Banniere centrale : figures et anneaux hauts. Rare, donc lisible. */
@@ -161,12 +188,6 @@ export class Hud {
       this.bannerTimer -= dt;
       if (this.bannerTimer <= 0) this.bannerEl.classList.remove('show');
     }
-    for (let i = this.pops.length - 1; i >= 0; i--) {
-      if (this.now < this.pops[i].until) continue;
-      const p = this.pops.splice(i, 1)[0];
-      p.el.remove();
-      if (this.free.length < 16) this.free.push(p.el);
-    }
 
     // Le chrono est le seul element lu en continu : il se met a jour a chaque
     // frame. Tout le reste passe par l'echantillonnage a 20 Hz plus bas.
@@ -180,6 +201,10 @@ export class Hud {
     this.clockBox.classList.toggle('crit', t < 4 && run.phase === 'running');
     this.clockBox.classList.toggle('gain', run.gainFlash > 0.02);
 
+    // La jauge est ecrite a chaque image, pas a 20 Hz : `transform` ne coute
+    // qu'une composition, et ca evite d'avoir a lisser avec une transition CSS.
+    this.boostFill.style.transform = `scaleX(${s.boost.toFixed(3)})`;
+
     this.acc += dt;
     if (this.acc < 0.05) return;
     const step = this.acc;
@@ -187,7 +212,6 @@ export class Hud {
 
     // km/h plutot que m/s : 24 m/s se lit mieux comme "86".
     this.speedVal.textContent = String(Math.round(s.speed * 3.6));
-    this.boostFill.style.width = `${s.boost * 100}%`;
     this.boostBar.classList.toggle('spending', s.boosting);
     this.boostBar.classList.toggle('empty', s.boost < 0.06);
 

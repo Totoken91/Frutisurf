@@ -184,6 +184,7 @@ npm run check:input    # clavier ET tactile arment puis déclenchent le saut
 npm run check:run      # le chrono mord, les anneaux paient, les vrilles aussi
 npm run check:flicker         # aucune frame noire sur une partie complète
 npm run check:flicker:mobile  # idem, profil téléphone, sous agression
+npm run check:theme           # le jeu reste en plein jour en mode sombre
 ```
 
 ## 8. Aucune frame noire
@@ -202,7 +203,48 @@ Quatre mécanismes peuvent noircir un canvas WebGL. Les quatre sont fermés :
 | Perte de contexte GPU | sans `preventDefault`, le navigateur ne restaure jamais le contexte | `webglcontextlost` / `webglcontextrestored` gérés ; la boucle saute le rendu tant que le contexte est perdu |
 | Changement de qualité | `setPixelRatio` redimensionne le tampon, le composer restait à l'ancienne taille | le repli de qualité repasse par `apply(true)` |
 
-### La vraie cause : la couleur d'effacement
+### La vraie cause : `color-scheme`
+
+Même la couleur d'effacement n'a pas suffi. Le flash restait — parce qu'il ne
+venait pas du canvas du tout.
+
+Le jeu est un plein jour fixe : il ne doit jamais répondre au mode sombre du
+lecteur. `:root { color-scheme: light }` disait exactement ça, et **elle a été
+perdue** en réécrivant `style.css` deux tours plus tôt. Le symptôme est revenu
+dans la foulée.
+
+Sans elle, un lecteur en mode sombre donne au document une **toile de fond
+noire** — la surface que le navigateur peint sous tout le reste. Elle ne se voit
+jamais tant que la page est composée normalement, mais chaque hoquet du
+compositeur (montée de couche, rafale de redimensionnement, défilement de la
+page hôte, pression mémoire) la laisse apparaître le temps d'une image.
+
+C'est un noir qu'**aucune correction côté WebGL ne peut atteindre** : la sonde
+lit le tampon de dessin, qui lui est parfaitement valide. D'où deux mille images
+sans rien trouver, trois tours de suite.
+
+`!important` est indispensable : la visionneuse d'artefacts écrit
+`documentElement.style.colorScheme` **en ligne** quand le lecteur choisit un
+thème, et seule une déclaration importante d'auteur passe devant un style en
+ligne normal. `npm run check:theme` le vérifie en simulant exactement ce geste.
+
+En complément, l'interface a été rendue amicale pour le compositeur, pour
+réduire la fréquence des hoquets au-dessus du canvas :
+
+| Avant | Après | Pourquoi |
+|---|---|---|
+| jauge animée en `width` | `transform: scaleX()` | `width` déclenche mise en page **et** peinture à chaque image |
+| pulsation en `filter: brightness` | pulsation en `opacity` | un filtre animé crée une couche de plus et la repeint |
+| clignotement en `text-shadow` | clignotement en `opacity` | idem |
+| points volants créés/supprimés | pool résident de 14 nœuds | insérer un nœud au-dessus d'un canvas recompose l'arbre de couches |
+| position en `left`/`top` | position dans le `transform` | tout reste sur le compositeur |
+
+Un bug visible est tombé avec : la transition CSS posée sur la jauge, combinée à
+une valeur réécrite en continu, se relançait sans fin et laissait la barre
+**bloquée à zéro** quelle que soit la réserve de boost. La valeur est maintenant
+écrite à chaque image, sans transition.
+
+### Le tour d'avant : la couleur d'effacement
 
 Ces quatre fermetures n'ont pas suffi — le joueur voyait toujours des flashs
 noirs. `npm run check:flicker:mobile` a tranché : il se fait passer pour un
