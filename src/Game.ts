@@ -16,7 +16,7 @@ import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
 import { SUN_DIR } from './world/Sky';
-import { terrainGradient, terrainHeight, waterLevel } from './world/Terrain';
+import { terrainGradient, terrainHeight, waterLevel, waterSurface } from './world/Terrain';
 import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
 import { loadWorld } from './world/Worlds';
@@ -31,8 +31,29 @@ const PAD_TIME = 1.1;
 /** Temps rendu par tour complet de vrille. */
 const TRICK_TIME = 0.9;
 /** Temps rendu par traversee d'eau reussie, par tranche de 10 m glisses. */
-const SKIM_TIME_PER_10M = 0.55;
-const SKIM_TIME_MAX = 4.5;
+/**
+ * Temps rendu par une traversee : RACINE de la longueur, pas proportionnel.
+ *
+ * Le taux lineaire de 0,55 s par 10 m etait cale sur les lacs de la plaine,
+ * larges de 46 m. Applique aux 235 m de l'ocean il rendait douze secondes pour
+ * sept secondes de traversee — le monde marin devenait immortel, et le banc
+ * mesurait un pilote qui ne mourait plus jamais.
+ *
+ * La racine dit la bonne chose : une traversee deux fois plus longue n'est pas
+ * deux fois plus difficile, elle est juste plus longue. Le debut d'une glisse
+ * est la partie qui demande quelque chose — entrer assez vite — le reste se
+ * tient tout seul.
+ *
+ *    46 m  -> 3,3 s   (le lac de plaine, une belle affaire)
+ *   235 m  -> 5,0 s   (l'ocean, plafonne : legerement deficitaire, et c'est
+ *                      la houle qui comble la difference)
+ */
+function skimTime(meters: number): number {
+  return Math.min(SKIM_TIME_MAX, Math.sqrt(Math.max(meters, 0) / 10) * 1.55);
+}
+const SKIM_TIME_MAX = 5.0;
+/** Temps rendu par vague franchie. Petit, mais il y en a beaucoup. */
+const WAVE_TIME = 0.26;
 
 /** Ramene un angle dans (-PI, PI]. */
 function wrapAngle(a: number): number {
@@ -165,6 +186,20 @@ export class Game {
           this.buzz(16);
         }
       },
+      onWave: (force) => {
+        // Retour DISCRET et repete : ca arrive toutes les deux secondes sur
+        // l'ocean. Une banniere ou une gerbe a chaque vague saturerait l'ecran
+        // en dix secondes — c'est le meme raisonnement que pour la banniere
+        // d'entree dans l'eau, qu'on a supprimee pour la meme raison.
+        this.run.addTime(WAVE_TIME);
+        this.rig.punch(0.05 + force * 0.06, 2 + force * 3);
+        this.spray.burst(this.contactPoint(), Math.round(14 + force * 26), 0.7 + force * 0.5, this.time);
+        this.audio.lip();
+        if (this.controller.waves % 5 === 0) {
+          this.timeGain(WAVE_TIME * 5);
+          this.buzz(10);
+        }
+      },
       onSink: () => {
         // Couler ne doit pas se lire comme un accident graphique : gros
         // ralenti visuel, camera qui plonge, son grave. On PERD, ca se voit.
@@ -176,8 +211,21 @@ export class Game {
         this.hud.banner('COULÉ', '', 'sunk');
         this.buzz(45);
       },
+      onFlight: (seconds, points) => {
+        // Meme courbe que la traversee, meme raison : c'est le DEBUT qui
+        // demande quelque chose, la suite se tient toute seule.
+        const gain = Math.min(4.0, Math.sqrt(seconds) * 1.9);
+        this.run.addTime(gain);
+        this.timeGain(gain);
+        this.hud.banner(`VOL ${seconds.toFixed(1)}s`, `+${points}`, 'trick');
+        this.popAt(this.contactPoint(), `+${points}`, 'big');
+        this.audio.trick(1);
+        this.rig.punch(0.16, 8);
+        this.state.popFlash = Math.max(this.state.popFlash, 0.7);
+        this.buzz(18);
+      },
       onSkim: (meters, points) => {
-        const gain = Math.min(SKIM_TIME_MAX, (meters / 10) * SKIM_TIME_PER_10M);
+        const gain = skimTime(meters);
         this.run.addTime(gain);
         this.timeGain(gain);
         this.hud.banner(`GLISSE ${Math.round(meters)}m`, `+${points}`, 'wet');
@@ -526,7 +574,9 @@ export class Game {
       c.airborne,
       // La trace se pose sur la SURFACE : sur l'eau elle doit flotter, pas
       // suivre le fond du lac.
-      (x, z) => Math.max(terrainHeight(x, z), waterLevel()),
+      // La trace flotte sur la SURFACE, houle comprise : posee au niveau moyen
+      // elle traverserait les vagues une fois sur deux.
+      (x, z) => Math.max(terrainHeight(x, z), waterSurface(x, z, this.controller.clock)),
     );
     this.shock.update(this.time);
 

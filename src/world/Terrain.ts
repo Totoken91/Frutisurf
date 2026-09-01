@@ -87,6 +87,22 @@ export const AMP: number[] = [6.0, 3.6, 2.3, 1.05, 0.16];
 /** Idem pour la greve : [base, part variable], partage avec les shaders. */
 export const SHORE: number[] = [1.55, 3.2];
 
+/**
+ * LA HOULE : [amplitude en metres, longueur d'onde, vitesse].
+ *
+ * Amplitude nulle = surface plate, et c'est le cas de tous les mondes sauf
+ * l'ocean. Ce n'est pas un effet visuel : le Controller lit exactement la meme
+ * fonction, donc la houle porte une PENTE et une COURBURE, et tout ce que le
+ * jeu sait deja faire du relief — detecter une crete, la timer, decoller
+ * dessus — fonctionne sur l'eau sans une ligne de plus.
+ *
+ * C'est la seule facon honnete de rendre un ocean jouable. Une etendue plate de
+ * trois cents metres est un couloir ou l'on tient la direction ; la meme
+ * etendue avec de la houle est une suite de vagues qu'on lit, qu'on anticipe et
+ * dont on saute.
+ */
+export const SWELL: number[] = [0, 60, 1];
+
 /** Niveau de l'eau. Scalaire, donc pousse explicitement (cf. pushTerrain). */
 let water = -5.5;
 
@@ -112,11 +128,64 @@ export function waterLevel(): number {
  * Installe un relief. Appele par le fondu de monde, a chaque image pendant la
  * transition — c'est donc volontairement une ecriture en place et rien d'autre.
  */
-export function setTerrain(amp: readonly number[], w: number, shoreBase: number, shoreVary: number): void {
+export function setTerrain(
+  amp: readonly number[],
+  w: number,
+  shoreBase: number,
+  shoreVary: number,
+  swell: readonly number[] = [0, 60, 1],
+): void {
   for (let i = 0; i < AMP.length; i++) AMP[i] = amp[i] ?? 0;
   water = w;
   SHORE[0] = shoreBase;
   SHORE[1] = shoreVary;
+  SWELL[0] = swell[0] ?? 0;
+  SWELL[1] = swell[1] ?? 60;
+  SWELL[2] = swell[2] ?? 1;
+}
+
+/**
+ * Hauteur de la houle au-dessus du niveau moyen, en metres.
+ *
+ * Deux trains croises, jamais un seul : une houle a une direction unique
+ * defile en bloc et se lit comme une texture qu'on translate, exactement comme
+ * les rides de surface avant qu'on ne leur donne deux couches. Le second train
+ * est plus court, plus rapide, oblique, et d'amplitude 42 % — assez pour casser
+ * la regularite, pas assez pour effacer la vague principale.
+ *
+ * Le facteur 1/1.42 renormalise la somme : sans lui, l'amplitude demandee et
+ * l'amplitude obtenue different de 42 %, et tout reglage fait a l'oeil sur la
+ * premiere se retrouve faux sur la seconde.
+ */
+export function swellAt(x: number, z: number, t: number): number {
+  const a = SWELL[0];
+  if (a <= 0) return 0;
+  const k = (Math.PI * 2) / SWELL[1];
+  const w = SWELL[2];
+  return (
+    (a / 1.42) *
+    (Math.sin(k * (z + x * 0.35) - w * t) +
+      0.42 * Math.sin(k * 1.63 * (z * 0.85 - x * 0.55) - w * 1.31 * t + 1.7))
+  );
+}
+
+/**
+ * Attenuation de la houle en eau peu profonde.
+ *
+ * Physique et indispensable : une vague de 1,2 m qui garderait son amplitude
+ * jusqu'a la rive ferait monter la surface AU-DESSUS du sable. Les vagues
+ * reelles s'aplatissent en arrivant sur le haut-fond ; ici la meme courbe
+ * resout le probleme graphique et raconte la bonne chose.
+ */
+export function swellShoal(depth: number): number {
+  const t = Math.min(Math.max((depth - 0.4) / 3.6, 0), 1);
+  return t * t * (3 - 2 * t);
+}
+
+/** Surface de l'eau au point : niveau moyen plus houle attenuee. */
+export function waterSurface(x: number, z: number, t: number): number {
+  if (SWELL[0] <= 0) return water;
+  return water + swellAt(x, z, t) * swellShoal(water - terrainHeight(x, z));
 }
 
 /** Amplitude cumulee courante : sert a caler la camera et les garde-fous. */
@@ -279,8 +348,39 @@ export function terrainUniforms(): Record<string, { value: unknown }> {
   return {
     uAmp: { value: AMP },
     uShore: { value: SHORE },
+    uSwell: { value: SWELL },
     WATER_LEVEL: { value: water },
   };
+}
+
+/**
+ * La houle en GLSL. Le JUMEAU EXACT de `swellAt` et `swellShoal` ci-dessus.
+ *
+ * C'est le point critique de toute la mecanique : le surfeur plane a la hauteur
+ * que calcule le CPU, la vague est dessinee a la hauteur que calcule le GPU.
+ * Un ecart de quelques centimetres et le disque flotte au-dessus de l'eau ou
+ * s'y enfonce — et un ecart de signe le ferait surfer dans les creux. Les deux
+ * versions vivent donc cote a cote, dans le meme fichier, et se relisent d'un
+ * coup d'oeil.
+ */
+export function swellGLSL(): string {
+  return /* glsl */ `
+#ifndef FS_SWELL
+#define FS_SWELL
+uniform vec3 uSwell;
+float swellAt(vec2 p, float t){
+  if (uSwell.x <= 0.0) return 0.0;
+  float k = 6.28318530718 / uSwell.y;
+  float w = uSwell.z;
+  return (uSwell.x / 1.42)
+    * (sin(k * (p.y + p.x * 0.35) - w * t)
+     + 0.42 * sin(k * 1.63 * (p.y * 0.85 - p.x * 0.55) - w * 1.31 * t + 1.7));
+}
+float swellShoal(float depth){
+  return smoothstep(0.4, 4.0, depth);
+}
+#endif
+`;
 }
 
 /** Pousse le scalaire du niveau d'eau. Ignore les materiaux qui n'en ont pas. */

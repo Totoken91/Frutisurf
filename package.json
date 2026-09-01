@@ -6,11 +6,11 @@
   "description": "Un bonhomme MSN en verre qui surfe sur un CD a travers des plaines Frutiger Aero",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run check:backticks && tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "shot": "node scripts/shot.mjs",
     "check": "esbuild scripts/carve-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/carve.mjs --log-level=error && node node_modules/.cache/carve.mjs",
-    "build:single": "vite build --config vite.single.config.ts && node scripts/build-artifact.mjs dist-single/artifact.html",
+    "build:single": "npm run check:backticks && vite build --config vite.single.config.ts && node scripts/build-artifact.mjs dist-single/artifact.html",
     "check:air": "esbuild scripts/air-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/air.mjs --log-level=error && node node_modules/.cache/air.mjs",
     "check:input": "node scripts/input-check.mjs",
     "check:run": "esbuild scripts/run-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/run.mjs --log-level=error && node node_modules/.cache/run.mjs",

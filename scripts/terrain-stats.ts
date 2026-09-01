@@ -20,17 +20,17 @@ interface Probe {
 }
 
 const PROBES: Probe[] = [
-  { name: 'plaine (actuel)', amp: [6.0, 3.6, 2.3, 1.05, 0.16], water: -5.5 },
+  { name: 'plaine', amp: [6.0, 3.6, 2.3, 1.05, 0.16], water: -5.5 },
 ];
-// Balayage : on cherche l'archipel, pas l'ocean.
-for (const a0 of [2.0, 3.0, 4.0]) {
-  for (const a2 of [3.0, 4.0]) {
-    for (const w of [-1.0, 0.0, 1.0]) {
-      PROBES.push({ name: `oki a0=${a0} a2=${a2} w=${w}`, amp: [a0, 2.4, a2, 1.7, 0.2], water: w });
-    }
+// Les iles doivent rester JOUABLES : de l eau libre, mais du relief des qu on
+// pose le disque. On remonte donc les couches moyennes, qui n existent que la
+// ou la terre emerge.
+for (const a2 of [1.0, 2.0, 3.0]) {
+  for (const a3 of [0.45, 0.9, 1.4]) {
+    PROBES.push({ name: `ile a2=${a2} a3=${a3}`, amp: [11, 2.5, a2, a3, 0.12], water: 4.0 });
   }
 }
-PROBES.push({ name: 'bliss', amp: [7.5, 4.2, 1.5, 0.5, 0.06], water: -60 });
+
 
 const grad = { dx: 0, dz: 0 };
 

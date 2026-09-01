@@ -72,9 +72,9 @@ function geometry(): { widest: number; land: number; wet: number } {
 }
 
 /** Le pilote de `check:run`, reduit a l'essentiel : il vise l'anneau suivant. */
-function play(worldIdx: number, maxSeconds = 300) {
+function play(worldIdx: number, maxSeconds = 600) {
   const def = WORLDS[worldIdx];
-  setTerrain(def.amp, def.water, def.shore[0], def.shore[1]);
+  setTerrain(def.amp, def.water, def.shore[0], def.shore[1], def.swell);
 
   const run = new Run();
   const rings = new Rings(8, 20240607);
@@ -82,11 +82,22 @@ function play(worldIdx: number, maxSeconds = 300) {
   let sinks = 0;
   let skims = 0;
   let skimMeters = 0;
+  let waves = 0;
+  let flights = 0;
   const c = new Controller({
     onSink: () => sinks++,
-    onSkim: (m) => {
+    onSkim: (m, _p) => {
       skims++;
       skimMeters += m;
+      run.addTime(Math.min(5.0, Math.sqrt(Math.max(m, 0) / 10) * 1.55));
+    },
+    onWave: () => {
+      waves++;
+      run.addTime(0.26);
+    },
+    onFlight: (sec) => {
+      flights++;
+      run.addTime(Math.min(4.0, Math.sqrt(sec) * 1.9));
     },
     onTrick: (t) => run.addTime(0.9 * t),
   });
@@ -132,6 +143,8 @@ function play(worldIdx: number, maxSeconds = 300) {
     rings: run.rings,
     sinks,
     skims,
+    waves,
+    flights,
     skimMeters,
     stalled: (stalled / t) * 100,
   };
@@ -143,30 +156,52 @@ const fail = (m: string): void => {
   console.log(`  ECHEC  ${m}`);
 };
 
-console.log('monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  enlise');
+console.log('monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  vagues   vols  enlise');
 const ref: number[] = [];
 for (let i = 0; i < WORLDS.length; i++) {
   const def = WORLDS[i];
-  setTerrain(def.amp, def.water, def.shore[0], def.shore[1]);
+  setTerrain(def.amp, def.water, def.shore[0], def.shore[1], def.swell);
   const g = geometry();
   const r = play(i);
   ref.push(r.seconds);
+  const seuil = 19 / def.mods.plane;
   console.log(
     `${def.id.padEnd(12)} ${g.wet.toFixed(0).padStart(3)}%  ${g.widest.toFixed(0).padStart(8)} m` +
       ` ${(g.land === Infinity ? '  --' : g.land.toFixed(0)).padStart(9)} m` +
       ` ${r.seconds.toFixed(0).padStart(7)} s ${Math.round(r.score).toString().padStart(8)}` +
       ` ${r.rings.toString().padStart(8)} ${r.sinks.toString().padStart(7)}` +
-      ` ${r.skims.toString().padStart(8)} ${r.stalled.toFixed(0).padStart(6)}%`,
+      ` ${r.skims.toString().padStart(8)} ${r.waves.toString().padStart(7)} ${r.flights.toString().padStart(6)} ${r.stalled.toFixed(0).padStart(6)}%` +
+      `  sortie ${seuil.toFixed(1).padStart(4)} m/s${seuil < 9 ? ' (insubmersible)' : ''}`,
   );
 
-  // 1. Une nappe doit se traverser d'un trait. A 34 m/s en glisse, 250 m font
-  //    sept secondes : au-dela, couler au milieu coute la partie.
-  if (g.widest > 250) fail(`${def.id} : nappe de ${g.widest.toFixed(0)} m, infranchissable si l'on coule`);
-  // 2. Il faut de quoi se relancer entre deux nappes. De 5 a 25 m/s il faut
-  //    une bonne seconde, soit une trentaine de metres.
-  if (g.land < 30) fail(`${def.id} : ${g.land.toFixed(0)} m de terre entre deux nappes, trop court pour relancer`);
-  // 3. Le pilote doit tenir. La moitie de la plaine est la limite basse.
-  if (r.seconds < ref[0] * 0.5) fail(`${def.id} : ${r.seconds.toFixed(0)} s contre ${ref[0].toFixed(0)} s sur la plaine`);
+  // 1. Une nappe doit se traverser d'un trait — SAUF si le monde a rendu la
+  //    noyade impossible.
+  //
+  //    Le seuil de sortie de glisse vaut PLANE_KEEP / plane. Quand il tombe
+  //    sous le plancher de vitesse au sol (9 m/s), une fois dejauge on ne peut
+  //    plus retomber, quelle que soit la distance : la largeur de la nappe
+  //    cesse alors d'etre un danger. C'est le contrat de l'ocean, et le
+  //    verifier ici plutot que de l'ecrire dans un commentaire evite qu'on
+  //    remonte un jour `plane` sans s'apercevoir qu'on vient de rendre le
+  //    monde mortel.
+  const insubmersible = 19 / def.mods.plane < 9;
+  if (!insubmersible && g.widest > 250) {
+    fail(`${def.id} : nappe de ${g.widest.toFixed(0)} m, infranchissable si l'on coule`);
+  }
+  // 2. Il faut de quoi se relancer entre deux nappes — meme reserve.
+  if (!insubmersible && g.land < 30) {
+    fail(`${def.id} : ${g.land.toFixed(0)} m de terre entre deux nappes, trop court pour relancer`);
+  }
+  // 3. Le pilote doit tenir, et le seuil est ABSOLU.
+  //
+  //    Il etait relatif a la plaine, ce qui etait une erreur : le jour ou le
+  //    banc s'est mis a crediter honnetement le temps des traversees, la plaine
+  //    est passee de 217 s a plus de dix minutes, et la moitie de ce chiffre a
+  //    condamne un monde qui tenait pourtant trois minutes. La question posee
+  //    n'est pas « ce monde vaut-il la plaine », c'est « peut-on y jouer » —
+  //    et 120 s, soit quatre parties completes, y repond sans dependre d'un
+  //    autre monde.
+  if (r.seconds < 120) fail(`${def.id} : ${r.seconds.toFixed(0)} s seulement, on ne peut pas y jouer`);
   // 4. Et il ne doit pas passer sa partie a ramer.
   if (r.stalled > 35) fail(`${def.id} : ${r.stalled.toFixed(0)} % du temps sous ${RELAUNCH} m/s`);
 }

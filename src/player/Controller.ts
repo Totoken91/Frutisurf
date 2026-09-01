@@ -1,6 +1,6 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
 import { NEUTRAL, type Loadout } from '../core/Loadout';
-import { terrainHeight, waterLevel } from '../world/Terrain';
+import { swellAt, swellShoal, terrainHeight, waterLevel } from '../world/Terrain';
 import type { GameState } from '../core/GameState';
 
 /**
@@ -45,12 +45,43 @@ export interface SurfEvents {
   onSink?: () => void;
   /** Traversee reussie. @param meters longueur glissee sur la surface. */
   onSkim?: (meters: number, points: number) => void;
+  /**
+   * Une vague FRANCHIE, sur l'ocean. @param force 0..1 selon la vitesse.
+   *
+   * C'est l'economie propre au monde marin. Sur la plaine, le revenu vient des
+   * anneaux qu'on va chercher lateralement ; sur l'ocean on ne peut pas, le
+   * disque derive et l'autorite laterale tombe a un quart. Mesure : trente
+   * anneaux ramasses contre cent onze, et une partie qui meurt en 93 s au lieu
+   * de 217.
+   *
+   * L'ocean paie donc ce qu'il donne a faire : la HOULE. Chaque crete franchie
+   * rapporte un peu de temps, un peu de boost et un point de combo. On ne
+   * traverse plus l'eau en attendant l'autre rive, on travaille les vagues.
+   */
+  onWave?: (force: number) => void;
   /** Anneau franchi. @param high anneau haut, celui qui demande un saut. */
   onRing?: (high: boolean, combo: number, points: number) => void;
   /** Anneau manque : sert au retour sonore, aucune penalite. */
   onRingMiss?: () => void;
   /** Vrille validee a l'atterrissage. */
   onTrick?: (turns: number, points: number) => void;
+  /**
+   * Vol LONG acheve. @param seconds duree du vol.
+   *
+   * Le pendant aerien de la traversee d'eau, et il manquait.
+   *
+   * Mesure au banc : sur la plaine, les traversees rapportent a elles seules
+   * quatre cents secondes sur une partie — c'est de tres loin la premiere
+   * source de temps du jeu. Un monde sans eau n'a donc aucun revenu recurrent :
+   * Bliss tenait 172 s la ou la plaine tenait 600, non parce qu'il etait plus
+   * dur mais parce qu'il etait PAUVRE.
+   *
+   * Un monde de collines a pourtant sa ressource propre, et c'est l'air. Un vol
+   * long y demande la meme chose qu'une traversee reussie sur l'eau : arriver
+   * assez vite et lire le relief. Il paie donc de la meme facon, avec la meme
+   * courbe en racine — un vol deux fois plus long n'est pas deux fois plus dur.
+   */
+  onFlight?: (seconds: number, points: number) => void;
 }
 
 /**
@@ -171,6 +202,16 @@ export class Controller {
   sunk = false;
   /** Profondeur d'eau sous lui, en metres. */
   depth = 0;
+  /**
+   * Horloge propre a la physique.
+   *
+   * La houle est une fonction du temps, et la hauteur de la surface DOIT etre
+   * calculee au meme instant des deux cotes. Lire l'horloge du rendu depuis ici
+   * les desynchroniserait a chaque hoquet d'affichage — le pas de simulation
+   * est fixe, celui du rendu ne l'est pas. Le Controller tient donc la sienne,
+   * qui n'avance que par pas de simulation.
+   */
+  clock = 0;
   private skimMeters = 0;
 
   // --- Vol
@@ -203,6 +244,11 @@ export class Controller {
    * moment ou l'on prend le plot, et c'est cet instant-la qui doit payer.
    */
   private burst = 0;
+
+  /** Vagues franchies depuis le debut de la partie. */
+  waves = 0;
+  /** Pente de la houle au pas precedent : sert a detecter le passage de crete. */
+  private prevSwellSlope = 0;
 
   /** Vrille accumulee en vol, en radians signes. */
   spin = 0;
@@ -345,15 +391,76 @@ export class Controller {
     }
     if (!over) this.skimMeters = 0;
     this.onWater = over;
+    if (!over || this.sunk) this.prevSwellSlope = 0;
 
     if (this.planing || this.sunk) {
-      // Une surface d'eau est PLATE : ni pente, ni courbure, donc ni frein de
-      // montee ni decollage naturel. C'est aussi ce qui rend la traversee si
-      // douce — on cesse d'un coup de sentir le relief.
-      this.groundY = this.planing ? waterLevel() : waterLevel() - SINK_DEPTH;
-      this.slopeTravel = 0;
-      this.curvature = 0;
-      this.lipFactor = 0;
+      if (this.sunk) {
+        // Coule : on est SOUS la surface, la houle ne porte plus.
+        this.groundY = waterLevel() - SINK_DEPTH;
+        this.slopeTravel = 0;
+        this.curvature = 0;
+        this.lipFactor = 0;
+        return;
+      }
+
+      // --- ON SURFE LA HOULE.
+      //
+      // Une etendue plate n'a ni pente ni courbure : elle est douce, et elle
+      // est vide. Sur un ocean ou l'on passe les deux tiers du temps, cette
+      // douceur devient un couloir de trois cents metres ou la seule action est
+      // de tenir la direction.
+      //
+      // La surface est donc echantillonnee EXACTEMENT comme le sol — trois
+      // points a plus ou moins LIP_SPAN — et toute la machinerie de crete
+      // fonctionne telle quelle : la vague a une pente qui freine ou qui
+      // relance, une courbure qui peut decoller le disque, et un sommet que le
+      // signal sonore annonce. On ne traverse plus l'eau, on la surfe.
+      const surf = (dz: number): number => {
+        const zz = this.z + dz;
+        const d = waterLevel() - terrainHeight(this.x, zz);
+        return waterLevel() + swellAt(this.x, zz, this.clock) * swellShoal(d);
+      };
+      const s0 = surf(0);
+      const sf = surf(-LIP_SPAN);
+      const sb = surf(LIP_SPAN);
+      this.groundY = s0;
+      this.slopeTravel = (sf - sb) / (2 * LIP_SPAN);
+      this.curvature = (sf - 2 * s0 + sb) / (LIP_SPAN * LIP_SPAN);
+
+      const convexW = clamp(-this.curvature / 0.012, 0, 1);
+      const flatW = 1 - smoothstep(0.06, 0.22, Math.abs(this.slopeTravel));
+      const beforeW = this.lipFactor;
+      this.lipFactor = convexW * flatW;
+      if (!this.airborne && beforeW < LIP_CUE && this.lipFactor >= LIP_CUE) {
+        this.events.onLipEnter?.();
+      }
+
+      // --- LA CRETE FRANCHIE.
+      //
+      // On la compte au changement de SIGNE de la pente : tant qu'elle monte on
+      // grimpe la vague, quand elle bascule on vient de passer le sommet. Un
+      // seuil sur la hauteur aurait dependu de l'amplitude du monde ; le signe
+      // de la pente, non.
+      //
+      // La marge de 0,012 est une hysteresis : sans elle, le bruit numerique
+      // autour de zero comptait plusieurs vagues par crete.
+      if (!this.airborne && this.prevSwellSlope > 0.012 && this.slopeTravel <= 0.012) {
+        this.waves += 1;
+        const force = this.speedNorm;
+        // SURTOUT PAS DE COMBO ICI.
+        //
+        // Une vague passe toutes les deux secondes et le combo expire en 2,2 s :
+        // le nourrir aurait fait un compteur qui ne redescend JAMAIS sur
+        // l'ocean. Mesure du premier jet : dix millions de points sur Chrome
+        // contre trois sur la plaine, uniquement par l'emballement du
+        // multiplicateur. Le combo recompense des gestes rares et adroits ; une
+        // houle qu'on subit n'en est pas un.
+        this.bonus.add(1.2 + force * 2.0);
+        this.reward(0.035 + force * 0.05);
+        this.score += (28 + force * 55) * this.mult;
+        this.events.onWave?.(force);
+      }
+      this.prevSwellSlope = this.slopeTravel;
       return;
     }
 
@@ -381,6 +488,7 @@ export class Controller {
   }
 
   step(dt: number, input: SurfInput, boostAllowed = true): void {
+    this.clock += dt;
     this.probeTerrain();
 
     // --- Direction
@@ -636,6 +744,15 @@ export class Controller {
   private land(speed: number): void {
     const impact = clamp(-this.vy / 14, 0, 1.6);
 
+    // --- LE VOL LONG. Seuil a 0,9 s : en dessous c'est un saut, pas un vol.
+    if (this.airTime > 0.9) {
+      const points = Math.round(Math.sqrt(this.airTime) * 210 * this.mult);
+      this.score += points;
+      this.reward(0.06 + Math.min(0.18, this.airTime * 0.05));
+      this.bonus.add(3 + Math.min(7, this.airTime * 2.2));
+      this.events.onFlight?.(this.airTime, points);
+    }
+
     // --- Figures. On ne compte que les tours COMPLETS : une vrille a moitie
     // faite ne rapporte rien, mais elle ne coute rien non plus. Punir un
     // atterrissage de travers rendrait la vrille effrayante alors qu'on veut
@@ -766,5 +883,7 @@ export class Controller {
     this.wasCarving = false;
     this.peakY = this.y;
     this.lipFactor = 0;
+    this.waves = 0;
+    this.prevSwellSlope = 0;
   }
 }

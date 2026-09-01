@@ -67,6 +67,14 @@ export interface WorldDef {
   water: number;
   /** Greve : [base, part variable], en hauteur au-dessus de l'eau. */
   shore: readonly [number, number];
+  /**
+   * Houle : [amplitude, longueur d'onde, vitesse]. Amplitude nulle = plat.
+   *
+   * Ce n'est pas de la decoration. Le Controller lit la meme fonction, donc la
+   * houle porte une pente et une courbure, et un ocean se SURFE au lieu de se
+   * traverser. C'est ce qui separe une etendue d'eau d'un couloir.
+   */
+  swell: readonly [number, number, number];
   /** Surcharges de palette. Les cles absentes gardent la couleur canonique. */
   colors: Partial<Record<WorldColorKey, number>>;
   /** Densites de decor, 0..1. Zero = absent. */
@@ -191,6 +199,9 @@ export const WORLDS: WorldDef[] = [
     amp: [6.0, 3.6, 2.3, 1.05, 0.16],
     water: -5.5,
     shore: [1.55, 3.2],
+    // Un lac de plaine n'a pas de houle : il fait 46 m de large, aucune vague
+    // n'a la place de se former dessus.
+    swell: [0, 60, 1],
     colors: {},
     mods: NO_MODS,
     city: 1,
@@ -206,24 +217,40 @@ export const WORLDS: WorldDef[] = [
     id: 'okinawa',
     name: 'OKINAWA',
     blurb: 'lagon turquoise, îles à palmiers',
-    // Mesure : 50 % d'eau, nappes de 42 m en moyenne et 120 m au pire, terre
-    // tous les 42 m. La grande couche de fond est ecrasee (6.0 -> 2.0) et la
-    // couche de 84 m relevee (2.3 -> 4.0) : c'est ce rapport qui fait un
-    // ARCHIPEL au lieu d'un ocean. Une houle de fond forte donnerait deux
-    // continents separes par un bras de mer infranchissable.
-    amp: [2.0, 2.4, 4.0, 1.7, 0.20],
-    water: 0.0,
+    // UN OCEAN, PAS UN MARECAGE.
+    //
+    // Le premier jet visait l'archipel : couche de fond ecrasee, couches
+    // moyennes relevees, 50 % d'eau. Mesure a posteriori : des nappes de 42 m
+    // en moyenne, separees par 42 m de terre. Sur le papier c'est un archipel ;
+    // a l'ecran c'est un MARECAGE — des flaques partout, aucune etendue, aucun
+    // horizon marin. Le joueur l'a vu tout de suite et il avait raison.
+    //
+    // L'inverse, donc : la houle de fond domine largement (11 m sur 480 m de
+    // long) et les couches courtes ne servent plus qu'a donner du relief LA OU
+    // la terre emerge. Mesure : 62 % d'eau, des traversees de 235 m en moyenne
+    // — sept secondes d'ocean a pleine vitesse — et des iles de 144 m qui ont
+    // de quoi carver et sauter.
+    amp: [11.0, 2.5, 2.0, 0.9, 0.12],
+    water: 4.0,
     // Greve large : sur un atoll, la plage EST l'ile. La resserrer donnerait
     // des rochers verts au milieu de l'eau.
     // Greve large — sur un atoll la plage EST l'ile — mais pas au point de
     // manger le premier plan : a [2.6, 5.0] le sable occupait la moitie de
     // l'ecran et le lagon devenait un liseré au fond.
     shore: [2.0, 3.8],
+    // 1,25 m d'amplitude sur 62 m de long. La longueur d'onde est ce qui compte :
+    // a 62 m une vague se VOIT arriver depuis la crete precedente, donc elle se
+    // lit et s'anticipe. A 20 m elle serait un tremblement, a 200 m une pente.
+    swell: [1.25, 62, 1.15],
     colors: {
       // Le lagon : turquoise franc en eau basse, bleu profond mais toujours
       // cyan au large. Jamais d'ardoise — c'est ce qui separe un lagon d'un lac.
-      waterShallow: 0x8bf5e4,
-      waterDeep: 0x0f9fd0,
+      // Un lagon des Ryukyu ne vire pas au bleu marine quand il devient
+      // profond : le fond est corallien et clair, il renvoie de la lumiere
+      // jusqu'au large. Le « profond » d'Okinawa est donc encore franchement
+      // turquoise, la ou celui de la plaine plonge vers le bleu.
+      waterShallow: 0x9dfae8,
+      waterDeep: 0x11b6d6,
       waterFoam: 0xffffff,
       // Le sable des Ryukyu est un sable CORALLIEN : presque blanc, tres
       // legerement rose. Il monte donc nettement plus haut que celui de la
@@ -245,7 +272,19 @@ export const WORLDS: WorldDef[] = [
     // On DEJAUGE a 16 m/s au lieu de 25 : le lagon est peu profond, on y skie
     // des le depart. Sans ca le monde n'existe pas (cf. Loadout.Mods). Le prix
     // est la derive : sur l'eau le disque ne mord pas.
-    mods: { cruise: 1, grip: 0.92, lift: 1, plane: 1.55, boost: 1 },
+    // ON NE COULE PLUS, ET C'EST VOLONTAIRE.
+    //
+    // Avec `plane` a 2.3 le seuil de sortie de glisse tombe a 8,3 m/s, sous le
+    // plancher de vitesse au sol qui est de 9 : une fois dejauge, on ne peut
+    // plus retomber. Sur un ocean ou l'on passe les deux tiers du temps, c'est
+    // la seule valeur defendable — couler au milieu de deux cents metres d'eau
+    // coutait la partie sans qu'on ait rien fait de mal.
+    //
+    // Le risque ne disparait pas, il DEMENAGE : il est dans la houle qu'il faut
+    // lire, dans les iles qu'il faut viser, et dans le chrono. Et le prix se
+    // paie a chaque virage — sur l'eau le disque derive deja de 38 %, et le
+    // monde en retire encore un peu.
+    mods: { cruise: 1, grip: 0.88, lift: 1, plane: 2.3, boost: 1 },
     city: 0,
     turbines: 0.35,
     palms: 1,
@@ -262,9 +301,15 @@ export const WORLDS: WorldDef[] = [
     // Zero eau, et c'est la moitie du propos : le seul monde ou l'on ne peut
     // pas couler, donc le seul ou la vitesse ne se paie jamais. Mesure :
     // pente moyenne 7,2 deg, maximum 24 deg — le plus DOUX des quatre.
-    amp: [7.5, 4.2, 1.5, 0.5, 0.06],
+    // Les couches moyennes relevees (1.5 -> 2.6 et 0.5 -> 1.35) par rapport au
+    // premier jet. Bliss n'a NI eau NI ville : ni traversee a marquer, ni
+    // colonne a enfiler entre deux reliefs. Tout son revenu doit venir des
+    // figures, donc il lui faut de quoi sauter — un monde lisse etait un monde
+    // pauvre, et le banc le disait : 186 s contre 378 sur la plaine.
+    amp: [7.5, 4.2, 2.1, 1.05, 0.09],
     water: -60,
     shore: [1.0, 1.0],
+    swell: [0, 60, 1],
     colors: {
       // Le vert de Bliss n'est pas le chartreuse de la plaine : il est plus
       // franc, plus dense, et il tire au bleu dans l'ombre. C'est de l'herbe
@@ -284,7 +329,7 @@ export const WORLDS: WorldDef[] = [
     // Pas une goutte d'eau, donc pas un seul point de traversee : c'est toute
     // une source de score et de secondes qui disparait. Le monde la rend en
     // portance et en boost — on y joue les figures, faute de lacs.
-    mods: { cruise: 1, grip: 0.94, lift: 1.08, plane: 1, boost: 1.10 },
+    mods: { cruise: 1, grip: 0.94, lift: 1.12, plane: 1, boost: 1.18 },
     city: 0,
     turbines: 0,
     palms: 0,
@@ -303,6 +348,9 @@ export const WORLDS: WorldDef[] = [
     amp: [4.2, 5.0, 1.4, 1.6, 0.10],
     water: -3.0,
     shore: [0.9, 1.6],
+    // Le mercure a une houle courte et lente : c'est un liquide LOURD, il
+    // n'ondule pas comme de l'eau.
+    swell: [0.55, 34, 0.6],
     colors: {
       // Le « sol » n'est plus de l'herbe mais une dalle sombre : la grille
       // lumineuse par-dessus fait tout le travail (cf. uTech dans Ground).

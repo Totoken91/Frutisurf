@@ -70,6 +70,7 @@ export class World {
   /** Couleurs melangees de l'image courante. Reecrites, jamais recreees. */
   private tint = new Map<WorldColorKey, Color>();
   private amp: number[] = [0, 0, 0, 0, 0];
+  private swell: number[] = [0, 60, 1];
 
   constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality, start: WorldDef = WORLDS[0]) {
     this.from = start;
@@ -190,7 +191,8 @@ export class World {
     const L = (x: number, y: number): number => x + (y - x) * t;
 
     for (let i = 0; i < 5; i++) this.amp[i] = L(a.amp[i], b.amp[i]);
-    setTerrain(this.amp, L(a.water, b.water), L(a.shore[0], b.shore[0]), L(a.shore[1], b.shore[1]));
+    for (let i = 0; i < 3; i++) this.swell[i] = L(a.swell[i], b.swell[i]);
+    setTerrain(this.amp, L(a.water, b.water), L(a.shore[0], b.shore[0]), L(a.shore[1], b.shore[1]), this.swell);
 
     const pa = worldPalette(a);
     const pb = worldPalette(b);

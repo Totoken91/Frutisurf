@@ -3,7 +3,7 @@ import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { colClone, vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
-import { terrainGLSL, terrainUniforms } from './Terrain';
+import { swellGLSL, terrainGLSL, terrainUniforms } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
 /**
@@ -95,10 +95,23 @@ export class Water {
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
+        uniform float uTime;
         varying vec3 vWorld;
         varying float vDepth;
+        /** Pente de la houle, transmise au fragment pour la normale. */
+        varying vec2 vSwellSlope;
+        /**
+         * Hauteur normalisee de la vague, -1 en creux, +1 en crete.
+         *
+         * Passee en varying plutot que recalculee au fragment : la houle est
+         * une fonction lisse a grande echelle, l'interpoler sur un triangle ne
+         * coute aucune qualite, et l'evaluer par pixel paierait deux sinus pour
+         * une valeur qui ne change quasiment pas sur la surface d'un triangle.
+         */
+        varying float vCrest;
 
         ${terrainGLSL()}
+${swellGLSL()}
 
         void main(){
           vec4 wp = modelMatrix * vec4(position, 1.0);
@@ -108,6 +121,29 @@ export class Water {
           // se fait ensuite au fragment sur cette valeur lissee, ce qui donne
           // un bord net mais pas cranele par la grille.
           vDepth = WATER_LEVEL - terrainHeightAt(wp.xz, d);
+
+          // --- LA HOULE, deplacee au sommet.
+          //
+          //     La MEME fonction que celle du Controller, au meme instant : le
+          //     surfeur plane a la hauteur que calcule le processeur, la vague
+          //     est dessinee a la hauteur que calcule la carte graphique. Un
+          //     ecart de signe le ferait surfer dans les creux, un ecart
+          //     d'amplitude le ferait flotter au-dessus de l'eau.
+          float shoal = swellShoal(vDepth);
+          float sw = swellAt(wp.xz, uTime);
+          wp.y += sw * shoal;
+          vCrest = uSwell.x > 0.0 ? sw / uSwell.x : 0.0;
+
+          // La pente de la vague, par differences finies sur quelques metres.
+          // Sans elle la houle serait une deformation SANS ombre : la surface
+          // monterait et descendrait sans qu'aucune lumiere ne le dise, et on
+          // ne verrait rien du tout.
+          float e = 2.5;
+          vSwellSlope = vec2(
+            swellAt(wp.xz + vec2(e, 0.0), uTime) - swellAt(wp.xz - vec2(e, 0.0), uTime),
+            swellAt(wp.xz + vec2(0.0, e), uTime) - swellAt(wp.xz - vec2(0.0, e), uTime)
+          ) * (shoal / (2.0 * e));
+
           vWorld = wp.xyz;
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
@@ -119,6 +155,9 @@ ${GLSL_SAFE}
 ${GLSL_DAY}
         varying vec3 vWorld;
         varying float vDepth;
+        varying vec2 vSwellSlope;
+        varying float vCrest;
+        uniform vec3 uSwell;
 
         ${GLSL_NOISE}
         ${WEATHER_GLSL}
@@ -163,25 +202,45 @@ ${GLSL_DAY}
           // Les rides s'aplatissent en eau peu profonde, comme dans la nature.
           float amp = 1.5 * smoothstep(0.0, 1.6, vDepth);
           vec3 N = normalize(vec3((h0 - hx) * amp, 0.09, (h0 - hz) * amp));
+          // La houle incline la normale a GRANDE echelle : c'est ce qui donne
+          // aux flancs de vague leur ombre et a leurs cretes leur reflet, donc
+          // ce qui rend le relief de l'ocean lisible de loin.
+          N = normalize(N + vec3(-vSwellSlope.x, 0.0, -vSwellSlope.y) * 2.2);
           // Le sillage BOMBE la surface : il doit accrocher la lumiere, sinon
           // ce n'est qu'une trainee blanche peinte sur l'eau.
           N = normalize(N + vec3(sign(rel.x) * wake * 0.55, 0.0, -wake * 0.35));
 
-          // --- Couleur du volume : le fond transparait en eau basse.
+          // --- LE CORPS DE L'EAU, et lui seul, recoit l'heure.
+          //
+          //     C'est ici que le crepuscule tournait mal. La couleur finale —
+          //     corps ET reflet du ciel confondus — passait dans daylight()
+          //     tout a la fin, donc le reflet du ciel etait teinte une SECONDE
+          //     fois par la lumiere. Un cyan sature multiplie par un orange
+          //     sature ne donne ni du cyan ni de l'orange : ca donne un gris
+          //     verdatre, et le lac devenait de la boue exactement au moment ou
+          //     il aurait du etre le plus beau.
           float t = smoothstep(0.15, 4.6, vDepth);
           vec3 body = mix(uShallow, uDeep, t);
+          body = daylight(body, 0.30 + uDayNight * 0.34);
 
-          // --- Reflexion du ciel a l'incidence rasante. C'est le terme qui
-          //     fait la SURFACE : sans Fresnel, une etendue d'eau vue de loin
-          //     reste une tache bleue posee sur l'herbe.
+          // --- Le reflet, lui, est DEJA a la couleur du ciel : on n'y touche
+          //     plus.
           float fres = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 4.0);
           vec3 sky = mix(uSkyLow, uSkyHigh, clamp(V.y * 1.6, 0.0, 1.0));
-          vec3 c = mix(body, sky, clamp(fres * 1.15, 0.0, 0.92));
+
+          // Plus le soleil est bas, plus l'eau devient un MIROIR. C'est toute
+          // la difference entre un lac de midi, qui a une couleur propre, et un
+          // lac de couchant, qui n'a plus que des reflets. Sans ce terme, une
+          // eau turquoise reste turquoise sous un ciel de braise — ce que la
+          // physique interdit et ce que l'oeil repere immediatement.
+          float mirror = clamp(fres * (1.15 + uDayWarm * 1.45), 0.0, 0.95);
+          vec3 c = mix(body, sky, mirror);
 
           // L'ecume du sillage AVANT les paillettes : posee apres, elle les
           // effacait et le sillage devenait une bande de peinture blanche
           // mate au milieu d'une eau qui scintille partout ailleurs.
-          c = mix(c, uFoam, clamp(wake * 0.78, 0.0, 0.82));
+          vec3 foamCol = daylight(uFoam, 0.18 + uDayNight * 0.42);
+          c = mix(c, foamCol, clamp(wake * 0.78, 0.0, 0.82));
 
           // --- PAILLETTES. Le detail qui fait l'eau, et il faut qu'il soit
           //     dur : un speculaire large donne du satin, c'est une multitude
@@ -194,23 +253,30 @@ ${GLSL_DAY}
           // rend le pixel noir puis contamine le flou de bloom.
           float ndhs = max(ndh, 1e-4);
           float glint = pow(ndhs, 340.0) * 5.0 + pow(ndhs, 46.0) * 0.55;
-          c += vec3(1.0, 0.98, 0.90) * glint;
+          // La paillette prend la couleur du SOLEIL, pas un blanc chaud fixe.
+          // C'est elle qui dessine le chemin de lumiere sur l'eau, et un chemin
+          // blanc sous un soleil orange est la faute qu'on remarque sans savoir
+          // la nommer.
+          c += mix(vec3(1.0, 0.98, 0.90), uDayLight * 1.5, uDayWarm) * glint;
 
           // --- Ecume de rive. Elle suit la ligne de flottaison, donc la courbe
           //     de niveau du terrain : c'est gratuit et toujours juste.
           float foam = (1.0 - smoothstep(0.0, 0.55, vDepth))
                      * (0.55 + 0.45 * sin(vDepth * 26.0 - uTime * 2.4));
-          c = mix(c, uFoam, clamp(foam, 0.0, 1.0) * 0.75);
+          c = mix(c, foamCol, clamp(foam, 0.0, 1.0) * 0.75);
+
+          // --- L'ECUME DE CRETE. Une vague sans mousse sur le dessus est une
+          //     bosse, pas une vague. On la pose la ou la surface est le plus
+          //     HAUTE — c'est-a-dire au sommet du train principal — et
+          //     seulement au large, ou la houle a de l'amplitude.
+          float crest = smoothstep(0.30, 0.85, vCrest);
+          c = mix(c, foamCol, crest * smoothstep(0.4, 4.0, vDepth) * 0.34);
 
           // --- Les nuages assombrissent l'eau comme le reste du paysage.
           float dark = cloudShade(vWorld.xz, uTime);
           c = mix(c, c * 0.58 + uSkyLight * 0.05, dark * 0.8);
 
           // Opacite : transparente au bord, franche au large.
-          // L'heure. Le reflet du ciel est DEJA a la bonne couleur (uSkyLow et
-          // uSkyHigh viennent du cycle) : seul le corps de l'eau doit etre
-          // teinte, sinon on colore deux fois le meme ciel.
-          c = daylight(c, dark * 0.45 + uDayNight * 0.22);
           float alpha = mix(0.55, 0.97, smoothstep(0.0, 1.3, vDepth));
           gl_FragColor = vec4(c, alpha);
           #include <tonemapping_fragment>
