@@ -108,7 +108,17 @@ if (state) {
   }
   check('la simulation avance', after.z < z1 - 60, `${(z1 - after.z).toFixed(0)} m parcourus`);
   check('le chrono tourne', after.temps < t1 - 2, `${after.temps.toFixed(1)} s restantes`);
-  check('le rendu tourne', after.fps > 0.5, `${after.fps.toFixed(1)} img/s (rasteriseur logiciel)`);
+  // Et le MEME raisonnement s'applique a la cadence, ce que le premier jet
+  // avait oublie : le seuil etait a 0,5 image par seconde, c'est-a-dire pile
+  // sur la valeur que ce rasteriseur logiciel produit. Deux lancements de
+  // suite sur un fichier identique donnaient 0,5 puis 0,4 — un banc qui
+  // depend de la charge de la machine plutot que du code n'est pas un banc,
+  // c'est un tirage au sort, et on finit par ignorer ses echecs.
+  //
+  // La question reste binaire : la boucle de rendu produit-elle des images ?
+  // Une boucle morte rapporte zero. Le seuil est donc pose loin sous la
+  // valeur de travail, la ou il ne distingue plus que le vivant du mort.
+  check('le rendu tourne', after.fps > 0.15, `${after.fps.toFixed(1)} img/s (rasteriseur logiciel)`);
 }
 
 if (errs.length) {
