@@ -45,13 +45,25 @@ import { WORLDS, loadWorld, saveWorld, type WorldDef } from '../world/Worlds';
  *
  * ---
  *
- * Le decor reste VIVANT derriere : le monde continue de defiler, le cycle
- * jour/nuit continue de tourner. Un fond fige derriere une interface donne
- * immediatement l'impression d'un menu colle par-dessus un jeu ; un fond qui
- * bouge dit que le jeu est deja la, et qu'il attend.
+ * LE DECOR VIT, MAIS LE JEU S'ARRETE. La distinction a coute une correction.
  *
- * Seul le CHRONO est gele (cf. Game.frame) : laisser le temps couler pendant
- * qu'on lit des libelles serait une punition pour avoir lu.
+ * Le premier jet laissait tout tourner sauf le chrono : le monde defilait
+ * derriere le panneau, l'idee etant qu'un fond fige donne l'impression d'un
+ * menu colle par-dessus un jeu. C'etait vrai et c'etait quand meme faux — le
+ * SURFEUR filait a trente metres par seconde pendant qu'on lisait les
+ * libelles, et au premier lancement on avait deja traverse un kilometre de
+ * plaine avant d'avoir choisi. Le jeu se jouait tout seul.
+ *
+ * Ce qui devait vivre, ce n'etait pas la course : c'etait le PAYSAGE. Le cycle
+ * jour/nuit tourne toujours, les nuages passent, la pluie tombe, les vagues
+ * roulent, et le monde survole se fond sous les yeux du joueur — c'est meme la
+ * seule raison d'etre de cet ecran. Mais le surfeur attend (cf.
+ * Controller.idle), le chrono est gele, et rien ne se marque.
+ *
+ * Et on peut ANNULER : le panneau n'avait qu'une issue, « c'est parti », qui
+ * relance la partie. L'ouvrir par curiosite au milieu d'une course coutait
+ * donc la course. La croix et Echap remettent le monde survole a sa place et
+ * rendent la main la ou on l'avait laissee.
  */
 
 /** Echelle des jauges : l'ecart maximal atteignable touche pile la butee. */
@@ -78,6 +90,15 @@ export class Select {
   private blurbs: HTMLElement[] = [];
   private row = 0;
   private idx = [0, 0, 0];
+  /**
+   * L'etat au moment de l'ouverture, pour pouvoir ANNULER.
+   *
+   * Le monde s'applique des le survol — c'est ce qui fait tout l'interet de
+   * l'ecran — donc refermer sans valider laisserait le joueur dans un decor
+   * qu'il n'a jamais choisi, avec une monture qui, elle, n'aurait pas bouge.
+   * Fermer doit remettre les choses exactement comme on les a trouvees.
+   */
+  private opening = [0, 0, 0];
   private worldCards: HTMLButtonElement[] = [];
   private worldLine!: HTMLElement;
   private tagLine!: HTMLElement;
@@ -105,6 +126,14 @@ export class Select {
     root.innerHTML = `
       <div class="pickscrim"></div>
       <div class="pickpanel">
+        <!-- Une SORTIE, et elle etait absente : le panneau n'avait qu'une
+             issue, « c'est parti », qui relance la partie. Ouvrir l'ecran par
+             curiosite au milieu d'une course coutait donc la course.
+             Elle est fille du PANNEAU et non de son contenu : le contenu
+             defile, et une croix qui defile hors de l'ecran ne ferme rien. -->
+        <button class="pickclose" type="button" data-el="close" aria-label="fermer">
+          <i></i>
+        </button>
         <div class="in">
           <div class="pickhead">
             <b>ÉQUIPEMENT</b>
@@ -169,6 +198,10 @@ export class Select {
     );
     this.tagLine = root.querySelector<HTMLElement>('[data-el="tags"]')!;
     root.querySelector<HTMLElement>('[data-el="go"]')!.addEventListener('click', () => this.confirm());
+    root.querySelector<HTMLElement>('[data-el="close"]')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.cancel();
+    });
 
     addEventListener('keydown', this.key);
     this.refresh();
@@ -219,9 +252,24 @@ export class Select {
   open(): void {
     if (this.opened) return;
     this.opened = true;
+    this.opening = [this.idx[0], this.idx[1], this.idx[2]];
     this.root.classList.add('show');
     this.refresh();
     this.onToggle?.(true);
+  }
+
+  /**
+   * Fermer SANS valider : on remet tout comme on l'a trouve, y compris le
+   * monde, qui a pu changer sous le panneau pendant qu'on regardait les
+   * vignettes. La partie en cours reprend la ou elle en etait.
+   */
+  cancel(): void {
+    if (!this.opened) return;
+    const worldChanged = this.idx[2] !== this.opening[2];
+    this.idx = [this.opening[0], this.opening[1], this.opening[2]];
+    if (worldChanged) this.onWorld?.(this.world);
+    this.refresh();
+    this.close();
   }
 
   close(): void {

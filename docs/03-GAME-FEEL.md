@@ -820,12 +820,50 @@ profil du **produit des trois** : monde × buddy × monture. C'est ce qui rend
 lisible pourquoi Okinawa se joue autrement — la jauge GLISSE part à fond, la
 jauge ACCROCHE recule, et on n'a rien eu à expliquer.
 
-### Le décor reste vivant pendant qu'on choisit
+### Le décor reste vivant pendant qu'on choisit — mais pas la course
 
 Toucher une carte de monde applique le monde **immédiatement**, avant toute
 validation : le fondu dure 1,15 s et se joue derrière le panneau. On ne lit pas
 la description d'un lagon, **on le voit apparaître**. La vignette de la carte ne
 sert plus qu'à reconnaître un monde déjà vu.
+
+Le surfeur, lui, **attend**. Il ne parcourt pas un mètre, ne marque pas un
+point, ne franchit pas une vague. Sa vitesse est conservée telle quelle, pour
+qu'annuler soit une vraie pause et non une punition — on repart exactement où
+l'on s'était arrêté.
+
+Ce n'est pas un simple `if` autour du pas de simulation, et c'est ce qui rend la
+chose intéressante : pendant qu'on survole les mondes, **le relief se transforme
+sous le disque**. La plaine s'inonde, l'archipel émerge. Un surfeur simplement
+figé garderait la hauteur de l'ancien monde et finirait enterré dans la colline
+ou suspendu au milieu du lagon. Il faut donc continuer à lire le sol et
+seulement cesser d'avancer — et il **flotte** au lieu de couler, puisqu'il n'y
+a pas de partie en cours à perdre.
+
+### Revenir au menu ne doit pas coûter la course
+
+L'écran n'avait qu'une issue, « c'est parti », qui relance. On y accède
+maintenant à tout moment — un bouton dans la bande haute, ou Échap — et on en
+sort par une croix qui **annule** : le monde survolé revient à celui qu'on
+avait, le chrono reprend là où il s'était arrêté, la distance n'est pas remise
+à zéro.
+
+Deux détails de placement qui ne sont pas cosmétiques :
+
+- le bouton vit dans la **bande haute**. Sur téléphone on saute en touchant
+  n'importe où : un bouton posé dans l'aire de jeu volerait un saut sur deux.
+  Le HUD avale le contact avant qu'il n'atteigne le canvas, donc appuyer dessus
+  n'arme rien au passage ;
+- il est sur la ligne de la **jauge** et non sur celle du compteur. La jauge est
+  une proportion, elle se laisse raccourcir de trente pixels sans rien perdre ;
+  la ligne du haut, elle, aurait poussé la colonne de gauche par-dessus sa part
+  de grille et rogné le score. Mesuré : le bord droit d'un score à sept chiffres
+  passait de 382 à 399 px sur un écran qui en fait 390.
+
+La bascule clavier vit dans **un seul endroit**. La tentation était d'ajouter
+Échap au clavier de l'écran de sélection, qui en a déjà un ; les deux écouteurs
+reçoivent le même événement, le panneau se fermerait puis l'autre le verrait
+fermé et le rouvrirait aussitôt. Une bascule n'a qu'un seul propriétaire.
 
 ---
 

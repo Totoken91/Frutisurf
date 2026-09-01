@@ -38,7 +38,10 @@ export class Hud {
   private clockFill: HTMLElement;
   private multVal: HTMLElement;
 
-  /** Ouverture de l'ecran d'equipement depuis le panneau de fin. */
+  /**
+   * Ouverture de l'ecran d'equipement : depuis le panneau de fin ET depuis le
+   * bouton de la bande haute, qui existe pendant toute la partie.
+   */
   onEquip: (() => void) | null = null;
 
   private acc = 0;
@@ -72,9 +75,28 @@ export class Hud {
               <span class="speedUnit">KM/H</span>
             </div>
           </div>
-          <div class="gauge" data-el="boost">
-            <div class="in"><i class="fill" data-el="fill"><u class="stripes"></u></i></div>
-            <div class="gloss"></div>
+          <div class="cellrow">
+            <div class="gauge" data-el="boost">
+              <div class="in"><i class="fill" data-el="fill"><u class="stripes"></u></i></div>
+              <div class="gloss"></div>
+            </div>
+            <!-- LE RETOUR AU MENU, et il vit dans la BANDE HAUTE.
+                 Sur telephone on saute en touchant n'importe ou : un bouton
+                 pose dans l'aire de jeu volerait un saut sur deux. La bande
+                 haute est la seule zone que le pouce ne vise jamais, et le
+                 HUD avale le contact avant qu'il n'atteigne le canvas.
+
+                 Il est sur la ligne de la JAUGE et non sur celle du compteur :
+                 la jauge est une proportion, elle se laisse raccourcir de
+                 trente pixels sans rien perdre, alors que la ligne du haut
+                 aurait pousse la colonne de gauche par-dessus sa part de
+                 grille et rogne le score a sept chiffres. Mesure a l'appui :
+                 le bord droit du score passait de 382 a 399 px sur un ecran
+                 qui en fait 390. -->
+            <button class="pod menupod" type="button" data-el="menu"
+                    aria-label="équipement" title="équipement">
+              <span class="in"><i></i></span>
+            </button>
           </div>
         </div>
 
@@ -114,6 +136,10 @@ export class Hud {
     this.hintEl = pick('hint');
     this.clockFill = pick('clockfill');
     this.multVal = pick('multVal');
+    pick('menu').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onEquip?.();
+    });
 
     for (let i = 0; i < 14; i++) {
       const el = document.createElement('div');

@@ -310,6 +310,19 @@ export class Game {
       this.audio.start();
     };
     this.hud.onEquip = () => this.select.open();
+
+    // --- LA BASCULE CLAVIER, et elle est ICI et nulle part ailleurs.
+    //
+    // La tentation etait d'ajouter Echap au clavier de l'ecran de selection,
+    // qui en a deja un. Ca ne marche pas : les deux ecouteurs recoivent le
+    // MEME evenement, le panneau se fermerait puis celui-ci le verrait ferme
+    // et le rouvrirait aussitot. Une bascule n'a qu'un seul proprietaire.
+    addEventListener('keydown', (e) => {
+      if (e.code !== 'Escape' && e.code !== 'KeyM') return;
+      if (this.select.isOpen) this.select.cancel();
+      else this.select.open();
+      e.preventDefault();
+    });
   }
 
   /** Un seul point d'entree pour l'equipement : la physique ET la livree. */
@@ -473,10 +486,24 @@ export class Game {
         this.prevX = this.controller.x;
         this.prevY = this.controller.y;
         this.prevZ = this.controller.z;
-        this.controller.step(STEP, playing ? this.input : IDLE_INPUT);
-        if (playing) {
-          this.collectBoosters();
-          this.checkRings();
+        if (picking) {
+          // LE JEU NE SE JOUE PAS TOUT SEUL DERRIERE LE PANNEAU.
+          //
+          // Le surfeur continuait a filer a trente metres par seconde pendant
+          // qu'on lisait les libelles : au premier lancement, le temps de
+          // choisir, on avait deja traverse un kilometre de plaine. Le chrono
+          // etait gele, mais rien d'autre.
+          //
+          // On ne saute pas le pas pour autant (cf. Controller.idle) : le
+          // relief se transforme sous le disque quand on survole les mondes,
+          // et un surfeur simplement fige finirait enterre dans la colline.
+          this.controller.idle(STEP);
+        } else {
+          this.controller.step(STEP, playing ? this.input : IDLE_INPUT);
+          if (playing) {
+            this.collectBoosters();
+            this.checkRings();
+          }
         }
       }
       this.acc -= STEP;
@@ -612,7 +639,7 @@ export class Game {
     this.spray.update(this.time);
     // Ecume ou herbe : decide a la SOURCE, chaque particule garde sa nature.
     this.spray.foam = c.onWater ? 1 : 0;
-    if (!c.airborne) {
+    if (!c.airborne && !this.select.isOpen) {
       // En glisse la carre brasse en permanence, meme droit devant : c'est ce
       // debit continu qui fait sentir la portance.
       const spread = c.planing

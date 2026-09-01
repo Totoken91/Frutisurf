@@ -1,6 +1,6 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
 import { NEUTRAL, type Loadout } from '../core/Loadout';
-import { swellAt, swellShoal, terrainHeight, waterLevel } from '../world/Terrain';
+import { swellAt, swellShoal, terrainHeight, waterLevel, waterSurface } from '../world/Terrain';
 import { windAt } from '../world/Weather';
 import type { GameState } from '../core/GameState';
 
@@ -493,6 +493,62 @@ export class Controller {
     if (!this.airborne && before < LIP_CUE && this.lipFactor >= LIP_CUE) {
       this.events.onLipEnter?.();
     }
+  }
+
+  /**
+   * LE SURFEUR ATTEND.
+   *
+   * Appele a la place de `step` pendant que l'ecran d'equipement est ouvert.
+   * Il ne parcourt pas un metre, ne marque pas un point, ne franchit pas une
+   * vague : le jeu ne se joue pas tout seul derriere le panneau. Sa vitesse est
+   * CONSERVEE telle quelle, pour qu'annuler soit une vraie pause et non une
+   * punition — on repart exactement ou l'on s'etait arrete.
+   *
+   * Mais il ne suffit pas de sauter le pas de simulation, et c'est tout
+   * l'interet d'avoir une methode plutot qu'un `if` : pendant qu'on choisit un
+   * monde, le RELIEF SE TRANSFORME SOUS LE DISQUE — la plaine s'inonde,
+   * l'archipel emerge. Un surfeur simplement fige garderait la hauteur de
+   * l'ancien monde et se retrouverait enterre dans la colline ou suspendu au
+   * milieu du lagon. Il faut donc continuer a lire le sol, et seulement cesser
+   * d'avancer.
+   *
+   * Et il FLOTTE au lieu de couler : on ne joue pas, il n'y a donc pas d'echec
+   * a subir. Ouvrir le menu au-dessus d'un lac ne doit pas se payer.
+   */
+  idle(dt: number): void {
+    this.clock += dt;
+
+    const floor = terrainHeight(this.x, this.z);
+    const w = waterLevel();
+    this.depth = Math.max(0, w - floor);
+    this.onWater = this.depth > 0.12;
+    this.planing = false;
+    this.sunk = false;
+    this.groundY = this.onWater ? waterSurface(this.x, this.z, this.clock) : floor;
+    // Il se REPOSE sur le sol au lieu d'y etre teleporte : quand la colline
+    // monte sous lui pendant un fondu de monde, on veut la voir le soulever.
+    this.y += (this.groundY - this.y) * Math.min(1, dt * 9);
+
+    this.airborne = false;
+    this.gliding = false;
+    this.glideTime = 0;
+    this.vy = 0;
+    this.spin = 0;
+    this.spinLock = 0;
+    this.slopeTravel = 0;
+    this.curvature = 0;
+    this.lipFactor = 0;
+    this.prevSwellSlope = 0;
+    this.wind = 0;
+    this.jumpWind = 0;
+    this.boosting = false;
+    this.braking = false;
+    this.hitstop = 0;
+    this.carveCharge = 0;
+    this.steer.target = 0;
+    this.steer.step(dt);
+    this.lean.target = 0;
+    this.lean.step(dt);
   }
 
   step(dt: number, input: SurfInput, boostAllowed = true): void {

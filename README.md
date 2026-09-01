@@ -176,6 +176,19 @@ produit. Elles partent du centre parce que la grandeur intéressante est un éca
 au neutre, et le coût est ambre et non rouge : le rouge dit l'erreur, or aucun
 choix n'est une erreur.
 
+On y revient **quand on veut** : un bouton dans la bande haute du HUD, ou Échap
+au clavier. Et on en ressort par une croix qui **annule** — le monde survolé
+revient à celui qu'on avait, le chrono reprend là où il s'était arrêté. L'écran
+n'avait qu'une issue, « c'est parti », qui relance : l'ouvrir par curiosité au
+milieu d'une course coûtait la course.
+
+Pendant qu'on choisit, **le jeu ne se joue pas tout seul**. Le paysage vit — le
+cycle jour/nuit tourne, la pluie tombe, le monde survolé se fond sous les yeux —
+mais le surfeur attend : pas un mètre parcouru, pas un point marqué. Il continue
+quand même à lire le sol sous lui, parce que le relief se transforme pendant
+qu'on survole les mondes, et qu'un surfeur simplement figé finirait enterré dans
+la colline.
+
 Le choix se voit en jeu — le verre du buddy et la matière **et la taille** du
 disque changent. Un écran de sélection qui ne change rien à l'écran suivant est
 un écran qui ment.
@@ -252,7 +265,9 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   l'unique interface est le doigt. Il vérifie que l'écran s'ouvre au premier
   lancement et seulement là, qu'un clic sur une carte puis sur la validation
   applique le choix à la physique **et** à la livrée, et que le choix survit au
-  rechargement.
+  rechargement. Depuis, il mesure aussi deux défauts signalés en jeu : que le
+  surfeur ne parcourt **pas un mètre** derrière le panneau, et qu'on peut y
+  revenir puis en ressortir sans y laisser sa course.
 - `check:shaders` : charge le jeu sur deux profils et échoue à la moindre erreur
   GLSL en console. C'est le seul filet contre cette classe de faute : un shader
   qui ne compile pas ne casse pas la page, il fait juste disparaître un maillage

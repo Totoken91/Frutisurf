@@ -852,10 +852,23 @@ spéculaire à bord franc, rebond. Aucun `backdrop-filter`, ici non plus.
 
 Deux partis pris propres à cet écran :
 
-**Le décor reste vivant derrière.** Le monde continue de défiler, le cycle
-jour/nuit continue de tourner. Un fond figé derrière une interface donne
-immédiatement l'impression d'un menu **collé par-dessus** un jeu ; un fond qui
-bouge dit que le jeu est déjà là, et qu'il attend. Seul le chrono est gelé.
+**Le paysage reste vivant derrière, mais le jeu s'arrête.** La distinction a
+coûté une correction. Le premier jet laissait tout tourner sauf le chrono, au
+motif qu'un fond figé derrière une interface donne l'impression d'un menu
+**collé par-dessus** un jeu. C'était vrai et c'était quand même faux : le
+surfeur filait à trente mètres par seconde pendant qu'on lisait les libellés,
+et au premier lancement on avait traversé un kilomètre de plaine avant d'avoir
+choisi. **Le jeu se jouait tout seul.**
+
+Ce qui devait vivre, ce n'était pas la course, c'était le paysage. Le cycle
+jour/nuit tourne toujours, les nuages passent, la pluie tombe, les vagues
+roulent, et le monde survolé se fond sous les yeux du joueur — c'est même la
+seule raison d'être de cet écran. Mais le surfeur attend, et rien ne se marque.
+
+**On peut annuler.** Le panneau n'avait qu'une issue, « c'est parti », qui
+relance la partie : l'ouvrir par curiosité au milieu d'une course coûtait la
+course. Une croix en haut à droite, et Échap, remettent le monde survolé à sa
+place et rendent la main là où on l'avait laissée.
 
 **La carte au repos est un creux, pas une plaque.** Un puits sombre dans le
 panneau, comme un logement vide ; la sélection le **remplit**. C'est la même
