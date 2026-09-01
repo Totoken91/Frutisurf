@@ -615,6 +615,11 @@ clairsemée.
 Troisième fois que ce piège coûte une session, après `cast` et `shade`. Un
 maillage dont le shader ne compile pas **disparaît sans un mot**.
 
+Quatrième depuis : **`flat`**, qui est un qualificateur d'interpolation en
+GLSL ES 3.0. La liste noire du projet est donc `cast`, `shade`, `patch`,
+`flat` — et la vraie leçon n'est pas d'apprendre la liste, c'est que
+`check:shaders` existe précisément parce qu'on ne l'apprendra jamais.
+
 ## 10. L'eau
 
 ### Un niveau, pas des lacs
@@ -1147,6 +1152,43 @@ Les **impacts** sont les mêmes des deux côtés — un semis d'anneaux dont cha
 cellule a son propre rythme et son propre centre, jamais un sinus global qui
 ferait respirer toute la pluie à l'unisson. Ce qui tombe sur l'herbe et ce qui
 tombe dans l'étang sont la même averse, au mètre près.
+
+### Ce qui sépare une averse d'une pluie, et ce ne sont pas les gouttes
+
+Le premier réglage donnait une pluie honnête : des traits fins, espacés, qu'on
+remarquait sans jamais les subir. **Multiplier les gouttes n'aurait pas suffi** —
+une pluie torrentielle ne se reconnaît pas au compte des gouttes mais à trois
+choses qu'elles ne font pas toutes seules :
+
+1. **La longueur du trait.** Une goutte d'orage tombe à vingt mètres par
+   seconde ; pendant le temps de pose de l'œil elle parcourt plusieurs
+   décimètres. C'est la strie qui dit la violence, pas le point. Les traits ont
+   donc doublé de longueur avant de doubler en nombre.
+2. **Le voile.** Au-delà de quelques dizaines de mètres, l'eau qui tombe entre
+   l'œil et le paysage fait écran. C'est le terme décisif : sans lui, on peut
+   multiplier les gouttes par dix sans jamais rendre la pluie forte, parce que
+   **rien ne se perd**. Une averse qui n'enlève rien à la vue n'est qu'un motif
+   de traits posé devant un beau temps. Il prend la couleur du remplissage du
+   ciel, comme la goutte elle-même.
+3. **Le rejaillissement.** Une nappe blanche qui tient à quelques dizaines de
+   centimètres du sol — l'eau qui remonte. Une instance sur dix du système de
+   pluie lui est réservée, dans le même appel de dessin : deux maillages
+   auraient doublé le coût de commande pour deux fois rien. Portée courte, dix
+   mètres : au-delà elle ne raconte plus rien et ne coûte que du remplissage.
+
+Et deux réglages qui n'ont l'air de rien et qui font tout le reste :
+**l'inclinaison propre à chaque goutte** et **sa densité propre**. Sans elles,
+trois mille traits rigoureusement parallèles et de valeur identique ne lisent
+plus comme une averse mais comme des **rayures posées sur l'image** — un défaut
+d'autant plus voyant que les traits sont longs. Quelques degrés d'écart rendent
+son volume au champ.
+
+Côté son, deux couches et il en faut deux : le **crépitement** aigu des gouttes
+qui tombent juste à côté, et le **grondement** sourd de tout ce qui tombe plus
+loin. Retirer l'une et l'autre cesse d'être de l'eau — c'est exactement le
+principe des deux trains de houle. Leur fondu dure 1,2 s : la pluie ne s'allume
+pas, elle arrive, sinon on entend le changement de monde au lieu d'entendre
+pleuvoir.
 
 ### La pluie est ancrée au monde, pas à la caméra
 

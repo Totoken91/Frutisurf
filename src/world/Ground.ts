@@ -551,6 +551,20 @@ ${shoreGLSL()}
           if (uWet > 0.002) {
             c = mix(c, c * c * 1.30, uWet * 0.55);
 
+            //   LES IMPACTS NE SONT PAS QUE DANS LES FLAQUES.
+            //
+            //   Une averse assez forte fait sauter l'eau du sol lui-meme :
+            //   toute la surface crepite, pas seulement les creux ou l'eau
+            //   s'est rassemblee. C'est le meme semis d'anneaux que la flaque
+            //   (cf. Weather.rainRings), a une echelle plus serree et beaucoup
+            //   plus discret — et eteint des vingt metres, ou l'anneau passe
+            //   sous le pixel et ne produit plus que du scintillement.
+            float near = 1.0 - smoothstep(9.0, 38.0, dist);
+            if (near > 0.004) {
+              float hit = rainRings(vWorld.xz * 1.75, uTime + 3.1);
+              c += mix(uDayFill, vec3(1.0), 0.40) * max(hit, 0.0) * uWet * near * 0.20;
+            }
+
             // Le second : LES FLAQUES. Deux conditions et pas une seule — plat
             //   A L'ECHELLE DU TERRAIN, et dans un creux du champ de bruit. Une
             //   flaque sur un versant est le genre de faute qu'on repere sans
@@ -619,6 +633,21 @@ ${shoreGLSL()}
           float toward = max(dot(normalize(vec3(vWorld.x, 0.0, vWorld.z) - vec3(uCam.x, 0.0, uCam.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0);
           c += mix(vec3(0.34, 0.46, 0.30), uDayFill * 0.72, uWet)
              * smoothstep(0.68, 0.99, f) * pow(max(toward, 1e-4), 2.0) * 1.05;
+
+          // --- LE VOILE DE L'AVERSE.
+          //
+          //     Il vient APRES la brume d'horizon et il fait autre chose : la
+          //     brume separe les plans lointains, le voile ETEINT le paysage.
+          //     Au-dela de quelques dizaines de metres, l'eau qui tombe entre
+          //     l'oeil et le sol fait ecran — et c'est ce qui distingue une
+          //     averse d'un motif de traits pose devant un beau temps. Sans
+          //     lui, on peut multiplier les gouttes par dix sans jamais rendre
+          //     la pluie forte : rien ne se PERD.
+          //
+          //     Il prend la couleur du remplissage du ciel, comme la goutte
+          //     elle-meme : un voile gris fixe sous un ciel de braise serait
+          //     la meme faute que le reflet de l'eau teinte deux fois.
+          c = mix(c, uDayFill * 1.06, smoothstep(0.06, 0.80, f) * uWet * 0.34);
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));

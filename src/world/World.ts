@@ -111,7 +111,7 @@ export class World {
     // precis ou l'on veut un fondu sans a-coup — exactement ce que toute
     // l'architecture des mondes existe pour eviter.
     this.leaves = new Leaves(quality === 'high' ? 1900 : quality === 'medium' ? 1200 : 700);
-    this.rain = new Rain(quality === 'high' ? 1300 : quality === 'medium' ? 850 : 480);
+    this.rain = new Rain(quality === 'high' ? 3000 : quality === 'medium' ? 1900 : 1000);
 
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
@@ -168,6 +168,19 @@ export class World {
   get world(): WorldDef {
     return this.to;
   }
+
+  /**
+   * Intensite d'averse COURANTE, fondu compris. Lue par l'audio.
+   *
+   * Pas `this.to.rain` : pendant la seconde de transition vers Octobre, la
+   * pluie serait deja a plein volume alors que le ciel n'a pas fini de se
+   * couvrir. Ce qu'on entend doit etre ce qu'on voit.
+   */
+  get rainAmount(): number {
+    return this.rainMix;
+  }
+
+  private rainMix = 0;
 
   /**
    * Demande un monde. Le fondu part de l'etat COURANT et non du monde
@@ -314,6 +327,7 @@ export class World {
 
     const rn = this.rain.mat.uniforms;
     rn.uAmount.value = d.rain;
+    this.rainMix = d.rain;
     rn.uWind.value = d.wind;
 
     if (this.blades) {

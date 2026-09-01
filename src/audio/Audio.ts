@@ -43,6 +43,8 @@ export class Audio {
   private skimGain!: GainNode;
   private skimFilter!: BiquadFilterNode;
   private skimLfo!: OscillatorNode;
+  private rainHissGain!: GainNode;
+  private rainBodyGain!: GainNode;
   private white!: AudioBuffer;
   private started = false;
   muted = false;
@@ -136,6 +138,42 @@ export class Audio {
     this.skimLfo.connect(lfoAmt).connect(this.skimFilter.frequency);
     this.skimLfo.start();
 
+    // --- L'AVERSE, en DEUX couches, et il en faut deux.
+    //
+    // Une seule bande de bruit donne un chuintement de television. Ce qu'on
+    // reconnait comme de la pluie, c'est la superposition de deux choses qui
+    // n'ont ni la meme hauteur ni la meme origine : le CREPITEMENT aigu des
+    // gouttes qui frappent juste a cote, et le GRONDEMENT sourd de tout ce
+    // qui tombe plus loin. Retirer l'une des deux et l'autre cesse d'etre de
+    // l'eau — c'est le meme principe que les deux trains de houle.
+    //
+    // Elles ne bougent pas avec le jeu : la pluie est une propriete du MONDE,
+    // pas de ce que fait le joueur. C'est d'ailleurs ce qui la rend reposante
+    // sous la tension du chrono.
+    const hiss = ctx.createBufferSource();
+    hiss.buffer = this.white;
+    hiss.loop = true;
+    const hissHp = ctx.createBiquadFilter();
+    hissHp.type = 'highpass';
+    hissHp.frequency.value = 1700;
+    hissHp.Q.value = 0.5;
+    this.rainHissGain = ctx.createGain();
+    this.rainHissGain.gain.value = 0;
+    hiss.connect(hissHp).connect(this.rainHissGain).connect(this.master);
+    hiss.start();
+
+    const body = ctx.createBufferSource();
+    body.buffer = pink;
+    body.loop = true;
+    const bodyLp = ctx.createBiquadFilter();
+    bodyLp.type = 'lowpass';
+    bodyLp.frequency.value = 620;
+    bodyLp.Q.value = 0.7;
+    this.rainBodyGain = ctx.createGain();
+    this.rainBodyGain.gain.value = 0;
+    body.connect(bodyLp).connect(this.rainBodyGain).connect(this.master);
+    body.start();
+
     if (ctx.state === 'suspended') void ctx.resume();
   }
 
@@ -152,6 +190,7 @@ export class Audio {
     gliding = false,
     planing = false,
     sunk = false,
+    rain = 0,
   ): void {
     if (!this.ctx) return;
     const t = this.now();
@@ -180,6 +219,13 @@ export class Audio {
       t,
       0.12,
     );
+
+    // L'averse. Constante de temps LONGUE (1,2 s) : la pluie ne s'allume pas,
+    // elle arrive. Un fondu court sur un fondu de monde d'une seconde donnerait
+    // un interrupteur, et on entendrait le changement de monde au lieu de
+    // l'entendre pleuvoir.
+    this.rainHissGain.gain.setTargetAtTime(rain * 0.115, t, 1.2);
+    this.rainBodyGain.gain.setTargetAtTime(rain * 0.085, t, 1.2);
   }
 
   private blip(

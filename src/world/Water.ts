@@ -231,13 +231,19 @@ ${RIDER_GLSL}
           //     dans l'etang doivent etre la meme averse, au metre pres. On les
           //     eteint au loin, ou l'anneau passe sous le pixel et ne produit
           //     plus que du scintillement.
-          float rainNear = uRain * (1.0 - smoothstep(16.0, 70.0, length(vWorld.xz - uCam.xz)));
+          float rainNear = uRain * (1.0 - smoothstep(20.0, 85.0, length(vWorld.xz - uCam.xz)));
           if (rainNear > 0.004) {
             float e2 = 0.09;
-            float r0 = rainRings(vWorld.xz, uTime);
-            float rx = rainRings(vWorld.xz + vec2(e2, 0.0), uTime);
-            float rz = rainRings(vWorld.xz + vec2(0.0, e2), uTime);
-            N = normalize(N + vec3((r0 - rx), 0.0, (r0 - rz)) * rainNear * 0.55);
+            // DEUX echelles d'impact, comme il y a deux trains de houle : une
+            // seule donne une trame reguliere que l'oeil lit comme un motif.
+            // Sous une averse forte, la surface n'a plus de rythme du tout.
+            float r0 = rainRings(vWorld.xz, uTime)
+                     + rainRings(vWorld.xz * 1.9 + 5.7, uTime * 1.27) * 0.7;
+            float rx = rainRings(vWorld.xz + vec2(e2, 0.0), uTime)
+                     + rainRings((vWorld.xz + vec2(e2, 0.0)) * 1.9 + 5.7, uTime * 1.27) * 0.7;
+            float rz = rainRings(vWorld.xz + vec2(0.0, e2), uTime)
+                     + rainRings((vWorld.xz + vec2(0.0, e2)) * 1.9 + 5.7, uTime * 1.27) * 0.7;
+            N = normalize(N + vec3((r0 - rx), 0.0, (r0 - rz)) * rainNear * 0.85);
           }
 
           // --- LE CORPS DE L'EAU, et lui seul, recoit l'heure.
@@ -319,8 +325,9 @@ ${RIDER_GLSL}
           // voile mat. Une eau de pluie qui resterait miroir serait la premiere
           // chose qu'on trouverait fausse.
           if (uRain > 0.004) {
-            c = mix(c, body, uRain * 0.34);
-            c += foamCol * clamp(rainNear, 0.0, 1.0) * 0.055;
+            c = mix(c, body, uRain * 0.42);
+            // Le crepitement : la surface entiere blanchit sous les impacts.
+            c += foamCol * clamp(rainNear, 0.0, 1.0) * 0.095;
           }
 
           // Opacite : transparente au bord, franche au large.

@@ -712,6 +712,9 @@ export class Game {
       c.gliding,
       c.planing,
       c.sunk,
+      // L'averse est une propriete du MONDE, pas de ce que fait le joueur, et
+      // elle suit le fondu : on ne l'entend pas arriver avant de la voir.
+      this.world.rainAmount,
     );
   }
 
