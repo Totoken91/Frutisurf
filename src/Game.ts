@@ -369,11 +369,26 @@ export class Game {
     // doit donc toujours etre suivi d'un rendu DANS LA MEME FRAME (cf.
     // Engine.flushResize).
     this.engine.flushResize();
-    const real = Math.min((now - this.last) / 1000, 0.1);
+    // DEUX durees, et il faut les deux.
+    //
+    // `raw` est le temps reellement ecoule ; `real` est ce temps BORNE a 100 ms,
+    // et c'est lui que la simulation consomme — sans borne, un onglet revenu au
+    // premier plan apres dix secondes rattraperait dix secondes de jeu d'un
+    // coup.
+    //
+    // Les confondre faisait mentir le compteur d'images des que la machine
+    // descendait sous dix images par seconde : `real` plafonnait a 100 ms, donc
+    // le compteur affichait 10 img/s quoi qu'il arrive. Mesure sur rendu
+    // logiciel : 1,2 image reelle par seconde annoncee comme 12,7. Le chiffre
+    // qu'on regarde pour savoir si le jeu rame etait precisement celui qui ne
+    // pouvait pas le dire — et le declencheur de baisse de qualite lisait la
+    // meme valeur bornee.
+    const raw = (now - this.last) / 1000;
+    const real = Math.min(raw, 0.1);
     this.last = now;
     this.time += real;
 
-    this.fpsAcc += real;
+    this.fpsAcc += raw;
     this.fpsCount++;
     if (this.fpsAcc >= 0.5) {
       this.state.fps = this.fpsCount / this.fpsAcc;
@@ -468,7 +483,7 @@ export class Game {
     // Rendre sur un contexte perdu ne produit rien et laisse le compositeur
     // afficher un canvas vide : on saute la frame, le fond CSS prend le relais.
     if (!this.engine.contextLost) this.post.render(real);
-    this.engine.sampleFrame(real * 1000);
+    this.engine.sampleFrame(raw * 1000);
   };
 
   /** Tic sec par seconde sur la fin du chrono. Il presse sans klaxonner. */

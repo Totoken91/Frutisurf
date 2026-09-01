@@ -208,6 +208,12 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   arrivé. Le banc mesure la largeur de la nappe la plus large (traversable ?), la
   terre entre deux nappes (de quoi se relancer ?), la survie du pilote et le
   temps passé sous 22 m/s.
+- `check:artifact` : **le fichier réellement publié** démarre-t-il. Tout le reste
+  de la suite tourne sur `index.html` servi par Vite ; l'artefact mono-fichier
+  n'était chargé par rien, et il a été livré mort deux fois — un `<div>` ajouté à
+  la page de développement que la coquille de l'artefact n'avait pas suivi. Le
+  corps est désormais extrait d'`index.html` au lieu d'être recopié, et ce banc
+  vérifie qu'il boote et que la simulation avance.
 - `check:pick` : l'écran d'équipement, **au clic**. Tout le reste de la suite
   pilote le jeu par `window.__game`, ce qui ne prouve rien sur un écran dont
   l'unique interface est le doigt. Il vérifie que l'écran s'ouvre au premier

@@ -727,3 +727,57 @@ okinawa       50%       125 m        42 m     161 s  3990593       69       0   
 bliss          0%         0 m        -- m     186 s   971481       84       0        0      1%
 chrome        28%       107 m       129 m     199 s  3244109       96       0       55      0%
 ```
+
+
+## 12. La version publiée n'était testée par rien
+
+L'écran d'équipement a ajouté un `<div id="pick">` à `index.html`. Le script qui
+assemble l'artefact mono-fichier, lui, construisait sa **propre coquille HTML**,
+avec un `<canvas id="stage">` et un `<div id="hud">` écrits à la main. Il n'a pas
+suivi.
+
+Résultat : dans la version publiée, `Select` cherchait son nœud, ne le trouvait
+pas, et le module mourait sur
+
+```
+TypeError: Cannot set properties of null (setting 'innerHTML')
+```
+
+**avant la première image.** Le joueur voyait un aplat cyan — le fond de secours
+du canvas — avec le HUD figé dessus. Le HUD s'affichait parce qu'il est construit
+plus tôt dans le constructeur ; le jeu, lui, n'avait jamais démarré.
+
+Zéro test échouait. `npm run dev`, les captures, les shaders, les entrées, le
+flicker, les mondes : **tout tournait sur `index.html`**, servi par Vite. Le
+fichier réellement livré n'était chargé par rien. C'est la définition d'un angle
+mort, et il a coûté deux versions publiées mortes.
+
+Le commentaire juste au-dessus du code fautif disait déjà, à propos du CSS, que
+« la dupliquer ici la ferait dériver au premier ajustement ». C'était vrai du
+style et tout aussi vrai du corps ; je ne l'avais appliqué qu'à **la moitié du
+problème**.
+
+Deux corrections, et la seconde compte plus que la première :
+
+1. le corps de l'artefact est **extrait de `index.html`**, plus jamais recopié.
+   Tout élément ajouté à la page de développement s'y retrouve automatiquement ;
+2. `npm run check:artifact` charge **le fichier réellement publié** et exige
+   qu'il démarre : aucune exception, le jeu instancié, les nœuds présents, et la
+   simulation qui avance.
+
+### Le compteur d'images mentait
+
+Trouvé en passant, en cherchant pourquoi le banc trouvait le jeu lent. La boucle
+bornait le temps d'image à 100 ms — ce qui est **juste** pour la simulation, sans
+quoi un onglet revenu au premier plan rattraperait dix secondes d'un coup — puis
+réutilisait cette valeur bornée pour le compteur d'images et pour le déclencheur
+de baisse de qualité.
+
+Conséquence : sous dix images par seconde, le compteur affichait 10 quoi qu'il
+arrive. Mesuré sur rastériseur logiciel : **1,2 image réelle par seconde,
+annoncée comme 12,7**. Le chiffre qu'on regarde pour savoir si le jeu rame était
+précisément celui qui ne pouvait pas le dire, et le mécanisme censé soulager une
+machine lente lisait la même valeur aveugle.
+
+Deux durées désormais : `raw` pour ce qu'on mesure et ce qu'on affiche, `real`
+borné pour ce que la simulation consomme.
