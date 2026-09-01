@@ -14,6 +14,7 @@ import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
 import { shoreGLSL, terrainGLSL, terrainUniforms } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
+import { TOWN_GLSL } from './Town';
 
 /**
  * Le champ de touffes.
@@ -123,6 +124,8 @@ export class GrassBlades {
          * qu'il forcit, et c'est ce cisaillement qu'on reconnait.
          */
         uWind: { value: 0 },
+        /** Le quartier : l'herbe ne pousse pas sur l'asphalte. */
+        uTown: { value: 0 },
         uSun: { value: SUN_DIR.clone() },
         // Base sur le vert MEDIAN et non sur l'ombre : le brin doit sortir de
         // la matiere du sol, pas s'y detacher en sombre.
@@ -136,7 +139,7 @@ export class GrassBlades {
         attribute vec2 iCell;
         attribute float aBlade;
         uniform vec3 uOrigin;
-        uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity, uWind;
+        uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity, uWind, uTown;
         varying vec3 vWorldPos;
         uniform vec3 uSun;
         varying float vV, vTint, vLight, vGlint, vShade;
@@ -145,6 +148,7 @@ export class GrassBlades {
         ${WEATHER_GLSL}
         ${terrainGLSL()}
 ${shoreGLSL()}
+${TOWN_GLSL}
 
         float h21(vec2 p){
           p = fract(p * vec2(127.31, 311.7));
@@ -194,7 +198,14 @@ ${shoreGLSL()}
           // Quelques oyats survivent en haut de plage : la coupure nette est
           // moins credible qu'une frange clairsemee.
           float dry = (1.0 - sand * 0.92) * smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 0.6, gh);
-          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade * dry * uDensity;
+          // Rien ne pousse sur la route, et la limite doit etre EXACTEMENT
+          // celle que le sol dessine — meme fonction, memes constantes. C'est
+          // la meme lecon que le masque de plage : la premiere version de la
+          // route ne vivait que dans le shader du sol, et l'herbe a continue de
+          // pousser au milieu de l'asphalte.
+          float tar = townRoad(wp, above, uTown);
+          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15)
+                    * fade * dry * uDensity * (1.0 - tar * 0.96);
           float v = uv.y;
 
           // Le vent couche les touffes, et la vitesse du joueur les couche

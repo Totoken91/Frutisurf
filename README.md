@@ -114,7 +114,7 @@ niveau d'eau, ses couleurs, son ciel et **ses règles**.
 | **OKINAWA** | 62 % | **la houle.** Un océan turquoise semé d'îles. On y déjauge à 8 m/s : impossible d'y couler, et c'est voulu — le risque déménage dans les vagues. Car la houle n'est pas un décor : elle porte une **pente** et une **courbure**, donc on la lit, on l'anticipe et on saute dessus, exactement comme une colline. Chaque crête franchie paie. |
 | **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
 | **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. |
-| **OCTOBRE** | 31 % | **le vent.** Champs noyés, averse torrentielle, tapis de feuilles mortes et crépuscule de plomb. Le sol détrempé fait chasser le disque, et la rafale le **déporte** pour de bon — la même rafale qui couche l'herbe, emporte les feuilles et incline la pluie. On la voit arriver avant de la sentir. |
+| **OCTOBRE** | 31 % | **le vent.** Une route mouillée qui traverse un lotissement, sous une averse torrentielle : fenêtres allumées, lampadaires qui posent leur reflet sur l'asphalte, feuilles mortes et crépuscule de plomb. Le sol détrempé fait chasser le disque, et la rafale le **déporte** pour de bon — la même rafale qui couche l'herbe, emporte les feuilles et incline la pluie. On la voit arriver avant de la sentir. |
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un jeu de
 paramètres appliqué à la même scène. Rien n'est détruit, aucun shader n'est

@@ -1153,6 +1153,71 @@ cellule a son propre rythme et son propre centre, jamais un sinus global qui
 ferait respirer toute la pluie à l'unisson. Ce qui tombe sur l'herbe et ce qui
 tombe dans l'étang sont la même averse, au mètre près.
 
+### Le quartier, et pourquoi pas la ville de cristal
+
+Les tours de verre à un kilomètre sont une **promesse** : quelque chose de grand
+qu'on n'atteindra jamais, posé tout au fond pour donner de l'échelle à la
+plaine. C'est juste pour la plaine, et c'est faux pour octobre. Un mois
+d'octobre mélancolique ne se joue pas devant une skyline — il se joue **en
+bordure de ville**, dans un lotissement, à l'heure où les fenêtres s'allument
+une par une et où personne n'est dehors.
+
+Le décor n'est donc plus au fond mais **sur les côtés**, qu'on croise et qu'on
+double. Trois éléments, et chacun fait une chose que les autres ne font pas :
+
+1. **Les maisons.** Un pignon à deux pentes tourné vers la route. C'est la
+   silhouette qui identifie une maison à cent mètres, jamais la texture : une
+   boîte à toit plat lit comme un hangar, quel que soit le soin mis à ses murs.
+   Une maison sur deux présente son pignon, l'autre son long pan — toutes
+   orientées pareil, elles font une frise identique et l'œil lit un centre
+   commercial.
+2. **Les fenêtres allumées.** Le sujet émotionnel, et de loin le détail le plus
+   rentable du monde entier. Elles **débordent** sur le mur autour d'elles :
+   une fenêtre allumée qui s'arrête net au bord de son cadre lit comme un
+   autocollant collé sur un mur.
+3. **Les lampadaires.** Ils ne se contentent pas d'exister, ils **posent une
+   flaque de lumière sur la route mouillée**. Le mât et sa flaque lisent la même
+   fonction de placement — deux formules « à peu près pareilles » se
+   décaleraient d'un mètre et la flaque serait à côté de la lampe.
+
+Et **des arbres entre les maisons**, parce que vingt maisons alignées à cent
+cinquante mètres fusionnent en une bande de fenêtres quelle que soit la variété
+de leurs toits. Il faut quelque chose de vertical et de noir pour que l'œil les
+sépare ; une silhouette d'arbre coûte six triangles et fait ce travail à elle
+seule.
+
+#### Trois rangs, et c'est une contrainte de cadrage
+
+En portrait le champ horizontal ne fait que **trente-sept degrés** : à cinquante
+mètres de la route, une maison n'entre dans l'image qu'à partir de cent
+cinquante mètres devant. Un seul rang donne donc une frise lointaine, jamais une
+rue. Il faut du décor à plusieurs profondeurs pour que les maisons se recouvrent
+et fassent un quartier — et des maisons volontairement **plus grandes que
+nature**, exactement comme les tours de la ville de cristal font cent mètres de
+haut.
+
+#### La route, et les deux leçons qu'elle a coûtées
+
+Des maisons plantées dans un pré ne sont pas un lotissement, ce sont des maisons
+dans un pré. Il faut la route pour qu'elles bordent quelque chose — et c'est
+elle qui rend les flaques de lampadaire lisibles : sur l'herbe une tache de
+lumière chaude se noie, sur du noir mouillé elle brûle.
+
+Première leçon, déjà apprise avec le masque de plage et réapprise ici : le
+masque de route ne vivait que dans le shader du sol, et **l'herbe a continué de
+pousser au milieu de l'asphalte**. Une route sous un champ de brins n'est plus
+une route. Le masque est maintenant une fonction partagée, lue par le sol et par
+les touffes. (Le tapis de feuilles, lui, s'éclaircit sur la chaussée sans
+disparaître : le vent les pousse vers les bas-côtés.)
+
+Seconde leçon, sur la lumière : le premier réglage poussait la part **diffuse**
+des lampadaires et donnait une route **couleur sable** sous un ciel d'orage —
+l'asphalte avait perdu exactement ce qu'on venait chercher. Une lampe pose deux
+choses très différentes sur du bitume mouillé : un peu de diffus, et surtout un
+**reflet étiré**. Le reflet passe par le même terme rasant que le sheen du sol,
+donc il s'allonge vers l'horizon et disparaît sous les pieds — ce qui est le
+comportement d'un reflet.
+
 ### Ce qui sépare une averse d'une pluie, et ce ne sont pas les gouttes
 
 Le premier réglage donnait une pluie honnête : des traits fins, espacés, qu'on
@@ -1183,12 +1248,43 @@ plus comme une averse mais comme des **rayures posées sur l'image** — un déf
 d'autant plus voyant que les traits sont longs. Quelques degrés d'écart rendent
 son volume au champ.
 
-Côté son, deux couches et il en faut deux : le **crépitement** aigu des gouttes
-qui tombent juste à côté, et le **grondement** sourd de tout ce qui tombe plus
-loin. Retirer l'une et l'autre cesse d'être de l'eau — c'est exactement le
-principe des deux trains de houle. Leur fondu dure 1,2 s : la pluie ne s'allume
-pas, elle arrive, sinon on entend le changement de monde au lieu d'entendre
-pleuvoir.
+#### Le son : un lit de bruit ne fera jamais de la pluie
+
+La première version était deux bandes de bruit filtré à gain constant. Ça ne
+faisait pas de la pluie, ça faisait de la **neige de télévision** — et pour une
+raison qui n'a rien à voir avec le réglage des filtres : une averse n'est pas un
+signal stationnaire. Elle est faite de milliers d'événements **discrets**, et
+l'oreille, qui passe sa vie à séparer des transitoires d'un fond, les entend un
+par un même quand ils se comptent par centaines. Un lit de bruit, aussi bien
+filtré soit-il, n'en contient aucun.
+
+Quatre couches, et la dernière fait tout le travail :
+
+1. le **grondement** — tout ce qui tombe trop loin pour qu'on distingue une
+   goutte. Un mur grave, sans détail ;
+2. la **nappe** — la masse médiane, celle qui donne la densité ;
+3. le **crépitement** — les aigus, l'eau qui frappe le dur. En passe-**bande** et
+   non en passe-haut : le passe-haut laisse tout passer jusqu'à Nyquist, et
+   c'est précisément ce qui sifflait ;
+4. **les gouttes** — des centaines de transitoires courts, chacun avec sa
+   hauteur, sa durée, son volume et sa place dans le stéréo. La seule couche qui
+   fasse entendre de l'**eau** plutôt que du bruit.
+
+Trois détails sans lesquels la quatrième couche retombe dans la machine :
+l'**espacement est aléatoire** (des gouttes régulières, même à trente par
+seconde, produisent une hauteur — on entend le *taux*), la fréquence est tirée
+avec un **biais vers le grave** (une distribution plate donne un carillon), et
+l'offset de lecture dans le tampon de bruit est **tiré au sort** — partir
+toujours de zéro rejouerait la même forme d'onde des milliers de fois, et
+l'oreille reconnaît une répétition bien avant de savoir la nommer.
+
+Les trois nappes **respirent** enfin, sous deux oscillateurs très lents aux
+périodes premières entre elles (17 s et 12 s). Une averse à gain constant
+s'entend comme une soufflerie au bout de dix secondes ; une averse qui enfle et
+retombe se laisse oublier, ce qui est exactement ce qu'on demande à une ambiance.
+
+Leur fondu dure 1,2 s : la pluie ne s'allume pas, elle arrive, sinon on entend
+le changement de monde au lieu d'entendre pleuvoir.
 
 ### La pluie est ancrée au monde, pas à la caméra
 

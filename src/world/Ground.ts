@@ -7,6 +7,7 @@ import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
 import { WEATHER_GLSL } from './Weather';
 import { shoreGLSL, terrainGLSL, terrainUniforms } from './Terrain';
+import { TOWN_GLSL } from './Town';
 
 /**
  * La plaine, desormais vallonnee.
@@ -151,6 +152,17 @@ export class Ground {
         /** Les deux tons du tapis. Les MEMES que ceux des feuilles en vol. */
         uLeafA: { value: vec3('leafRust') },
         uLeafB: { value: vec3('leafBlood') },
+        /**
+         * LE QUARTIER, vu depuis le sol. 0..1.
+         *
+         * Deux choses que le decor ne peut pas faire lui-meme, parce qu'il ne
+         * connait pas le pixel de sol qu'il touche : la ROUTE, et surtout la
+         * FLAQUE DE LUMIERE au pied de chaque lampadaire. Un lampadaire qui
+         * n'eclaire rien est un poteau ; c'est ce qu'il pose par terre qui en
+         * fait une lampe, et c'est encore plus vrai sur de l'asphalte mouille.
+         */
+        uTown: { value: 0 },
+        uLamp: { value: vec3('townWindow') },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -179,8 +191,8 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
-        uniform float uTech, uWet, uLitter;
-        uniform vec3 uLeafA, uLeafB;
+        uniform float uTech, uWet, uLitter, uTown;
+        uniform vec3 uLeafA, uLeafB, uLamp;
 ${RIDER_GLSL}
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
         uniform vec3 uCast;
@@ -190,6 +202,7 @@ ${RIDER_GLSL}
         ${WEATHER_GLSL}
         ${terrainGLSL()}
 ${shoreGLSL()}
+${TOWN_GLSL}
 
         void main(){
           // Coordonnees de texture repliees modulo la periode du bruit : la
@@ -496,6 +509,36 @@ ${shoreGLSL()}
             c = mix(c, bed, sunk);
           }
 
+          // --- LA ROUTE.
+          //
+          //     Une bande d'asphalte au milieu du couloir de jeu, avec des
+          //     bas-cotes fondus. Elle n'est pas decorative : c'est elle qui
+          //     donne un SENS au quartier. Des maisons plantees dans un pre ne
+          //     sont pas un lotissement, ce sont des maisons dans un pre — il
+          //     faut la route pour qu'elles bordent quelque chose.
+          //
+          //     Et c'est elle qui rend les flaques de lampadaire lisibles : sur
+          //     l'herbe une tache de lumiere chaude se noie, sur du noir mouille
+          //     elle brule.
+          float road = townRoad(vWorld.xz, above, uTown);
+          {
+            if (road > 0.003) {
+              vec3 tar = vec3(0.055, 0.052, 0.058);
+              // Le grain de l'enrobe : sans lui c'est du velours noir.
+              tar *= 0.72 + fbm3(vWorld.xz * 2.6) * 0.55 + fbm2(vWorld.xz * 0.35) * 0.22;
+              // La bande blanche au milieu, usee et discontinue.
+              // La bande blanche : ETROITE, DISCONTINUE et USEE. Trop large
+              // ou trop propre, elle passe au premier plan comme une barre
+              // grise posee sous le personnage — elle attire l'oeil au centre
+              // du cadre, exactement la ou il ne doit pas rester.
+              float lane = (1.0 - smoothstep(0.07, 0.15, abs(vWorld.x)))
+                         * step(0.62, fract(vWorld.z * 0.14))
+                         * smoothstep(0.30, 0.62, fbm2(vWorld.xz * 0.7));
+              tar = mix(tar, vec3(0.20, 0.19, 0.17), lane * 0.80);
+              c = mix(c, tar, road * 0.94);
+            }
+          }
+
           // --- LE TAPIS DE FEUILLES MORTES.
           //
           //     Il vient AVANT le sol mouille, et l'ordre compte : sous
@@ -524,8 +567,12 @@ ${shoreGLSL()}
             //   Plus dense en bas qu'en haut : c'est la que le vent les laisse.
             mat *= mix(0.50, 1.30, 1.0 - smoothstep(-3.0, 5.0, vWorld.y));
             //   Ni sur le sable, ni dans l'eau.
+            //   Et il s'ECLAIRCIT sur la route : le vent et les voitures
+            //   poussent les feuilles vers les bas-cotes. Sans ce terme, le
+            //   tapis recouvrait l'asphalte et la route disparaissait sous les
+            //   feuilles — on avait fait une route pour ne pas la voir.
             mat = clamp(mat, 0.0, 1.0) * uLitter * (1.0 - sand * 0.6)
-                * smoothstep(-0.2, 0.8, above);
+                * smoothstep(-0.2, 0.8, above) * (1.0 - road * 0.70);
 
             if (mat > 0.003) {
               //   Un tapis pietine n'a pas la couleur d'une feuille en vol : il
@@ -574,6 +621,12 @@ ${shoreGLSL()}
                        * smoothstep(0.50, 0.82, fbm2(vWorld.xz * 0.055))
                        * smoothstep(-0.1, 1.2, above)
                        * (1.0 - sand * 0.35);
+            // L'ASPHALTE RETIENT L'EAU BIEN MIEUX QUE L'HERBE : elle ne s'y
+            // infiltre pas. C'est la que les flaques doivent etre, et c'est la
+            // qu'elles servent — une flaque sur du noir renvoie le halo des
+            // lampadaires, une flaque dans un pre ne renvoie que du gris.
+            pool = max(pool, road * uWet
+                    * smoothstep(0.42, 0.72, fbm2(vWorld.xz * 0.12 + 3.3)));
 
             if (pool > 0.003) {
               //   Une flaque n'est pas une tache sombre, c'est un MIROIR : elle
@@ -594,6 +647,48 @@ ${shoreGLSL()}
 
               c = mix(c, pc, pool);
             }
+          }
+
+          // --- LES FLAQUES DE LAMPADAIRE.
+          //
+          //     Elles lisent la MEME fonction de placement que les mats
+          //     eux-memes (cf. Town.TOWN_GLSL). Deux formules « a peu pres
+          //     pareilles » se decaleraient d'un metre, et la flaque serait a
+          //     cote de la lampe — le genre de faute qu'on voit sans savoir la
+          //     nommer.
+          //
+          //     Trois rangees suffisent : le pas est de vingt-quatre metres et
+          //     la flaque en fait douze de rayon, donc au-dela de la voisine
+          //     immediate il ne reste rien a additionner.
+          if (uTown > 0.004) {
+            float row0 = floor(townRowAt(vWorld.z, uOrigin.xz) + 0.5);
+            vec3 lampGlow = vec3(0.0);
+            for (int k = -1; k <= 1; k++) {
+              vec2 lp = lampXZ(row0 + float(k), uOrigin.xz);
+              float dl = length(vWorld.xz - lp);
+              // Deux lobes : un coeur serre sous la lanterne et une nappe
+              // longue qui meurt dans le noir. Un seul lobe fait un rond de
+              // projecteur.
+              float fall = pow(max(1.0 - clamp(dl / 26.0, 0.0, 1.0), 1e-4), 2.4) * 0.80
+                         + pow(max(1.0 - clamp(dl / 9.0, 0.0, 1.0), 1e-4), 1.6) * 1.10;
+              lampGlow += uLamp * fall;
+            }
+            lampGlow *= uTown * (0.45 + uDayNight * 0.95);
+
+            // --- ET ELLE POSE DEUX CHOSES TRES DIFFERENTES, pas une.
+            //
+            //     Un peu de lumiere DIFFUSE, et surtout un REFLET etire. C'est
+            //     le reflet qui fait l'image d'une rue mouillee le soir ; la
+            //     part diffuse, poussee seule, delave l'asphalte en beige et
+            //     lui enleve exactement ce qu'on venait chercher — c'est ce
+            //     qu'a donne le premier reglage, une route couleur sable sous
+            //     un ciel d'orage.
+            //
+            //     Le reflet passe par le meme terme rasant que le sheen du sol :
+            //     il s'allonge vers l'horizon et disparait sous les pieds, ce
+            //     qui est exactement le comportement d'un reflet.
+            c += lampGlow * (0.10 + uWet * 0.13);
+            c += lampGlow * graze * (0.45 + uWet * 1.70);
           }
 
           // --- LA GRILLE Y2K.

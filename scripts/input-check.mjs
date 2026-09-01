@@ -73,6 +73,33 @@ const takeJumps = (page) => page.evaluate(() => {
   window.__jumps.length = 0;
   return j;
 });
+/**
+ * ATTEND QUE LA SIMULATION AIT AVANCE, PAS QUE LA MONTRE AIT TOURNE.
+ *
+ * Le banc tourne sur un rasteriseur logiciel, parfois a un tiers d'image par
+ * seconde, et le moteur JETTE le retard qu'il ne peut pas rattraper — sinon la
+ * partie partirait en ralenti quand la machine decroche (cf. Game.frame). Une
+ * seconde et demie de montre peut donc ne valoir que quelques centiemes de
+ * simulation.
+ *
+ * Consequence : « maintenir 1,4 s doit donner un elan superieur a 0,5 » ne
+ * mesurait pas la couche d'entree, il mesurait la VITESSE DE LA MACHINE. Le
+ * banc passait le matin et echouait l'apres-midi sans qu'une ligne du jeu
+ * n'ait bouge. C'est la meme faute que le seuil de cadence du banc d'artefact,
+ * et elle se corrige de la meme facon : on n'attend plus une duree, on attend
+ * un ETAT.
+ */
+const waitSim = async (page, seconds, budgetMs = 40000) => {
+  const t0 = await page.evaluate(() => window.__game.controller.clock);
+  const start = Date.now();
+  for (;;) {
+    await page.waitForTimeout(60);
+    const t = await page.evaluate(() => window.__game.controller.clock);
+    if (t - t0 >= seconds) return true;
+    if (Date.now() - start > budgetMs) return false;
+  }
+};
+
 const peek = (page) => page.evaluate(() => {
   const c = window.__game.controller;
   return { air: c.airborne, wind: +c.jumpWind.toFixed(2), vy: +c.vy.toFixed(2),
@@ -89,18 +116,20 @@ const peek = (page) => page.evaluate(() => {
   // Tap court.
   await reset(p);
   await p.keyboard.down('Space');
-  await p.waitForTimeout(70);
+  // Un tap, c'est UNE image de simulation ou presque : on relache des que
+  // l'horloge du controleur a bouge.
+  await waitSim(p, 0.01);
   await p.keyboard.up('Space');
-  await p.waitForTimeout(1500);
+  await waitSim(p, 0.5);
   const tapJumps = await takeJumps(p);
 
-  // Maintien long.
+  // Maintien long. Trois quarts de seconde de SIMULATION, pas de montre.
   await reset(p);
   await p.keyboard.down('Space');
-  await p.waitForTimeout(1400);
+  await waitSim(p, 0.75);
   const armed = await peek(p);
   await p.keyboard.up('Space');
-  await p.waitForTimeout(1500);
+  await waitSim(p, 0.5);
   const holdJumps = await takeJumps(p);
 
   const tap = tapJumps[0];
@@ -109,7 +138,7 @@ const peek = (page) => page.evaluate(() => {
   // Un tap franc DOIT produire un saut, meme minuscule : sinon l'appui a ete
   // perdu entre deux frames et le joueur a l'impression que rien ne repond.
   check('clavier : un tap saute quand meme', !!tap, tap ? `vy=${tap.vy} elan=${tap.wind}` : 'aucun saut');
-  check('clavier : maintenir arme', armed.held && armed.wind > 0.5, `elan=${armed.wind}`);
+  check('clavier : maintenir arme', armed.held && armed.wind > 0.8, `elan=${armed.wind}`);
   check('clavier : relacher decolle', !!hold && hold.vy > 0, hold ? `vy=${hold.vy}` : 'aucun saut');
   // On assure sur l'ELAN DELIVRE, pas sur vy : l'impulsion finale inclut la
   // pente du terrain au moment du relachement, qui varie d'un essai a l'autre.
@@ -153,19 +182,18 @@ const peek = (page) => page.evaluate(() => {
     window.__t = t;
     t('touchstart', 195, 400);
   });
-  await p.waitForTimeout(1400);
+  await waitSim(p, 0.75);
   const armed = await peek(p);
   await p.evaluate(() => window.__t('touchend', 195, 400));
-  await p.waitForTimeout(1500);
+  await waitSim(p, 0.5);
   const touchJumps = await takeJumps(p);
   const tj = touchJumps[0];
 
-  check('tactile : maintenir arme', armed.held && armed.wind > 0.5, `elan=${armed.wind}`);
-  // Seuil a 0,5 comme au clavier, pas a 0,8 : l'elan ne monte que pendant les
-  // pas de SIMULATION, et sous rendu logiciel une seconde et demie de temps
-  // reel n'en fournit que quatre dixiemes. Exiger 0,8 revenait a mesurer le
-  // framerate de la machine de test, pas la couche d'entree.
-  check('tactile : relacher decolle', !!tj && tj.vy > 0 && tj.wind > 0.5,
+  check('tactile : maintenir arme', armed.held && armed.wind > 0.8, `elan=${armed.wind}`);
+  // Le seuil est franc des deux cotes depuis que l'attente porte sur la
+  // SIMULATION et non sur la montre : on mesure enfin l'elan et plus la
+  // cadence de la machine.
+  check('tactile : relacher decolle', !!tj && tj.vy > 0 && tj.wind > 0.8,
     tj ? `vy=${tj.vy} elan=${tj.wind}` : 'aucun saut');
 
   // Le doigt repose en vol doit declencher le plane. On place directement le
@@ -176,7 +204,7 @@ const peek = (page) => page.evaluate(() => {
     c.airborne = true; c.vy = 0; c.y = c.groundY + 12; c.liftUsed = false;
   });
   await p.evaluate(() => window.__t('touchstart', 195, 400));
-  await p.waitForTimeout(1500);
+  await waitSim(p, 0.4);
   const soaring = await peek(p);
   check('tactile : re-appui plane', soaring.gliding, `plane=${soaring.gliding}`);
   await p.evaluate(() => window.__t('touchend', 195, 400));
@@ -186,7 +214,7 @@ const peek = (page) => page.evaluate(() => {
   await p.evaluate(() => window.__t('touchstart', 195, 400));
   await p.waitForTimeout(60);
   await p.evaluate(() => window.__t('touchmove', 320, 400));
-  await p.waitForTimeout(1500);
+  await waitSim(p, 0.5);
   const steered = await peek(p);
   await p.evaluate(() => window.__t('touchend', 320, 400));
   check('tactile : glisser dirige', Math.abs(steered.steer) > 0.3, `steer=${steered.steer}`);

@@ -106,6 +106,21 @@ export const HEX = {
   leafRust: 0xc95a1e,
   leafBlood: 0x9c2f1c,
   leafAmber: 0xd39a34,
+
+  // --- LE QUARTIER.
+  //
+  // Le mur et le toit sont volontairement TRES sombres : a la tombee du jour
+  // une maison n'a pas de couleur, elle a une silhouette. Tout le budget de
+  // luminosite du quartier part dans la fenetre — c'est elle qu'on regarde, et
+  // elle ne peut se detacher que sur du sombre.
+  //
+  // La fenetre est un blanc chaud tres SATURE et pas un jaune : une ampoule
+  // domestique tire vers 2700 K, et c'est la seule source chaude d'un monde
+  // entierement gris-violet. C'est de ce contraste que vient toute la
+  // melancolie de l'image.
+  townWall: 0x4a4038,
+  townRoof: 0x2e2a2c,
+  townWindow: 0xffbe6b,
 } as const;
 
 type PaletteKey = keyof typeof HEX;

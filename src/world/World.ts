@@ -13,6 +13,7 @@ import { col } from '../core/Palette';
 import { setTerrain } from './Terrain';
 import { WORLD_COLOR_KEYS, WORLDS, worldPalette, type WorldColorKey, type WorldDef } from './Worlds';
 import { City } from './City';
+import { Town } from './Town';
 import { Boosters } from './Boosters';
 import { Rings } from './Rings';
 import { Clouds } from './Clouds';
@@ -52,6 +53,7 @@ export class World {
   private hemi!: HemisphereLight;
   readonly clouds: Clouds;
   readonly city = new City();
+  readonly town = new Town();
   readonly boosters: Boosters;
   readonly rings: Rings;
   readonly lights = new Group();
@@ -121,6 +123,7 @@ export class World {
     scene.add(this.water.mesh);
     scene.add(this.palms.mesh, this.turbines.mesh);
     scene.add(this.city.group);
+    scene.add(this.town.buildings, this.town.halos);
     scene.add(this.clouds.mesh);
     scene.add(this.boosters.mesh);
     scene.add(this.rings.veil, this.rings.group);
@@ -157,6 +160,7 @@ export class World {
       this.motes.mat,
       this.leaves.mat,
       this.rain.mat,
+      ...this.town.mats,
     ].filter(Boolean) as typeof this.lit;
     if (this.blades) this.lit.push(this.blades.mat);
     this.blendWorld(1);
@@ -241,6 +245,8 @@ export class World {
       palms: L(a.palms, b.palms),
       blades: L(a.blades, b.blades),
       leaves: L(a.leaves, b.leaves),
+      trees: L(a.trees, b.trees),
+      town: L(a.town, b.town),
       rain: L(a.rain, b.rain),
       wind: L(a.wind, b.wind),
       tech: L(a.tech, b.tech),
@@ -263,6 +269,8 @@ export class World {
     palms: number;
     blades: number;
     leaves: number;
+    trees: number;
+    town: number;
     rain: number;
     wind: number;
     tech: number;
@@ -337,6 +345,7 @@ export class World {
       rgb(b.uGlow, 'grassStreak');
       b.uDensity.value = d.blades;
       b.uWind.value = d.wind;
+      b.uTown.value = d.town;
     }
 
     const p = this.palms.mat.uniforms;
@@ -346,6 +355,25 @@ export class World {
     p.uDensity.value = d.palms;
 
     this.turbines.mat.uniforms.uDensity.value = d.turbines;
+
+    // --- LE QUARTIER. Deux materiaux : les batiments et les halos.
+    const t0 = this.town.mats[0].uniforms;
+    rgb(t0.uWall, 'townWall');
+    rgb(t0.uTree, 'treeLine');
+    rgb(t0.uRoof, 'townRoof');
+    rgb(t0.uWindow, 'townWindow');
+    t0.uDensity.value = d.town;
+    t0.uWet.value = d.rain;
+    const t1 = this.town.mats[1].uniforms;
+    rgb(t1.uWindow, 'townWindow');
+    t1.uDensity.value = d.town;
+    t1.uWet.value = d.rain;
+
+    // Le sol porte la route et les flaques de lampadaire : elles ne peuvent
+    // pas vivre dans le decor, qui ne connait pas le pixel de sol qu'il
+    // eclaire (cf. Town.TOWN_GLSL, relu par Ground).
+    g.uTown.value = d.town;
+    rgb(g.uLamp, 'townWindow');
 
     // Deux materiaux aux jeux d'uniformes DIFFERENTS : les tours ont uFace,
     // uLit et uDeep ; la ligne d'arbres a uDark et uLit. D'ou les manques
@@ -359,7 +387,9 @@ export class World {
       // La ligne d'arbres emprunte son `uLit` a l'HERBE et non a la ville :
       // c'est de la vegetation, elle doit suivre le vert du monde.
       rgb(u.uLit, tree ? 'grassNear' : 'cityLit');
-      u.uDensity.value = d.city;
+      // La ligne d'arbres a sa PROPRE densite depuis qu'un monde a voulu la
+      // foret sans les tours.
+      u.uDensity.value = tree ? d.trees : d.city;
     }
 
     // Le plafond ne concerne QUE le dome : c'est lui qui porte le soleil.
@@ -464,6 +494,7 @@ export class World {
     this.turbines.update(origin, time);
     this.clouds.update(origin, time);
     this.city.update(origin);
+    this.town.update(origin, camPos);
     this.boosters.update(origin, time);
     this.rings.update(origin, time, dt);
     this.motes.update(origin, time);

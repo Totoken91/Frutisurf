@@ -47,7 +47,8 @@ export type WorldColorKey =
   | 'waterShallow' | 'waterDeep' | 'waterFoam'
   | 'cityFace' | 'cityLit' | 'cityDeep' | 'treeLine'
   | 'warmAccent' | 'cloudCore' | 'cloudShadow' | 'cloudRim'
-  | 'leafRust' | 'leafBlood' | 'leafAmber';
+  | 'leafRust' | 'leafBlood' | 'leafAmber'
+  | 'townWall' | 'townRoof' | 'townWindow';
 
 export const WORLD_COLOR_KEYS: WorldColorKey[] = [
   'grassHorizon', 'grassFar', 'grassMid', 'grassNear', 'grassShadow', 'grassStreak',
@@ -56,6 +57,7 @@ export const WORLD_COLOR_KEYS: WorldColorKey[] = [
   'cityFace', 'cityLit', 'cityDeep', 'treeLine',
   'warmAccent', 'cloudCore', 'cloudShadow', 'cloudRim',
   'leafRust', 'leafBlood', 'leafAmber',
+  'townWall', 'townRoof', 'townWindow',
 ];
 
 export interface WorldDef {
@@ -79,8 +81,27 @@ export interface WorldDef {
   swell: readonly [number, number, number];
   /** Surcharges de palette. Les cles absentes gardent la couleur canonique. */
   colors: Partial<Record<WorldColorKey, number>>;
-  /** Densites de decor, 0..1. Zero = absent. */
+  /**
+   * Densites de decor, 0..1. Zero = absent.
+   *
+   * `city` et `trees` ont ete SEPARES. Ils ne faisaient qu'un, et c'est
+   * devenu faux le jour ou un monde a voulu la ligne d'arbres SANS les tours
+   * de verre : eteindre la ville emportait la foret avec elle et l'horizon
+   * devenait une decoupe nette entre le sol et le ciel.
+   */
   city: number;
+  /** Ligne d'arbres a l'horizon. Elle survit a la ville. */
+  trees: number;
+  /**
+   * LE QUARTIER : maisons, lampadaires, route mouillee. Zero partout sauf en
+   * octobre.
+   *
+   * Ce n'est pas une variante de `city`, c'est son contraire. La ville de
+   * verre est une PROMESSE posee a un kilometre, qu'on ne rejoint jamais ; le
+   * quartier est un decor qu'on CROISE, assez pres pour qu'on voie ses
+   * fenetres s'allumer.
+   */
+  town: number;
   turbines: number;
   palms: number;
   blades: number;
@@ -274,6 +295,8 @@ export const WORLDS: WorldDef[] = [
     colors: {},
     mods: NO_MODS,
     city: 1,
+    trees: 1,
+    town: 0,
     turbines: 1,
     palms: 1,
     blades: 1,
@@ -359,6 +382,8 @@ export const WORLDS: WorldDef[] = [
     // monde en retire encore un peu.
     mods: { cruise: 1, grip: 0.88, lift: 1, plane: 2.3, boost: 1 },
     city: 0,
+    trees: 0,
+    town: 0,
     turbines: 0.35,
     palms: 1,
     blades: 0.7,
@@ -408,6 +433,8 @@ export const WORLDS: WorldDef[] = [
     // portance et en boost — on y joue les figures, faute de lacs.
     mods: { cruise: 1, grip: 0.94, lift: 1.12, plane: 1, boost: 1.18 },
     city: 0,
+    trees: 0,
+    town: 0,
     turbines: 0,
     palms: 0,
     blades: 1,
@@ -463,6 +490,8 @@ export const WORLDS: WorldDef[] = [
     // le relief, donc on y mord moins.
     mods: { cruise: 1.08, grip: 0.94, lift: 0.96, plane: 1.15, boost: 1 },
     city: 1,
+    trees: 1,
+    town: 0,
     turbines: 0.6,
     palms: 0,
     blades: 0,
@@ -549,7 +578,9 @@ export const WORLDS: WorldDef[] = [
     // rend ailleurs ce qu'il prend la — la rafale porte (`lift`), l'eau est
     // partout donc on y dejauge un peu mieux, et le vent de dos recharge.
     mods: { cruise: 0.97, grip: 0.88, lift: 1.10, plane: 1.06, boost: 1.08 },
-    city: 0.85,
+    city: 0,
+    trees: 0.95,
+    town: 1,
     // Les eoliennes ne sont plus un decor mais une INFORMATION : ce sont elles
     // qui disent, depuis l'horizon, qu'il y a du vent dans ce monde.
     turbines: 0.75,

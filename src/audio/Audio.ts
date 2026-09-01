@@ -45,6 +45,11 @@ export class Audio {
   private skimLfo!: OscillatorNode;
   private rainHissGain!: GainNode;
   private rainBodyGain!: GainNode;
+  private rainDeepGain!: GainNode;
+  private rainHissFilter!: BiquadFilterNode;
+  /** Instant de la prochaine goutte, sur l'HORLOGE AUDIO. */
+  private dropAt = 0;
+  private rainNow = 0;
   private white!: AudioBuffer;
   private started = false;
   muted = false;
@@ -138,41 +143,87 @@ export class Audio {
     this.skimLfo.connect(lfoAmt).connect(this.skimFilter.frequency);
     this.skimLfo.start();
 
-    // --- L'AVERSE, en DEUX couches, et il en faut deux.
+    // --- L'AVERSE.
     //
-    // Une seule bande de bruit donne un chuintement de television. Ce qu'on
-    // reconnait comme de la pluie, c'est la superposition de deux choses qui
-    // n'ont ni la meme hauteur ni la meme origine : le CREPITEMENT aigu des
-    // gouttes qui frappent juste a cote, et le GRONDEMENT sourd de tout ce
-    // qui tombe plus loin. Retirer l'une des deux et l'autre cesse d'etre de
-    // l'eau — c'est le meme principe que les deux trains de houle.
+    // PREMIERE VERSION, ET POURQUOI ELLE ETAIT MAUVAISE. Deux bandes de bruit
+    // filtre, a gain constant. Ca ne fait pas de la pluie, ca fait de la NEIGE
+    // DE TELEVISION — et pour une raison qui n'a rien a voir avec le reglage
+    // des filtres : une averse n'est pas un signal stationnaire. Elle est faite
+    // de milliers d'evenements DISCRETS, et l'oreille, qui passe sa vie a
+    // separer des transitoires d'un fond, les entend un par un meme quand ils
+    // se comptent par centaines. Un lit de bruit, aussi bien filtre soit-il,
+    // n'en contient aucun.
     //
-    // Elles ne bougent pas avec le jeu : la pluie est une propriete du MONDE,
-    // pas de ce que fait le joueur. C'est d'ailleurs ce qui la rend reposante
-    // sous la tension du chrono.
-    const hiss = ctx.createBufferSource();
-    hiss.buffer = this.white;
-    hiss.loop = true;
-    const hissHp = ctx.createBiquadFilter();
-    hissHp.type = 'highpass';
-    hissHp.frequency.value = 1700;
-    hissHp.Q.value = 0.5;
-    this.rainHissGain = ctx.createGain();
-    this.rainHissGain.gain.value = 0;
-    hiss.connect(hissHp).connect(this.rainHissGain).connect(this.master);
-    hiss.start();
+    // Il en faut donc QUATRE couches, et la derniere fait tout le travail :
+    //
+    //   1. le GRONDEMENT — tout ce qui tombe trop loin pour qu'on distingue
+    //      une goutte. Un mur grave, sans detail ;
+    //   2. la NAPPE — la masse mediane, celle qui donne la densite ;
+    //   3. le CREPITEMENT — les aigus, l'eau qui frappe le dur ;
+    //   4. LES GOUTTES — des centaines de transitoires courts, chacun a sa
+    //      hauteur, sa duree, son volume et sa place dans le stereo. C'est la
+    //      seule couche qui fasse entendre de l'EAU plutot que du bruit.
+    //
+    // Et les trois nappes RESPIRENT : deux oscillateurs lents aux periodes
+    // premieres entre elles (17 s et 12 s) ouvrent et referment le filtre aigu
+    // et poussent les gains. Une averse a gain constant s'entend comme une
+    // soufflerie au bout de dix secondes ; une averse qui enfle et retombe se
+    // laisse oublier, ce qui est exactement ce qu'on demande a une ambiance.
+    const deep = ctx.createBufferSource();
+    deep.buffer = pink;
+    deep.loop = true;
+    const deepLp = ctx.createBiquadFilter();
+    deepLp.type = 'lowpass';
+    deepLp.frequency.value = 190;
+    deepLp.Q.value = 0.4;
+    this.rainDeepGain = ctx.createGain();
+    this.rainDeepGain.gain.value = 0;
+    deep.connect(deepLp).connect(this.rainDeepGain).connect(this.master);
+    deep.start();
 
     const body = ctx.createBufferSource();
     body.buffer = pink;
     body.loop = true;
     const bodyLp = ctx.createBiquadFilter();
     bodyLp.type = 'lowpass';
-    bodyLp.frequency.value = 620;
-    bodyLp.Q.value = 0.7;
+    bodyLp.frequency.value = 1500;
+    bodyLp.Q.value = 0.35;
     this.rainBodyGain = ctx.createGain();
     this.rainBodyGain.gain.value = 0;
     body.connect(bodyLp).connect(this.rainBodyGain).connect(this.master);
     body.start();
+
+    const hiss = ctx.createBufferSource();
+    hiss.buffer = this.white;
+    hiss.loop = true;
+    this.rainHissFilter = ctx.createBiquadFilter();
+    // Un PASSE-BANDE et non un passe-haut : le passe-haut laisse passer tout
+    // le spectre jusqu'a Nyquist et c'est precisement ce qui siffle. La pluie
+    // n'a presque plus d'energie au-dessus de six kilohertz.
+    this.rainHissFilter.type = 'bandpass';
+    this.rainHissFilter.frequency.value = 3000;
+    this.rainHissFilter.Q.value = 0.55;
+    this.rainHissGain = ctx.createGain();
+    this.rainHissGain.gain.value = 0;
+    hiss.connect(this.rainHissFilter).connect(this.rainHissGain).connect(this.master);
+    hiss.start();
+
+    // Les deux respirations. Elles ne se rattrapent jamais : 17 s et 12 s.
+    const breatheA = ctx.createOscillator();
+    breatheA.frequency.value = 1 / 17;
+    const breatheAmt = ctx.createGain();
+    breatheAmt.gain.value = 1100;
+    breatheA.connect(breatheAmt).connect(this.rainHissFilter.frequency);
+    breatheA.start();
+
+    const breatheB = ctx.createOscillator();
+    breatheB.frequency.value = 1 / 12;
+    const breatheGain = ctx.createGain();
+    breatheGain.gain.value = 0.30;
+    // Il module le GAIN de la nappe, en relatif : un LFO branche sur un gain
+    // deja pilote par `setTargetAtTime` s'y AJOUTE, il ne l'ecrase pas.
+    breatheB.connect(breatheGain).connect(this.rainBodyGain.gain);
+    breatheB.start();
 
     if (ctx.state === 'suspended') void ctx.resume();
   }
@@ -224,8 +275,90 @@ export class Audio {
     // elle arrive. Un fondu court sur un fondu de monde d'une seconde donnerait
     // un interrupteur, et on entendrait le changement de monde au lieu de
     // l'entendre pleuvoir.
-    this.rainHissGain.gain.setTargetAtTime(rain * 0.115, t, 1.2);
-    this.rainBodyGain.gain.setTargetAtTime(rain * 0.085, t, 1.2);
+    //
+    // Les nappes sont DISCRETES — c'est le semis de gouttes qui porte le son.
+    // Un lit de bruit assez fort pour s'entendre tout seul couvre les gouttes
+    // et on retombe sur la neige de television.
+    this.rainNow = rain;
+    this.rainDeepGain.gain.setTargetAtTime(rain * 0.055, t, 1.2);
+    this.rainBodyGain.gain.setTargetAtTime(rain * 0.042, t, 1.2);
+    this.rainHissGain.gain.setTargetAtTime(rain * 0.030, t, 1.2);
+    this.scheduleDrops(t);
+  }
+
+  /**
+   * LE SEMIS DE GOUTTES.
+   *
+   * On planifie a l'AVANCE sur l'horloge audio, jamais a l'image : le rendu
+   * hoquete, et une goutte posee au moment ou la frame arrive s'entendrait
+   * pulser au rythme des chutes de cadence. On garde un quart de seconde
+   * d'avance, ce qui absorbe n'importe quel a-coup d'affichage.
+   *
+   * L'ESPACEMENT EST ALEATOIRE, et pas seulement le contenu. Des gouttes
+   * regulierement espacees, meme a trente par seconde, produisent une hauteur
+   * — on entend le TAUX au lieu d'entendre la pluie. C'est le meme piege que
+   * les anneaux d'impact synchronises dans le shader.
+   */
+  private scheduleDrops(t: number): void {
+    if (!this.ctx) return;
+    if (this.rainNow < 0.02) {
+      this.dropAt = t;
+      return;
+    }
+    const horizon = t + 0.25;
+    if (this.dropAt < t) this.dropAt = t;
+    const rate = 8 + this.rainNow * 30;
+    let guard = 0;
+    while (this.dropAt < horizon && guard++ < 24) {
+      this.dropAt += (0.25 + Math.random() * 1.5) / rate;
+      this.drop(this.dropAt);
+    }
+  }
+
+  /**
+   * Une goutte : une bouffee de bruit TRES courte, filtree serre.
+   *
+   * Le detail qui compte est l'offset de lecture tire au sort dans le tampon.
+   * Partir toujours de zero rejouerait la MEME forme d'onde des milliers de
+   * fois, et l'oreille reconnait une repetition bien avant de savoir la
+   * nommer : on entendrait une machine.
+   */
+  private drop(when: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.white;
+    src.playbackRate.value = 0.55 + Math.random() * 1.7;
+
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    // Distribution BIAISEE VERS LE GRAVE (le carre d'un tirage uniforme) :
+    // les gouttes aigues sont les plus proches, donc les plus rares. Une
+    // distribution plate donne un carillon.
+    const r = Math.random();
+    bp.frequency.value = 700 + r * r * 4600;
+    bp.Q.value = 2.5 + Math.random() * 8;
+
+    const g = ctx.createGain();
+    const dur = 0.018 + Math.random() * 0.05;
+    const peak = (0.014 + Math.random() * 0.05) * this.rainNow;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.0018);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+    src.connect(bp).connect(g);
+    // Le stereo est ce qui fait la PROFONDEUR d'une averse : sans lui les
+    // gouttes tombent toutes au meme endroit, c'est-a-dire nulle part.
+    if (typeof ctx.createStereoPanner === 'function') {
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = Math.random() * 1.7 - 0.85;
+      g.connect(pan).connect(this.master);
+    } else {
+      g.connect(this.master);
+    }
+
+    src.start(when, Math.random() * 1.9, dur + 0.04);
+    src.stop(when + dur + 0.05);
   }
 
   private blip(
