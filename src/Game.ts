@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { Color, Vector3 } from 'three';
 import { Audio } from './audio/Audio';
 import { Engine } from './core/Engine';
 import { createState } from './core/GameState';
@@ -11,6 +11,8 @@ import { Hud } from './hud/Hud';
 import { Select } from './hud/Select';
 import { hasChosen, loadChoice, combine, type Loadout } from './core/Loadout';
 import { ShockRing } from './fx/ShockRing';
+import { Aura } from './fx/Aura';
+import { setRiderLight } from './world/RiderLight';
 import { Controller, IDLE_INPUT } from './player/Controller';
 import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
@@ -22,6 +24,9 @@ import { World } from './world/World';
 import { loadWorld } from './world/Worlds';
 
 const STEP = 1 / 120;
+
+/** Cible de blanchiment de la lampe a pleine aura. */
+const WHITE = new Color(1, 1, 1);
 
 /** Temps rendu par un anneau. Le haut paie plus : il demande un saut. */
 const RING_TIME = 3.0;
@@ -73,6 +78,7 @@ export class Game {
   readonly spray: Spray;
   readonly trail = new Trail();
   readonly shock = new ShockRing();
+  readonly aura = new Aura();
   readonly audio = new Audio();
   readonly hud: Hud;
   readonly select: Select;
@@ -96,6 +102,8 @@ export class Game {
   /** Force du sillage lissee : il enfle et se resorbe, il ne clignote pas. */
   private wakeAmount = 0;
   private screen = new Vector3();
+  /** Couleur de travail de la lampe. Reecrite, jamais recreee. */
+  private tint = new Color();
   /** Position au pas de simulation precedent : sert au test d'anneau. */
   private prevX = 0;
   private prevY = 0;
@@ -117,7 +125,7 @@ export class Game {
     this.input = new Input(canvas);
 
     this.spray = new Spray(this.engine.quality === 'low' ? 380 : 760);
-    this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.shock.group);
+    this.engine.scene.add(this.spray.mesh, this.trail.mesh, this.shock.group, this.aura.mesh);
 
     this.controller = new Controller({
       onPop: (charge, combo) => {
@@ -527,6 +535,7 @@ export class Game {
       this.wake,
     );
 
+    this.updateGlow(real);
     this.updateFx(real);
     // Rendre sur un contexte perdu ne produit rien et laisse le compositeur
     // afficher un canvas vide : on saute la frame, le fond CSS prend le relais.
@@ -544,6 +553,56 @@ export class Game {
     if (s === this.lastTick) return;
     this.lastTick = s;
     this.audio.tick(s <= 3);
+  }
+
+  /**
+   * L'AURA ET LA LAMPE.
+   *
+   * Les deux ne font qu'une seule chose : dire au joueur, SANS qu'il regarde le
+   * compteur, a quel point il va vite et qui il pilote. La lampe existe en
+   * permanence — c'est la livree du personnage — et l'aura vient s'y ajouter
+   * au-dela de 200 km/h.
+   *
+   * Le couplage est volontaire et c'est lui qui vend l'effet : quand l'aura
+   * s'allume, la flaque de lumiere DOUBLE de rayon et de puissance. Ce n'est
+   * plus le personnage qui brille, c'est la plaine qui change de couleur autour
+   * de lui — et ca, on ne peut pas le rater.
+   */
+  private updateGlow(dt: number): void {
+    const c = this.controller;
+    const look = this.surfer.look;
+    const kmh = this.state.speed * 3.6;
+    this.aura.update(this.time, kmh, look.lamp, dt);
+
+    const a = this.aura.power;
+    this.aura.place(this.surfer.rig.position);
+
+    // La lampe monte avec la vitesse, puis explose avec l'aura — mais elle est
+    // BORNEE.
+    //
+    // Sans plafond, l'aura poussait la puissance a plus du double de ce que le
+    // rendu peut encaisser : sur le sol sombre de CHROME, la flaque saturait a
+    // blanc pur sur un tiers de l'ecran. Une lampe qui deborde ne rend pas la
+    // scene plus lumineuse, elle l'efface — et le personnage qu'on voulait
+    // mettre en valeur disparaissait dans sa propre lueur.
+    const power = Math.min(1.45, look.power * (0.5 + 0.5 * c.speedNorm) + a * 0.95);
+    // 15 m au repos, 26 a pleine aura. Le premier reglage a 9 m tenait dans un
+    // quart de l'ecran : une flaque qu'on ne voit qu'en baissant les yeux ne
+    // change rien a l'image, et c'est l'IMAGE qu'on veut changer.
+    // 11 m au repos, 22 a pleine aura. A 15 m la flaque debordait du cadre :
+    // sans bord visible, une lueur cesse d'etre une SOURCE et devient un
+    // filtre de couleur pose sur l'image.
+    const radius = 11 + a * 11;
+    this.tint.setHex(look.lamp);
+    // A pleine aura la couleur blanchit : un coeur de flamme n'a pas de teinte,
+    // et une lueur qui reste verte a fond de compteur lit comme un filtre pose
+    // sur l'image plutot que comme une source qui sature.
+    this.tint.lerp(WHITE, a * 0.45);
+    setRiderLight(
+      c.x, c.y + 0.7, c.z,
+      this.tint.r, this.tint.g, this.tint.b,
+      power, radius,
+    );
   }
 
   private updateFx(dt: number): void {
@@ -593,6 +652,19 @@ export class Game {
       this.vanish.y * 0.5 + 0.5,
     );
     this.post.setCombo(c.combo);
+    // L'aura pousse aussi le POST-TRAITEMENT : au-dela de 200 km/h le flou
+    // radial et l'aberration doivent depasser ce que la vitesse seule donne,
+    // sinon l'aura est un objet pose devant une image calme.
+    if (this.aura.power > 0.01) {
+      this.post.surf.set(
+        Math.min(1, c.speedNorm + this.aura.power * 0.35),
+        c.boosting ? 1 : 0,
+        Math.max(c.carveCharge, this.aura.power * 0.5),
+        Math.max(this.state.popFlash, this.aura.power * 0.28),
+        this.vanish.x * 0.5 + 0.5,
+        this.vanish.y * 0.5 + 0.5,
+      );
+    }
 
     // Le repere de crete est SONORE : sans interface, c'est lui qui dit quand
     // appuyer. Il monte a l'approche du sommet et retombe apres.

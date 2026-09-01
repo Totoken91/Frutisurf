@@ -111,7 +111,7 @@ niveau d'eau, ses couleurs, son ciel et **ses règles**.
 | Monde | Eau | Ce qu'on y joue |
 |---|---|---|
 | **PLAINE** | 17 % | l'équilibre de référence : collines, lacs toutes les neuf secondes, ville de cristal. |
-| **OKINAWA** | 50 % | **la glisse.** Un lagon turquoise semé d'îles à palmiers. On déjauge à 16 m/s au lieu de 25 — un lagon est peu profond — donc on skie dessus dès le départ. En échange, on dérive. |
+| **OKINAWA** | 62 % | **la houle.** Un océan turquoise semé d'îles. On y déjauge à 8 m/s : impossible d'y couler, et c'est voulu — le risque déménage dans les vagues. Car la houle n'est pas un décor : elle porte une **pente** et une **courbure**, donc on la lit, on l'anticipe et on saute dessus, exactement comme une colline. Chaque crête franchie paie. |
 | **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
 | **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. |
 
@@ -122,6 +122,36 @@ plaine s'inonde derrière le panneau pendant que tu lis la carte suivante.
 
 Chaque monde tient **son propre record** : ils ne se font pas concurrence, et y
 revenir ne coûte rien.
+
+## Six buddies, six montures
+
+<p align="center">
+  <img src="docs/buddies.png" width="880" alt="Les six buddies : bleu, neon, givre, braise, amethyste, prisme" />
+</p>
+
+<p align="center">
+  <img src="docs/montures.png" width="880" alt="Les six montures : CD, vinyle, minidisc, disquette, CD-R, holo" />
+</p>
+
+Chaque buddy **projette sa lumière au sol** — une flaque de sa couleur qui
+voyage avec lui sur l'herbe, le sable et l'eau. NÉON n'est pas peint en vert, il
+**éclaire** en vert. Sans cette flaque, un personnage lumineux n'est qu'un
+autocollant fluorescent.
+
+Deux montures sont de vraies **cartouches carrées**, et ce n'est pas un caprice :
+ce qui distingue une monture à quarante pixels n'est ni sa couleur ni sa
+texture, c'est sa **silhouette**. Six disques ronds de teintes différentes se
+ressemblent tous.
+
+## L'aura, au-delà de 200 km/h
+
+Passé 200 km/h le surfeur **prend feu** de sa propre couleur : une enveloppe qui
+défile vers le haut, des langues qui la dépassent, et un cœur blanc. À 216 —
+le plafond absolu du jeu — elle atteint son plein régime.
+
+Elle n'est pas décorative : à pleine puissance elle **double le rayon et la
+force de la lampe**. Ce n'est plus le personnage qui brille, c'est la plaine qui
+change de couleur autour de lui.
 
 ## L'équipement
 

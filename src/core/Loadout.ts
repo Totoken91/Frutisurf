@@ -50,7 +50,7 @@ export const RIDERS: Perk[] = [
   {
     id: 'neon',
     name: 'NÉON',
-    blurb: 'part plus vite, mord moins',
+    blurb: 'part plus vite, mord moins — et il éclaire',
     cruise: 1.10, grip: 0.86, lift: 1, plane: 1, boost: 1.15,
   },
   {
@@ -58,6 +58,24 @@ export const RIDERS: Perk[] = [
     name: 'GIVRE',
     blurb: 'colle au sol, plafonne plus bas',
     cruise: 0.93, grip: 1.24, lift: 0.96, plane: 0.90, boost: 1,
+  },
+  {
+    id: 'braise',
+    name: 'BRAISE',
+    blurb: 'vite et haut, mais il déteste l’eau',
+    cruise: 1.14, grip: 0.94, lift: 1.08, plane: 0.80, boost: 1.02,
+  },
+  {
+    id: 'amethyste',
+    name: 'AMÉTHYSTE',
+    blurb: 'né pour l’eau, jamais pour le ciel',
+    cruise: 0.96, grip: 0.98, lift: 0.88, plane: 1.30, boost: 1.12,
+  },
+  {
+    id: 'prisme',
+    name: 'PRISME',
+    blurb: 'précis partout, à sec de boost',
+    cruise: 0.94, grip: 1.14, lift: 1.14, plane: 1.02, boost: 0.86,
   },
 ];
 
@@ -79,6 +97,24 @@ export const MOUNTS: Perk[] = [
     name: 'MINIDISC',
     blurb: 'léger : ça vole, ça glisse',
     cruise: 0.95, grip: 1.12, lift: 1.22, plane: 1.10, boost: 1.06,
+  },
+  {
+    id: 'disquette',
+    name: 'DISQUETTE',
+    blurb: 'les coins mordent, le reste traîne',
+    cruise: 0.88, grip: 1.30, lift: 0.94, plane: 1, boost: 1.02,
+  },
+  {
+    id: 'cdr',
+    name: 'CD-R',
+    blurb: 'ça grave vite, ça décolle mal',
+    cruise: 1.02, grip: 0.94, lift: 0.90, plane: 1, boost: 1.28,
+  },
+  {
+    id: 'holo',
+    name: 'HOLO',
+    blurb: 'sans matière : ça vole, ça ne mord pas',
+    cruise: 1.05, grip: 0.72, lift: 1.18, plane: 1.16, boost: 1,
   },
 ];
 

@@ -953,3 +953,90 @@ fondu d'opacité générique :
 - la **ligne d'arbres** s'abaisse, pour la même raison ;
 - seules les **tours** et les **éoliennes** se dissolvent vraiment — elles sont
   déjà à moitié dans le ciel, la brume fait le reste.
+
+## 16. La lampe, l'aura, et deux fautes de composition
+
+### Une source s'ajoute APRÈS l'éclairage, jamais avant
+
+Le personnage projette une **lampe** au sol : une flaque de sa couleur qui
+voyage avec lui, sur l'herbe, le sable, l'eau et les palmiers. Sans elle, un
+buddy vert reste un autocollant fluorescent — c'est la flaque qui fait la
+lumière, pas le verre.
+
+Elle est passée à la main en trois uniformes, pas en `PointLight` : le sol, les
+brins, l'eau et les palmiers sont des `ShaderMaterial` écrits à la main qui
+n'utilisent **pas** le système d'éclairage de three, et le seul matériau qui
+l'utilise est le verre du buddy. Une lampe ponctuelle aurait donc éclairé
+exactement l'objet qui brille déjà.
+
+Le premier jet l'ajoutait **avant** `daylight()`. La nuit la multipliait alors
+par sa propre lumière — bleue et faible — et le vert acide ressortait gris
+sombre. C'est exactement la même faute que le reflet de l'eau teinté deux fois,
+et elle mérite la même règle : **une source s'ajoute au résultat éclairé, elle
+n'y participe pas.**
+
+Deux réglages ont ensuite dû être repris sur capture :
+
+- **le plafond.** Sans borne, l'aura poussait la puissance au double de ce que
+  le rendu encaisse : sur le sol sombre de Chrome, la flaque saturait à blanc
+  pur sur un tiers de l'écran. Une lampe qui déborde n'éclaire pas, elle
+  **efface** ;
+- **la décroissance.** Au carré, la moitié du rayon gardait encore un quart de
+  la puissance : la flaque n'avait pas de bord et teintait tout le premier plan
+  d'un aplat uniforme. Au **cube**, elle a un cœur et une limite — et le sol du
+  monde revient au bout de quelques mètres.
+
+### L'aura ne peut pas être plus petite que ce qu'elle entoure
+
+Le premier jet lui donnait le rayon du personnage. Elle était donc **dans** le
+personnage : le buddy est un volume opaque, il masquait sa propre aura, et il
+n'en dépassait qu'un liseré qu'on prenait pour du bloom. Une aura doit
+envelopper **largement** ce qu'elle entoure, sinon elle n'existe que pour le
+tampon de profondeur.
+
+### Le piège de l'additif : l'alpha compté deux fois
+
+Le mélange additif de three multiplie la source par son alpha avant de
+l'ajouter. En sortant l'alpha à la fois dans la couleur **et** dans l'alpha, on
+l'appliquait deux fois : une aura calculée à 0,3 d'intensité arrivait à 0,09 à
+l'écran, et aucun réglage de couleur ne pouvait la rattraper.
+
+C'est la faute classique de l'additif, et elle se voit d'autant moins qu'elle ne
+casse rien — elle rend juste **tout terne**. La règle : en additif, l'alpha vaut
+1 et toute la modulation vit dans le RVB.
+
+### L'eau au fil des heures
+
+La couleur finale — corps de l'eau **et** reflet du ciel confondus — passait
+dans `daylight()` tout à la fin, donc le reflet était teinté une seconde fois.
+Un cyan saturé multiplié par un orange saturé ne donne ni cyan ni orange : ça
+donne un gris verdâtre, et le lac devenait de la boue exactement au moment où il
+aurait dû être le plus beau.
+
+Trois corrections, et elles tiennent en une phrase chacune :
+
+- seul le **corps** de l'eau reçoit l'heure ; le reflet est déjà à la bonne
+  couleur ;
+- plus le soleil est bas, plus l'eau devient un **miroir** — c'est toute la
+  différence entre un lac de midi, qui a une couleur propre, et un lac de
+  couchant, qui n'a plus que des reflets ;
+- la **paillette** prend la couleur du soleil. C'est elle qui dessine le chemin
+  de lumière sur l'eau, et un chemin blanc sous un soleil orange est la faute
+  qu'on remarque sans savoir la nommer.
+
+### Six montures, et pourquoi deux sont carrées
+
+Ce qui distingue une monture à distance de jeu n'est ni sa couleur ni sa
+texture : c'est sa **silhouette** et sa **taille**. Six disques ronds de teintes
+différentes se ressemblent tous dès qu'ils font quarante pixels.
+
+MINIDISC et DISQUETTE sont donc de vraies **cartouches carrées**, avec leur
+volet métallique décentré — la seule chose qui casse la symétrie radiale. Le
+shader garde un seul chemin : la distance euclidienne devient une distance de
+Tchebychev, qui fait des carrés concentriques là où l'autre faisait des cercles,
+et tout le reste continue de fonctionner sans y penser.
+
+Le buddy est aussi remonté de 0,55 à 0,92 au-dessus du disque. Ils étaient bien
+là, mais le buste posait presque dessus et la caméra de poursuite n'en laissait
+dépasser qu'un croissant. **Six montures soigneusement distinctes dont on ne voit
+qu'un croissant sont six montures identiques.**

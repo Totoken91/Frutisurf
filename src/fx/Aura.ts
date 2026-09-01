@@ -1,0 +1,300 @@
+import {
+  AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  DoubleSide,
+  Mesh,
+  ShaderMaterial,
+  Vector3,
+} from 'three';
+import { GLSL_NOISE, GLSL_SAFE } from '../core/Noise';
+
+/**
+ * L'AURA DE VITESSE, au-dela de 200 km/h.
+ *
+ * ---
+ *
+ * CE QU'ELLE DOIT ETRE, ET CE QU'ELLE NE DOIT PAS ETRE.
+ *
+ * Une aura ratee est un halo. On pose un sprite lumineux autour du personnage,
+ * on le fait pulser, et le resultat est une tache qui suit — jamais une energie
+ * qui monte. Trois choses separent l'une de l'autre :
+ *
+ *   1. ELLE MONTE. Le bruit qui la deforme DEFILE vers le haut, toujours. Une
+ *      aura qui ondule sur place respire ; une aura qui defile brule.
+ *   2. ELLE A DES POINTES. Une enveloppe lisse est une bulle. Ce sont les
+ *      langues qui depassent en haut, plus fines et plus rapides que le corps,
+ *      qui donnent la flamme.
+ *   3. ELLE RESTE VERTICALE. Le surfeur pique du nez, se cabre, vrille ; son
+ *      aura, elle, monte droit. Une flamme collee a l'assiette du personnage
+ *      se lit comme une cape, pas comme de l'energie.
+ *
+ * ---
+ *
+ * ELLE N'EST PAS DECORATIVE.
+ *
+ * A pleine puissance elle alimente la LAMPE du personnage (world/RiderLight) :
+ * le sol, les brins et l'eau prennent sa couleur sur une dizaine de metres.
+ * C'est ce qui la fait exister dans le monde au lieu de flotter devant lui, et
+ * c'est aussi ce qui rend les 200 km/h lisibles sans regarder le compteur — la
+ * plaine change de couleur.
+ *
+ * ---
+ *
+ * Un seul maillage, deux parties, comme les palmiers : l'enveloppe et les
+ * langues partagent le meme materiau et le meme appel de rendu. Additif et sans
+ * ecriture de profondeur — une aura ne cache rien, elle s'ajoute.
+ */
+
+/** Vitesse d'apparition et vitesse de plein regime, en km/h. */
+const KMH_START = 200;
+const KMH_FULL = 216;
+
+const RINGS = 9;
+const SEG = 22;
+const BLADES = 9;
+
+function buildGeometry(): BufferGeometry {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  /** 0 = enveloppe, 1 = langue. */
+  const part: number[] = [];
+  /** 0 en bas, 1 en haut. */
+  const vv: number[] = [];
+  /** Angle azimutal, pour desynchroniser le bruit. */
+  const ang: number[] = [];
+
+  const push = (x: number, y: number, z: number, p: number, v: number, a: number): number => {
+    pos.push(x, y, z);
+    part.push(p);
+    vv.push(v);
+    ang.push(a);
+    return pos.length / 3 - 1;
+  };
+
+  // --- L'enveloppe. Profil en GOUTTE INVERSEE : large juste au-dessus du
+  //     disque, resserree a la taille, puis effilee vers le haut. Un simple
+  //     cone donnerait un chapeau, une sphere donnerait une bulle.
+  const HEIGHT = 3.0;
+  const rows: number[][] = [];
+  for (let i = 0; i < RINGS; i++) {
+    const v = i / (RINGS - 1);
+    const y = -0.35 + v * HEIGHT;
+    // Le maximum est a v = 0,22 : au niveau du disque, pas au milieu du buste.
+    // 1,85 et non 0,92.
+    //
+    // Le premier jet donnait a l'enveloppe le rayon du personnage — donc elle
+    // etait DANS le personnage. Le buddy est un volume opaque : il masquait sa
+    // propre aura, et il n'en depassait qu'un lisere qu'on prenait pour du
+    // bloom. Une aura doit envelopper LARGEMENT ce qu'elle entoure, sinon elle
+    // n'existe que pour le tampon de profondeur.
+    const r = 1.42 * Math.pow(Math.max(0, 1 - v), 0.85) * (0.42 + 0.58 * Math.sin(Math.min(1, v / 0.22) * Math.PI * 0.5));
+    const row: number[] = [];
+    for (let j = 0; j < SEG; j++) {
+      const a = (j / SEG) * Math.PI * 2;
+      row.push(push(Math.cos(a) * r, y, Math.sin(a) * r, 0, v, a));
+    }
+    rows.push(row);
+  }
+  for (let i = 0; i < RINGS - 1; i++) {
+    for (let j = 0; j < SEG; j++) {
+      const k = (j + 1) % SEG;
+      idx.push(rows[i][j], rows[i][k], rows[i + 1][j]);
+      idx.push(rows[i][k], rows[i + 1][k], rows[i + 1][j]);
+    }
+  }
+
+  // --- Les langues. Plus HAUTES que l'enveloppe et plus fines : ce sont elles
+  //     qui depassent, et c'est ce depassement qui fait la flamme.
+  for (let b = 0; b < BLADES; b++) {
+    const a = (b / BLADES) * Math.PI * 2 + 0.37;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    // Les langues partent NETTEMENT en dehors du buste : leur travail est
+    // d'etre vues, et rien de ce qui passe derriere le personnage n'est vu.
+    const base = 1.12;
+    // Les langues montent a plus du double de l'enveloppe : ce sont elles qu'on
+    // voit depasser, et ce depassement EST la flamme.
+    // 3,6 et non 5,2 : les langues sortaient du cadre par le haut, et une
+    // flamme dont on ne voit pas la pointe n'est plus une flamme, c'est une
+    // colonne.
+    const top = 3.6 + (b % 3) * 0.7;
+    const w = 0.15;
+    const l0 = push(dx * base - dz * w, -0.1, dz * base + dx * w, 1, 0, a);
+    const l1 = push(dx * base + dz * w, -0.1, dz * base - dx * w, 1, 0, a);
+    const l2 = push(dx * base * 0.30, top, dz * base * 0.30, 1, 1, a);
+    idx.push(l0, l1, l2);
+  }
+
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('aPart', new BufferAttribute(new Float32Array(part), 1));
+  g.setAttribute('aV', new BufferAttribute(new Float32Array(vv), 1));
+  g.setAttribute('aAng', new BufferAttribute(new Float32Array(ang), 1));
+  g.setIndex(idx);
+  return g;
+}
+
+export class Aura {
+  readonly mesh: Mesh;
+  private mat: ShaderMaterial;
+  private col = new Color();
+  /** 0..1, lisse. Public : le jeu s'en sert pour la lampe et la camera. */
+  power = 0;
+
+  constructor() {
+    this.mat = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      side: DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uPower: { value: 0 },
+        uColor: { value: new Color(0x86ff2a) },
+      },
+      vertexShader: /* glsl */ `
+${GLSL_SAFE}
+${GLSL_NOISE}
+        attribute float aPart, aV, aAng;
+        uniform float uTime, uPower;
+        varying float vV, vPart, vEdge, vFlick, vLick;
+
+        void main(){
+          vV = aV; vPart = aPart;
+          vec3 p = position;
+
+          // --- LE DEFILEMENT VERS LE HAUT.
+          //
+          //     La phase depend de la HAUTEUR moins le temps : le motif remonte
+          //     donc la surface au lieu d'osciller sur place. C'est le seul
+          //     terme qui separe une flamme d'une bulle qui respire, et il ne
+          //     coute rien de plus qu'un signe.
+          float flow = aV * 5.4 - uTime * 6.2 + aAng * 1.9;
+          float wob = sin(flow) * 0.5 + sin(flow * 1.73 + 1.3) * 0.28;
+          vFlick = wob * 0.5 + 0.5;
+
+          // --- LES STRIES.
+          //
+          //     C'est ce qui manquait au premier jet, et c'est tout le sujet.
+          //     Une enveloppe lisse qui monte reste une BULLE lumineuse, quelle
+          //     que soit son opacite : le regard n'y trouve aucune structure a
+          //     suivre. Une flamme est faite de langues distinctes, et une
+          //     modulation en azimut suffit a les creer — sept lobes qui
+          //     remontent, decales les uns des autres.
+          vLick = pow(0.5 + 0.5 * sin(aAng * 7.0 + flow * 0.75), 1.6);
+
+          // Les langues ondulent DEUX FOIS plus que le corps et se tordent en
+          // azimut : sans cette torsion elles restent neuf piquants figes.
+          float amp = (aPart > 0.5 ? 0.42 : 0.20) * uPower;
+          // L'aura GRANDIT avec la puissance et depasse franchement le
+          // personnage : une flamme a la taille du corps se lit comme un
+          // contour, pas comme une energie.
+          float grow = 0.62 + 0.62 * uPower;
+          p.xz *= grow * (1.0 + wob * amp);
+          p.y *= grow;
+          float tw = wob * (aPart > 0.5 ? 0.30 : 0.10) * aV;
+          float ct = cos(tw), st = sin(tw);
+          p.xz = mat2(ct, -st, st, ct) * p.xz;
+
+          // Le bord de l'enveloppe est ce qu'on voit : on prepare ici de quoi
+          // le faire ressortir au fragment, sans normale ni eclairage.
+          vEdge = length(p.xz);
+
+          // --- L'AURA RESTE VERTICALE.
+          //
+          //     La matrice de modele ne porte que la position : le jeu ne lui transmet
+          //     ni l'assiette ni la vrille du surfeur. Une flamme qui pique du
+          //     nez avec le disque se lit comme une cape.
+          vec4 wp = modelMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+${GLSL_SAFE}
+        uniform float uPower, uTime;
+        uniform vec3 uColor;
+        varying float vV, vPart, vEdge, vFlick, vLick;
+
+        void main(){
+          if (uPower < 0.004) discard;
+
+          // Extinction en hauteur, mais LENTE : a 0,8 la flamme s'eteignait
+          // avant d'avoir depasse le personnage, et les langues n'arrivaient
+          // jamais jusqu'en haut. Une aura qui ne depasse pas est un contour.
+          float up = pow(max(1.0 - vV, 0.0), 0.45);
+
+          // Le coeur est blanc, mais SEULEMENT le coeur. A la puissance 2,6 le
+          // blanc mangeait toute la moitie basse et une aura verte ressortait
+          // blanche — c'est-a-dire la couleur du personnage qu'on avait
+          // justement choisi de rendre visible.
+          float heat = pow(max(1.0 - vV, 0.0), 5.0);
+          // 0,26 et non 0,40 : a 0,40 l'aura entiere tirait au blanc et la
+          // livree du personnage — la seule chose qu'on voulait montrer — n'y
+          // etait plus lisible.
+          vec3 c = mix(uColor, vec3(1.0), heat * 0.26);
+
+          float a = up * (0.30 + vFlick * 0.70) * (0.30 + vLick * 0.85);
+          a *= vPart > 0.5 ? 1.35 : 0.62;
+          a *= uPower;
+          // Le tout premier centimetre s'efface : sans ca la base de l'aura
+          // recouvrait la monture, c'est-a-dire precisement l'objet qu'on
+          // vient de rendre visible.
+          a *= smoothstep(0.0, 0.13, vV);
+
+          // Le liseré. L'enveloppe est vue de l'interieur ET de l'exterieur
+          // (DoubleSide) : sans ce renforcement du bord, les deux faces
+          // s'additionnent en une masse uniforme.
+          a *= 0.5 + 0.9 * smoothstep(0.1, 1.2, vEdge);
+
+          // ALPHA A 1, et toute la modulation dans le RVB.
+          //
+          // Le melange additif de three.js multiplie la source par son alpha
+          // avant de l'ajouter. En sortant l'alpha a la fois dans la couleur et
+          // dans l'alpha, on l'appliquait donc DEUX fois : une aura calculee a
+          // 0,3 d'intensite arrivait a 0,09 a l'ecran, et aucun reglage de
+          // couleur ne pouvait la rattraper. C'est la faute classique de
+          // l'additif, et elle se voit d'autant moins qu'elle ne casse rien —
+          // elle rend juste tout terne.
+          gl_FragColor = vec4(c * a * 3.4, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }
+      `,
+    });
+
+    this.mesh = new Mesh(buildGeometry(), this.mat);
+    this.mesh.frustumCulled = false;
+    // Apres le surfeur : l'aura s'ajoute par-dessus lui, elle ne le masque pas.
+    this.mesh.renderOrder = 40;
+    this.mesh.visible = false;
+  }
+
+  /**
+   * @param kmh vitesse affichee, en km/h
+   * @param lamp couleur de la livree du personnage
+   * @param dt temps reel, pour le lissage
+   */
+  update(time: number, kmh: number, lamp: number, dt: number): void {
+    const target = Math.min(Math.max((kmh - KMH_START) / (KMH_FULL - KMH_START), 0), 1);
+    // Montee franche, extinction plus lente : l'aura doit CLAQUER a
+    // l'allumage et trainer un peu apres, comme une inertie thermique. Des
+    // vitesses egales dans les deux sens la font clignoter des que la vitesse
+    // oscille autour du seuil.
+    const rate = target > this.power ? 6.5 : 2.2;
+    this.power += (target - this.power) * Math.min(1, dt * rate);
+    if (this.power < 0.003) this.power = 0;
+
+    this.mesh.visible = this.power > 0;
+    if (!this.mesh.visible) return;
+    this.mat.uniforms.uTime.value = time;
+    this.mat.uniforms.uPower.value = this.power;
+    (this.mat.uniforms.uColor.value as Color).copy(this.col.setHex(lamp));
+  }
+
+  /** Pose l'aura sur le surfeur. La ROTATION n'est jamais transmise. */
+  place(p: Vector3): void {
+    this.mesh.position.set(p.x, p.y - 0.15, p.z);
+  }
+}

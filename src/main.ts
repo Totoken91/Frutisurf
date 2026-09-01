@@ -1,5 +1,6 @@
 import { Game } from './Game';
 import { WORLDS } from './world/Worlds';
+import { MOUNTS, RIDERS, combine } from './core/Loadout';
 import { terrainHeight, waterDepth } from './world/Terrain';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
@@ -13,6 +14,8 @@ game.start();
 // montre le monde plutot qu'un bout de prairie au hasard.
 (window as unknown as Record<string, unknown>).__depth = waterDepth;
 (window as unknown as Record<string, unknown>).__height = terrainHeight;
+// Les bancs de galerie composent des equipements a la volee.
+(window as unknown as Record<string, unknown>).__loadout = { RIDERS, MOUNTS, combine };
 
 /**
  * Sonde de diagnostic, chargee A LA DEMANDE : elle synchronise le pipeline

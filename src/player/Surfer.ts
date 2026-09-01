@@ -35,17 +35,59 @@ import { Disc, DISC_RADIUS } from './Disc';
  * et le HAUT plus dense. L'inverse donne un personnage qui a l'air pose la
  * tete en bas, parce que la lumiere du monde vient d'en haut.
  */
-const RIDER_TINT: Record<string, [number, number, number, number]> = {
-  bleu: [0x0a8fe8, 0x6ff2fb, 0x4cd9ff, 0x9effff],
-  neon: [0x18c2a6, 0xc8ff4e, 0x9bff3c, 0xe4ff96],
-  // Le haut descend nettement plus bas que sur les deux autres : un verre
-  // presque blanc passe dans le bloom sature, et GIVRE perdait sa silhouette
-  // au lieu de gagner en clarte.
-  givre: [0x3f7fc4, 0xd2eeff, 0xa8dcf8, 0xe8fbff],
+export interface RiderLook {
+  /** haut, bas, liseré, arete basse */
+  tint: [number, number, number, number];
+  /** Couleur de la LAMPE que le personnage projette au sol. */
+  lamp: number;
+  /**
+   * Puissance de la lampe, 0..1.
+   *
+   * C'est le vrai axe de variete de la galerie, plus que la teinte. Un buddy
+   * qui « brille » sans rien eclairer est un autocollant fluorescent ; ce qui
+   * fait la difference est la flaque de couleur qui voyage avec lui sur
+   * l'herbe, le sable et l'eau (cf. world/RiderLight.ts).
+   */
+  power: number;
+}
+
+const RIDER_TINT: Record<string, RiderLook> = {
+  // Le verre d'origine. Une lampe presque nulle : c'est la reference, et une
+  // reference qui eclaire n'en est plus une.
+  bleu: { tint: [0x0a8fe8, 0x6ff2fb, 0x4cd9ff, 0x9effff], lamp: 0x4cd9ff, power: 0.14 },
+  // LE personnage lumineux. Vert acide a fond, et il eclaire vraiment.
+  neon: { tint: [0x1cc44a, 0xd4ff3a, 0x8cff28, 0xe8ff8c], lamp: 0x86ff2a, power: 1.0 },
+  // Le haut descend nettement plus bas que sur les autres : un verre presque
+  // blanc passe dans le bloom sature, et GIVRE perdait sa silhouette au lieu
+  // de gagner en clarte.
+  givre: { tint: [0x3f7fc4, 0xd2eeff, 0xa8dcf8, 0xe8fbff], lamp: 0xbfe8ff, power: 0.34 },
+  // La braise : le seul CHAUD de la galerie, dans un jeu entierement cyan et
+  // chartreuse. C'est ce qui le rend spectaculaire — et ce qui impose de le
+  // garder rare.
+  braise: { tint: [0xc42a08, 0xffc24a, 0xff7a1e, 0xffe0a0], lamp: 0xff6a18, power: 0.9 },
+  // L'amethyste : violet profond en haut, rose en bas. Le complementaire du
+  // vert de l'herbe, donc le personnage qui se detache le mieux du sol.
+  amethyste: { tint: [0x4a12a8, 0xdd7cff, 0xb24bff, 0xf0c4ff], lamp: 0xa93cff, power: 0.72 },
+  // Le prisme : blanc en haut, cyan en bas, liseré magenta. Il ne tient pas
+  // sa couleur de son verre mais de ses ARETES, comme un vrai prisme.
+  prisme: { tint: [0xdfe8ff, 0x7ff0ff, 0xff6ae0, 0xfff0b0], lamp: 0xd0a8ff, power: 0.52 },
 };
 
-/** Ecart vertical entre le CD et la base du buddy, avant mise a l'echelle. */
-const GAP = 0.55;
+/** La livree d'un personnage, pour l'interface comme pour la scene. */
+export function riderLook(id: string): RiderLook {
+  return RIDER_TINT[id] ?? RIDER_TINT.bleu;
+}
+
+/**
+ * Ecart vertical entre le CD et la base du buddy, avant mise a l'echelle.
+ *
+ * Remonte de 0,55 a 0,92 sur retour joueur : « on voit pas les vehicules ». Ils
+ * etaient bien la, mais le buste posait presque sur le disque et la camera de
+ * poursuite, legerement haute, ne laissait depasser qu'un croissant. Six
+ * montures soigneusement distinctes dont on ne voit qu'un croissant sont six
+ * montures identiques.
+ */
+const GAP = 0.92;
 /** Le sujet occupait trop peu de place a l'ecran ; il grandit d'un sixieme. */
 const SUBJECT_SCALE = 1.16;
 
@@ -113,10 +155,14 @@ export class Surfer {
    * voit de son choix pendant la partie, donc elles doivent etre franches.
    */
   setLoadout(riderId: string, mountId: string): void {
-    const t = RIDER_TINT[riderId] ?? RIDER_TINT.bleu;
-    this.buddy.setTint(t[0], t[1], t[2], t[3]);
+    const l = riderLook(riderId);
+    this.look = l;
+    this.buddy.setTint(l.tint[0], l.tint[1], l.tint[2], l.tint[3]);
     this.disc.setMount(mountId);
   }
+
+  /** Livree courante. Le jeu y lit la couleur de la lampe et de l'aura. */
+  look: RiderLook = RIDER_TINT.bleu;
 
   animate(dt: number, m: SurferMotion): void {
     // --- LE DISQUE. Reactif, presque critique : il epouse la trajectoire

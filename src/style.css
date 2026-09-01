@@ -852,7 +852,11 @@ html, body {
   font-size: 0.80em;
   font-weight: 800;
   letter-spacing: 0.06em;
-  line-height: 1;
+  /* 1,15 et non 1 : a interligne exactement egal a la taille, l'accent d'un
+     E majuscule sort de la boite et se fait rogner. NEON et AMETHYSTE
+     perdaient le leur, ce qui est la seule faute de typographie qu'un
+     francophone remarque a coup sur. */
+  line-height: 1.15;
   color: #f0fbff;
   text-shadow: 0 1px 0 rgba(4,44,80,0.9);
 }
@@ -1218,3 +1222,115 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
 }
 .pickread p + p { opacity: 0.86; }
 .pickread .wline + p { opacity: 1; }
+
+/* --- SIX cartes par rangee au lieu de trois.
+   Chaque carte tombe a une cinquantaine de pixels : elle ne porte plus que la
+   vignette et le nom. Les compromis « + » et « − » descendent dans le bloc de
+   lecture, ou ils ont la place d'etre lus — et ou ils ne concernent que
+   l'option selectionnee, la seule qui compte. */
+.pickrow.six .cards { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.pickrow.six .card { padding: 0.4em 0.1em 0.36em; gap: 0.22em; border-radius: 10px; }
+.pickrow.six .card .nm { font-size: 0.56em; letter-spacing: 0.02em; }
+.pickrow.six .emb { width: clamp(26px, 8vw, 34px); height: clamp(26px, 8vw, 34px); }
+
+/* La ligne de compromis : deux paires nom + etiquettes, sur une seule ligne. */
+.tagline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.26em 0.5em;
+  margin-top: 0.42em;
+  padding-top: 0.4em;
+  border-top: 1px solid rgba(190, 236, 255, 0.18);
+}
+.tagline span {
+  font-size: 0.58em;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  color: #b6ddf2;
+  text-shadow: 0 1px 0 rgba(4, 44, 80, 0.8);
+}
+.tagline em {
+  font-style: normal;
+  font-size: 0.58em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.tagline .up { color: #a9f56a; text-shadow: 0 1px 0 rgba(4,44,20,0.8); }
+.tagline .dn { color: #ffc267; text-shadow: 0 1px 0 rgba(58,30,4,0.8); }
+.tagline .eq { color: #b8dcf0; opacity: 0.8; }
+
+/* --- Les trois nouvelles livrees. Meme construction en verre que les autres :
+   tete et buste, degrade clair en bas et dense en haut, point chaud decale. */
+.av.braise b, .av.braise u {
+  background: linear-gradient(165deg, #ffd894 0%, #ff8a2a 40%, #c22a06 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.55), 0 0 9px rgba(255,110,30,0.8);
+}
+.av.amethyste b, .av.amethyste u {
+  background: linear-gradient(165deg, #f0c4ff 0%, #b24bff 42%, #4a12a8 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.5), 0 0 9px rgba(170,60,255,0.75);
+}
+/* Le prisme ne tient pas sa couleur de son verre mais de ses ARETES : corps
+   presque blanc, halo magenta. */
+.av.prisme b, .av.prisme u {
+  background: linear-gradient(165deg, #ffffff 0%, #dfe8ff 38%, #7ff0ff 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.9), 0 0 8px rgba(255,110,224,0.85);
+}
+
+/* --- Les trois nouvelles montures. */
+/* La disquette : carree, sombre, avec sa grande etiquette blanche. */
+.mv.disquette b {
+  inset: 8%;
+  border-radius: 8%;
+  background: linear-gradient(160deg, #4a4f5c 0%, #16181d 45%, #2a2f38 100%);
+  box-shadow: 0 1px 3px rgba(3,32,64,0.55), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+.mv.disquette b::after {
+  content: '';
+  position: absolute;
+  left: 14%; top: 12%; right: 14%; height: 42%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ffffff, #dcd8cc);
+}
+.mv.disquette u {
+  left: 26%; bottom: 12%; width: 48%; height: 26%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #e2ecf4 0%, #93a6b6 45%, #5c7080 62%, #c8dae6 100%);
+}
+/* Le CD-R : la seule face DOREE du jeu. */
+.mv.cdr b {
+  border-radius: 50%;
+  background:
+    conic-gradient(from 200deg, #ffe9a8 0deg, #d8b04a 70deg, #8fd07a 140deg,
+      #ffd97a 220deg, #c8a03c 290deg, #ffe9a8 360deg);
+  box-shadow: 0 1px 3px rgba(3,32,64,0.5), inset 0 0 0 1px rgba(255,255,255,0.55);
+}
+.mv.cdr b::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(132deg, rgba(255,255,255,0) 26%, rgba(255,255,255,0.8) 42%, rgba(255,255,255,0) 60%);
+}
+.mv.cdr u {
+  left: 38%; top: 38%; width: 24%; height: 24%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 34%, #fffbe8, #d8c078 70%, #9a7c30);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.6);
+}
+/* L'holo : pas de matiere, juste de la lumiere. C'est le seul embleme qui
+   n'a pas d'ombre portee — un objet qui emet n'en projette pas sur lui-meme. */
+.mv.holo b {
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255,255,255,0.95) 0 18%, rgba(120,230,255,0.72) 42%,
+    rgba(90,200,255,0.34) 70%, rgba(80,180,255,0.05) 100%);
+  box-shadow: 0 0 12px rgba(120, 230, 255, 0.9), inset 0 0 0 1px rgba(255,255,255,0.75);
+}
+.mv.holo u {
+  left: 40%; top: 40%; width: 20%; height: 20%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px rgba(190, 245, 255, 1);
+}

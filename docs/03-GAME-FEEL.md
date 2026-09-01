@@ -826,3 +826,90 @@ Toucher une carte de monde applique le monde **immédiatement**, avant toute
 validation : le fondu dure 1,15 s et se joue derrière le panneau. On ne lit pas
 la description d'un lagon, **on le voit apparaître**. La vignette de la carte ne
 sert plus qu'à reconnaître un monde déjà vu.
+
+---
+
+## 12. Surfer la houle, et l'aura des 200 km/h
+
+### La houle porte une pente, donc elle se joue
+
+Sur l'océan on passe les deux tiers du temps sur l'eau. Une étendue **plate**
+n'a ni pente ni courbure : elle est douce, et elle est vide — trois cents mètres
+où la seule action est de tenir la direction.
+
+La surface est donc échantillonnée **exactement comme le sol** — trois points à
+±7 m — et toute la machinerie de crête fonctionne telle quelle : la vague a une
+pente qui freine ou qui relance, une courbure qui peut décoller le disque, et un
+sommet que le signal sonore annonce. On ne traverse plus l'eau, on la **surfe**.
+
+Le Controller et le shader lisent la **même fonction, au même instant** : le
+surfeur plane à la hauteur que calcule le processeur, la vague est dessinée à la
+hauteur que calcule la carte graphique. Un écart de signe le ferait surfer dans
+les creux.
+
+**Chaque crête franchie paie** — un peu de temps, un peu de boost, des points.
+Mais **jamais de combo** : une vague passe toutes les deux secondes et le combo
+expire en 2,2 s, donc le nourrir donnait un multiplicateur qui ne redescendait
+jamais. Mesure du premier jet : dix millions de points sur Chrome contre trois
+sur la plaine, uniquement par emballement. Le combo récompense des gestes rares
+et adroits ; une houle qu'on subit n'en est pas un.
+
+### Le vol long paie, comme la traversée
+
+Mesure au banc : sur la plaine, les traversées d'eau rapportent à elles seules
+**quatre cents secondes** par partie — de très loin la première source de temps
+du jeu. Un monde sans eau n'avait donc aucun revenu récurrent, et Bliss tenait
+172 s là où la plaine tenait 600. Pas parce qu'il était plus dur : parce qu'il
+était **pauvre**.
+
+Un monde de collines a pourtant sa ressource propre, et c'est l'air. Un vol de
+plus de 0,9 s paie désormais sur la même courbe en **racine** que la traversée —
+un vol deux fois plus long n'est pas deux fois plus dur, c'est le **début** qui
+demande quelque chose.
+
+### L'aura, au-delà de 200 km/h
+
+Elle s'allume à 200 km/h et atteint son plein régime à 216, qui est le plafond
+absolu du jeu. C'est donc un état **rare et mérité** : il faut du boost, des
+colonnes et de la vitesse accumulée pour y arriver.
+
+Trois choses séparent une aura d'un halo :
+
+1. **elle monte** — le bruit qui la déforme défile vers le haut, toujours. Une
+   aura qui ondule sur place respire, une aura qui défile brûle ;
+2. **elle a des pointes** — ce sont les langues qui dépassent en haut, plus
+   fines et plus rapides que le corps, qui font la flamme ;
+3. **elle reste verticale** — le surfeur pique du nez, se cabre, vrille ; son
+   aura monte droit. Une flamme collée à l'assiette du personnage se lit comme
+   une cape.
+
+Elle n'est pas décorative : à pleine puissance elle **double le rayon et la
+force de la lampe** du personnage. Ce n'est plus lui qui brille, c'est la plaine
+qui change de couleur autour de lui — et ça, on ne peut pas le rater sans
+regarder le compteur.
+
+### Six buddies, six montures
+
+L'écran passe de trois à six options par rangée. Les étiquettes « + » et « − »
+quittent les cartes pour rejoindre le bloc de lecture : à six, chaque carte fait
+cinquante pixels de large et deux lignes de texte s'y écrasent en bouillie. Le
+principe ne change pas, il se resserre — **les cartes montrent, le bloc
+explique**, et il n'explique que ce qui est sélectionné.
+
+| Buddy | Avantage | Coût |
+|---|---|---|
+| **BLEU** | — | — |
+| **NÉON** | boost ×1,15 · cruise ×1,10 — et il éclaire | grip ×0,86 |
+| **GIVRE** | grip ×1,24 | cruise ×0,93 · plane ×0,90 |
+| **BRAISE** | cruise ×1,14 · lift ×1,08 | plane ×0,80 — il déteste l'eau |
+| **AMÉTHYSTE** | plane ×1,30 · boost ×1,12 | lift ×0,88 |
+| **PRISME** | grip ×1,14 · lift ×1,14 | boost ×0,86 |
+
+| Monture | Avantage | Coût |
+|---|---|---|
+| **CD** | — | — |
+| **VINYLE** | cruise ×1,12 | grip ×0,82 · lift ×0,88 |
+| **MINIDISC** | lift ×1,22 · grip ×1,12 · plane ×1,10 | cruise ×0,95 |
+| **DISQUETTE** | grip ×1,30 — les coins mordent | cruise ×0,88 |
+| **CD-R** | boost ×1,28 | lift ×0,90 |
+| **HOLO** | lift ×1,18 · plane ×1,16 | grip ×0,72 — sans matière, ça ne mord pas |

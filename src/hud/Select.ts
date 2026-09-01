@@ -80,6 +80,7 @@ export class Select {
   private idx = [0, 0, 0];
   private worldCards: HTMLButtonElement[] = [];
   private worldLine!: HTMLElement;
+  private tagLine!: HTMLElement;
   private opened = false;
 
   /** Appele a la validation, avec la combinaison retenue. */
@@ -127,6 +128,7 @@ export class Select {
             <p class="wline" data-el="world"></p>
             <p data-el="blurb0"></p>
             <p data-el="blurb1"></p>
+            <div class="tagline" data-el="tags"></div>
             <div class="meters">
               ${AXES.map(
                 (a) => `
@@ -165,28 +167,41 @@ export class Select {
       root.querySelector<HTMLElement>('[data-el="blurb0"]')!,
       root.querySelector<HTMLElement>('[data-el="blurb1"]')!,
     );
+    this.tagLine = root.querySelector<HTMLElement>('[data-el="tags"]')!;
     root.querySelector<HTMLElement>('[data-el="go"]')!.addEventListener('click', () => this.confirm());
 
     addEventListener('keydown', this.key);
     this.refresh();
   }
 
+  /**
+   * Une rangee de cartes.
+   *
+   * Les etiquettes « + » et « − » ont quitte les cartes pour rejoindre le bloc
+   * de lecture. A trois options elles tenaient ; a six, chaque carte n'a plus
+   * que cinquante pixels de large et deux lignes de texte s'y ecrasent en
+   * bouillie. Le principe de l'ecran ne change pas, il se resserre : les cartes
+   * MONTRENT, le bloc EXPLIQUE — et il n'explique que ce qui est selectionne,
+   * qui est la seule chose qu'on ait besoin de lire.
+   */
   private rowHtml(title: string, list: Perk[], row: number, kind: string): string {
     const cards = list
-      .map((p, i) => {
-        const h = highlights(p);
-        const tags = h.up || h.down
-          ? `${h.up ? `<em class="up">+${h.up}</em>` : ''}${h.down ? `<em class="dn">−${h.down}</em>` : ''}`
-          : '<em class="eq">équilibré</em>';
-        return `
+      .map(
+        (p, i) => `
           <button class="card" type="button" data-row="${row}" data-i="${i}">
             <span class="emb"><i class="${kind} ${p.id}"><b></b><u></u></i></span>
             <span class="nm">${p.name}</span>
-            <span class="tags">${tags}</span>
-          </button>`;
-      })
+          </button>`,
+      )
       .join('');
-    return `<div class="pickrow"><h3>${title}</h3><div class="cards">${cards}</div></div>`;
+    return `<div class="pickrow six"><h3>${title}</h3><div class="cards">${cards}</div></div>`;
+  }
+
+  /** Les etiquettes derivees, telles qu'elles s'affichent dans le bloc. */
+  private tagsFor(p: Perk): string {
+    const h = highlights(p);
+    if (!h.up && !h.down) return '<em class="eq">équilibré</em>';
+    return `${h.up ? `<em class="up">+${h.up}</em>` : ''}${h.down ? `<em class="dn">−${h.down}</em>` : ''}`;
   }
 
   get isOpen(): boolean {
@@ -284,6 +299,9 @@ export class Select {
     const l = this.loadout;
     this.blurbs[0].textContent = `${l.rider.name} — ${l.rider.blurb}`;
     this.blurbs[1].textContent = `${l.mount.name} — ${l.mount.blurb}`;
+    this.tagLine.innerHTML =
+      `<span>${l.rider.name}</span>${this.tagsFor(l.rider)}` +
+      `<span>${l.mount.name}</span>${this.tagsFor(l.mount)}`;
 
     for (let i = 0; i < AXES.length; i++) {
       const v = l[AXES[i].key] / NEUTRAL[AXES[i].key];

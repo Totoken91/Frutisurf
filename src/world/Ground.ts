@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
+import { RIDER_GLSL, riderUniforms } from './RiderLight';
 import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { makeGrassTexture } from './GrassTexture';
@@ -90,6 +91,7 @@ export class Ground {
     this.mat = new ShaderMaterial({
       fog: false,
       uniforms: {
+        ...riderUniforms(),
         // Le relief est pilote par uniformes : changer de monde ne recompile
         // aucun shader (cf. Terrain.terrainGLSL).
         ...terrainUniforms(),
@@ -152,6 +154,7 @@ ${GLSL_DAY}
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
         uniform float uTech;
+${RIDER_GLSL}
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
         uniform vec3 uCast;
         uniform vec3 uSkyLight;
@@ -498,6 +501,25 @@ ${shoreGLSL()}
           //     qui eclaire, donc la couleur de remplissage domine — et c'est ce
           //     basculement qui fait qu'une nuit n'est pas un jour assombri.
           c = daylight(c, cloudDark * 0.55 + uDayNight * 0.30);
+
+          // --- LA LAMPE DU SURFEUR, et elle vient APRES l'eclairage de la
+          //     scene, jamais avant.
+          //
+          //     C'est une SOURCE : ce qu'elle emet ne depend pas de l'heure. Le
+          //     premier jet l'ajoutait plus haut, avant daylight(), donc la
+          //     nuit la multipliait par sa propre lumiere — bleue et faible —
+          //     et le vert acide du personnage ressortait gris sombre.
+          //     Exactement la meme faute que le reflet de l'eau teinte deux
+          //     fois, et elle merite la meme regle : une source s'AJOUTE au
+          //     resultat eclaire, elle n'y participe pas.
+          //
+          //     Le gain monte avec la nuit parce qu'une lueur en plein soleil
+          //     ne se voit pas et delave le sol au lieu de l'eclairer.
+          // Dose reduite apres capture : a 0,80 la flaque recouvrait la grille
+          //     de CHROME, et le monde disparaissait sous la lampe du
+          //     personnage. Une lueur doit REVELER la matiere du sol, pas la
+          //     remplacer par un aplat de sa propre couleur.
+          c += riderLight(vWorld) * (0.24 + uDayNight * 0.58);
 
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>

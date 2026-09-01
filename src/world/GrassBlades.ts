@@ -8,6 +8,7 @@ import {
   Vector3,
 } from 'three';
 import { GLSL_NOISE } from '../core/Noise';
+import { RIDER_GLSL, riderUniforms } from './RiderLight';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
@@ -98,6 +99,7 @@ export class GrassBlades {
     this.mat = new ShaderMaterial({
       side: DoubleSide,
       uniforms: {
+        ...riderUniforms(),
         // Le relief est pilote par uniformes : changer de monde ne recompile
         // aucun shader (cf. Terrain.terrainGLSL).
         ...terrainUniforms(),
@@ -125,6 +127,7 @@ export class GrassBlades {
         attribute float aBlade;
         uniform vec3 uOrigin;
         uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity;
+        varying vec3 vWorldPos;
         uniform vec3 uSun;
         varying float vV, vTint, vLight, vGlint, vShade;
 
@@ -200,6 +203,7 @@ ${shoreGLSL()}
           );
           world.y = terrainHeightAt(world.xz, dist) + local.y;
 
+          vWorldPos = world;
           vV = v;
           vTint = r2;
           // Eclairage bon marche : la face du brin regarde son axe de rotation.
@@ -219,6 +223,8 @@ ${shoreGLSL()}
       `,
       fragmentShader: /* glsl */ `
         uniform vec3 uBase, uTip, uGlow, uSkyLight;
+${RIDER_GLSL}
+        varying vec3 vWorldPos;
 ${GLSL_DAY}
         varying float vV, vTint, vLight, vGlint, vShade;
         void main(){
@@ -240,6 +246,14 @@ ${GLSL_DAY}
           // couches doivent basculer ensemble, sinon les touffes restent en
           // plein jour sur une prairie qui a bascule au crepuscule.
           c = daylight(c, vShade * 0.55 + uDayNight * 0.30);
+          // La lampe du surfeur prend PLUS sur les brins que sur le sol : ils
+          // sont fins, ils captent la lumiere par la tranche, et c'est ce
+          // scintillement dans l'herbe qui vend la lueur — pas le disque de
+          // couleur pose au sol.
+          // Ramene de 2,2 a 1,3 : a pleine aura chaque brin saturait
+          // individuellement et la prairie devenait un bruit de points blancs.
+          // Une flaque de lumiere doit eclairer une matiere, pas la remplacer.
+          c += riderLight(vWorldPos) * (0.42 + uDayNight * 0.95) * (0.4 + vV * 0.9);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

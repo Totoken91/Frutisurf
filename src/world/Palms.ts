@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { GLSL_NOISE, GLSL_SAFE, Rng } from '../core/Noise';
+import { RIDER_GLSL, riderUniforms } from './RiderLight';
 import { vec3 } from '../core/Palette';
 import { GLSL_DAY, dayUniforms } from './Daylight';
 import { SUN_DIR } from './Sky';
@@ -142,6 +143,7 @@ export class Palms {
     this.mat = new ShaderMaterial({
       side: DoubleSide,
       uniforms: {
+        ...riderUniforms(),
         // Le relief est pilote par uniformes : changer de monde ne recompile
         // aucun shader (cf. Terrain.terrainGLSL).
         ...terrainUniforms(),
@@ -166,6 +168,7 @@ ${GLSL_NOISE}
         uniform float uDensity;
         uniform vec3 uOrigin;
         varying float vPart, vU, vShade, vSeed;
+        varying vec3 vWorldPos;
 
         ${terrainGLSL()}
 ${shoreGLSL()}
@@ -226,6 +229,7 @@ ${shoreGLSL()}
           // Ombrage vertical simple : le pied est a l'ombre, la couronne au
           // soleil. Suffisant sur une silhouette, et gratuit.
           vShade = 1.0 - clamp(p.y / 7.5, 0.0, 1.0);
+          vWorldPos = world;
 
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
@@ -233,8 +237,10 @@ ${shoreGLSL()}
       fragmentShader: /* glsl */ `
 ${GLSL_SAFE}
         uniform vec3 uTrunk, uFrond, uFrondTip, uSun;
+${RIDER_GLSL}
 ${GLSL_DAY}
         varying float vPart, vU, vShade, vSeed;
+        varying vec3 vWorldPos;
 
         void main(){
           vec3 c;
@@ -247,6 +253,7 @@ ${GLSL_DAY}
             c = uTrunk * (0.78 + vShade * 0.34);
           }
           c = daylight(c, vShade * 0.42 + uDayNight * 0.28);
+          c += riderLight(vWorldPos) * (0.3 + uDayNight * 0.8);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

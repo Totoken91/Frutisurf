@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, Mesh, ShaderMaterial, Vector3 } from 'three';
+import { RIDER_GLSL, riderUniforms } from './RiderLight';
 import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { colClone, vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
@@ -76,6 +77,7 @@ export class Water {
       transparent: true,
       depthWrite: true,
       uniforms: {
+        ...riderUniforms(),
         // Le relief est pilote par uniformes : changer de monde ne recompile
         // aucun shader (cf. Terrain.terrainGLSL).
         ...terrainUniforms(),
@@ -158,6 +160,7 @@ ${GLSL_DAY}
         varying vec2 vSwellSlope;
         varying float vCrest;
         uniform vec3 uSwell;
+${RIDER_GLSL}
 
         ${GLSL_NOISE}
         ${WEATHER_GLSL}
@@ -275,6 +278,12 @@ ${GLSL_DAY}
           // --- Les nuages assombrissent l'eau comme le reste du paysage.
           float dark = cloudShade(vWorld.xz, uTime);
           c = mix(c, c * 0.58 + uSkyLight * 0.05, dark * 0.8);
+
+          // La lampe du surfeur sur l'eau. Elle y est plus FORTE que sur
+          // l'herbe : une surface reflechissante renvoie ce qu'on lui donne, et
+          // une lueur qui glisse sur la mer la nuit est l'image que ce jeu
+          // cherche depuis le debut.
+          c += riderLight(vWorld) * (0.5 + uDayNight * 1.15);
 
           // Opacite : transparente au bord, franche au large.
           float alpha = mix(0.55, 0.97, smoothstep(0.0, 1.3, vDepth));

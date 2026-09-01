@@ -1,5 +1,7 @@
 import {
   AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
   DoubleSide,
   Group,
   LatheGeometry,
@@ -31,6 +33,57 @@ export const DISC_RADIUS = 1.34 * 0.80;
 const HOLE = DISC_RADIUS * 0.125;
 const THICK = 0.028;
 
+/**
+ * La CARTOUCHE : une plaque carree, pour le MiniDisc et la disquette.
+ *
+ * C'est la seule chose qui change vraiment une monture a distance de jeu. Six
+ * disques ronds de couleurs differentes se ressemblent tous des qu'ils font
+ * quarante pixels ; un carre au milieu de ronds se reconnait sans le regarder,
+ * et c'est exactement le reproche qu'il fallait traiter — « ils sont pas assez
+ * differents ».
+ *
+ * Les coins sont RABOTES a 12 % : un carre parfait accroche l'oeil sur ses
+ * pointes et lit comme une erreur de modelisation, alors qu'un carre a coins
+ * casses lit comme un objet moule. Toutes les cartouches de l'epoque le sont.
+ */
+function slabGeometry(): BufferGeometry {
+  const R = DISC_RADIUS * 0.94;
+  const T = THICK * 2.6;
+  const c = R * 0.12;
+  // Contour octogonal : carre a coins rabotes.
+  const ring: Array<[number, number]> = [
+    [-R + c, -R], [R - c, -R], [R, -R + c], [R, R - c],
+    [R - c, R], [-R + c, R], [-R, R - c], [-R, -R + c],
+  ];
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const push = (x: number, y: number, z: number): number => {
+    pos.push(x, y, z);
+    return pos.length / 3 - 1;
+  };
+  const top: number[] = [];
+  const bot: number[] = [];
+  for (const [x, z] of ring) {
+    top.push(push(x, T * 0.5, z));
+    bot.push(push(x, -T * 0.5, z));
+  }
+  const ct = push(0, T * 0.5, 0);
+  const cb = push(0, -T * 0.5, 0);
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    idx.push(ct, top[i], top[j]);
+    idx.push(cb, bot[j], bot[i]);
+    idx.push(top[i], bot[i], bot[j]);
+    idx.push(top[i], bot[j], top[j]);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 function discGeometry(): LatheGeometry {
   const pts = [
     new Vector2(HOLE, THICK * 0.5),
@@ -42,8 +95,77 @@ function discGeometry(): LatheGeometry {
   return new LatheGeometry(pts, 96);
 }
 
+/**
+ * LES SIX MONTURES.
+ *
+ * Une table explicite plutot qu'un espace de parametres : chaque ligne est un
+ * OBJET qu'on reconnait, et l'ecrire en clair est ce qui permet de verifier
+ * d'un coup d'oeil qu'aucune ne ressemble a sa voisine.
+ *
+ * Deux leviers font 90 % de la distinction a distance de jeu, et la couleur
+ * n'en fait pas partie : la FORME (ronde ou carree) et la TAILLE. A quarante
+ * pixels, six disques ronds de teintes differentes se ressemblent tous.
+ */
+interface MountLook {
+  body: [number, number, number];
+  label: [number, number, number];
+  emit: [number, number, number];
+  iri: number;
+  groove: number;
+  grain: number;
+  labelR: number;
+  shutter: number;
+  opaque: number;
+  scale: number;
+  square: boolean;
+}
+
+const MOUNT_LOOK: Record<string, MountLook> = {
+  // Le disque optique d'origine : argent, irise, translucide au moyeu.
+  cd: {
+    body: [0.86, 0.93, 0.96], label: [0.9, 0.6, 0.1], emit: [0, 0, 0],
+    iri: 1, groove: 620, grain: 0, labelR: 0, shutter: 0, opaque: 0.25,
+    scale: 1, square: false,
+  },
+  // Le 33 tours : le plus GRAND, noir mat, sillons larges, etiquette orange.
+  vinyle: {
+    body: [0.17, 0.19, 0.23], label: [0.95, 0.58, 0.10], emit: [0, 0, 0],
+    iri: 0.08, groove: 210, grain: 0.6, labelR: 0.34, shutter: 0, opaque: 1,
+    scale: 1.16, square: false,
+  },
+  // La cartouche bleue : CARREE, petite, avec son volet metallique.
+  minidisc: {
+    body: [0.30, 0.62, 0.92], label: [0.06, 0.28, 0.52], emit: [0, 0, 0],
+    iri: 0.22, groove: 900, grain: 0.08, labelR: 0.3, shutter: 1, opaque: 1,
+    scale: 0.84, square: true,
+  },
+  // La disquette : CARREE aussi, mais noire, plus grande, etiquette blanche.
+  // Deux cartouches se distinguent alors par la taille et la valeur, pas par
+  // un detail qu'il faudrait aller chercher.
+  disquette: {
+    body: [0.13, 0.14, 0.17], label: [0.93, 0.92, 0.86], emit: [0, 0, 0],
+    iri: 0.05, groove: 40, grain: 0.22, labelR: 0.4, shutter: 1, opaque: 1,
+    scale: 1.05, square: true,
+  },
+  // Le CD gravable : face doree, irisation verte. Le seul dore du jeu.
+  cdr: {
+    body: [0.92, 0.72, 0.28], label: [0.2, 0.5, 0.25], emit: [0.05, 0.03, 0],
+    iri: 0.85, groove: 700, grain: 0, labelR: 0, shutter: 0, opaque: 0.7,
+    scale: 0.98, square: false,
+  },
+  // Le disque de pure lumiere : pas de matiere, juste de l'emission. Le seul
+  // qui soit une SOURCE, et donc le seul visible de nuit a lui tout seul.
+  holo: {
+    body: [0.45, 0.85, 1.0], label: [0, 0, 0], emit: [0.16, 0.42, 0.62],
+    iri: 0.55, groove: 1400, grain: 0, labelR: 0, shutter: 0, opaque: 0,
+    scale: 1.08, square: false,
+  },
+};
+
 export class Disc {
   readonly group = new Group();
+  private readonly round = discGeometry();
+  private readonly slab = slabGeometry();
   readonly mesh: Mesh;
   private mat: ShaderMaterial;
   private haloMat: ShaderMaterial;
@@ -75,6 +197,10 @@ export class Disc {
         uLabelR: { value: 0 },
         uShutter: { value: 0 },
         uOpaque: { value: 0 },
+        /** 0 = disque, 1 = cartouche carree. Change la GEOMETRIE et le motif. */
+        uShape: { value: 0 },
+        /** Emission propre : une monture peut etre une source de lumiere. */
+        uEmit: { value: [0, 0, 0] },
       },
       vertexShader: /* glsl */ `
 ${GLSL_SAFE}
@@ -89,8 +215,8 @@ ${GLSL_SAFE}
       `,
       fragmentShader: /* glsl */ `
         uniform float uTime, uRadius, uHole, uCharge;
-        uniform float uIri, uGroove, uGrain, uLabelR, uShutter, uOpaque;
-        uniform vec3 uSilver, uSkyMid, uSkyHor, uGrassNear, uGrassHor, uLabel;
+        uniform float uIri, uGroove, uGrain, uLabelR, uShutter, uOpaque, uShape;
+        uniform vec3 uSilver, uSkyMid, uSkyHor, uGrassNear, uGrassHor, uLabel, uEmit;
         varying vec3 vN, vV, vLocal;
 
         ${GLSL_NOISE}
@@ -103,7 +229,17 @@ ${GLSL_SAFE}
           if (!gl_FrontFacing) N = -N;
           float ndv = clamp(dot(N, V), 0.0, 1.0);
 
-          float r = length(vLocal.xz);
+          // --- COORDONNEE RADIALE, ou son equivalent carre.
+          //
+          //     Une cartouche n'a pas de centre au sens ou un disque en a un :
+          //     ses motifs sont des RECTANGLES, alignes sur ses bords. On
+          //     remplace donc la distance euclidienne par la distance de
+          //     Tchebychev — le plus grand des deux ecarts — qui fait des
+          //     carres concentriques la ou l'autre fait des cercles. Tout le
+          //     reste du shader continue de fonctionner sans y penser.
+          float rDisc = length(vLocal.xz);
+          float rSlab = max(abs(vLocal.x), abs(vLocal.z));
+          float r = mix(rDisc, rSlab, uShape);
           float ang = atan(vLocal.z, vLocal.x);
           float rn = clamp((r - uHole) / (uRadius - uHole), 0.0, 1.0);
 
@@ -132,9 +268,10 @@ ${GLSL_SAFE}
           c = mix(c, env, 0.34);
           c *= mix(vec3(1.0), iri, hub * (0.55 + 0.45 * grooves));
 
-          // Anneau de moyeu clair et trou central sombre.
-          c = mix(uSilver * 1.28, c, hub);
-          float hole = smoothstep(0.0, 0.03, rn);
+          // Anneau de moyeu clair et trou central sombre. La cartouche n'a ni
+          // moyeu ni trou : elle est pleine, et uShape les efface.
+          c = mix(mix(uSilver * 1.28, c, hub), c, uShape);
+          float hole = mix(smoothstep(0.0, 0.03, rn), 1.0, uShape);
           c = mix(uGrassNear * 0.30, c, hole);
           // Le relief des sillons, quand la monture en a de vrais.
           c *= 1.0 - uGrain * grooves * 0.55;
@@ -147,10 +284,21 @@ ${GLSL_SAFE}
           // Le volet du MiniDisc : une bande droite, decentree, qui casse la
           // symetrie radiale. C'est la seule chose qui empeche la cartouche de
           // se lire comme un CD blanc.
+          // Le VOLET metallique de la cartouche : une bande droite, decentree,
+          // qui casse la symetrie. C'est elle, plus que la couleur, qui fait
+          // lire un MiniDisc ou une disquette plutot qu'une plaque carree.
           float shut = uShutter
             * smoothstep(0.34, 0.25, abs(vLocal.z))
             * smoothstep(0.10, 0.26, vLocal.x);
           c = mix(c, vec3(0.88, 0.94, 0.99) * (0.62 + ndv * 0.7), shut);
+
+          // L'ETIQUETTE de la disquette : un rectangle mat en haut a gauche,
+          // le seul endroit d'une monture ou la lumiere ne joue pas.
+          float tag = uShape
+            * step(0.001, uLabelR)
+            * smoothstep(0.62, 0.55, abs(vLocal.z + uRadius * 0.34))
+            * smoothstep(0.72, 0.66, abs(vLocal.x));
+          c = mix(c, uLabel * (0.86 + ndv * 0.2), tag * 0.9);
 
           // Arete exterieure incandescente : le liseré blanc de la reference.
           c += vec3(1.0) * smoothstep(0.90, 1.0, rn) * 0.30;
@@ -166,6 +314,10 @@ ${GLSL_SAFE}
           // Le disque blanchit quand le carve se charge.
           c = mix(c, vec3(1.0), uCharge * 0.35);
 
+          // Emission propre. Une monture peut etre une SOURCE : c'est ce qui
+          // separe un plastique colore d'un objet qui brille.
+          c += uEmit * (0.55 + 0.45 * pow(1.0 - abs(ndv), 2.0));
+
           float a = mix(0.42, 0.97, hub) * mix(0.35, 1.0, hole);
           // Un microsillon n'est pas translucide, un CD si.
           a = mix(a, max(a, hole), uOpaque);
@@ -176,7 +328,7 @@ ${GLSL_SAFE}
       `,
     });
 
-    this.mesh = new Mesh(discGeometry(), this.mat);
+    this.mesh = new Mesh(this.round, this.mat);
     this.group.add(this.mesh);
 
     // Halo de contact : la reference n'a AUCUNE ombre portee. Le contact au
@@ -225,43 +377,36 @@ ${GLSL_SAFE}
    */
   private mountScale = 1;
 
-  /** Applique une monture. `id` vient de core/Loadout. */
+  /**
+   * Applique une monture. `id` vient de core/Loadout.
+   *
+   * Six montures, deux formes. La table est explicite plutot que calculee :
+   * chaque ligne est un OBJET reel qu'on reconnait, pas un point dans un espace
+   * de parametres, et l'ecrire en clair est ce qui permet de verifier d'un coup
+   * d'oeil qu'aucune ne ressemble a sa voisine.
+   */
   setMount(id: string): void {
     const u = this.mat.uniforms;
-    if (id === 'vinyle') {
-      u.uSilver.value = [0.20, 0.22, 0.26];
-      u.uIri.value = 0.10;
-      u.uGroove.value = 210;
-      u.uGrain.value = 0.55;
-      u.uLabel.value = [0.95, 0.58, 0.10];
-      u.uLabelR.value = 0.34;
-      u.uShutter.value = 0;
-      u.uOpaque.value = 1;
-      this.mountScale = 1.15;
-    } else if (id === 'minidisc') {
-      // Plus BLEU que blanc, et volontairement : sous GIVRE, un plastique
-      // pale se confondait avec le buddy et la monture disparaissait.
-      u.uSilver.value = [0.42, 0.70, 0.94];
-      u.uIri.value = 0.30;
-      u.uGroove.value = 900;
-      u.uGrain.value = 0.10;
-      u.uLabel.value = [0.08, 0.34, 0.58];
-      u.uLabelR.value = 0.22;
-      u.uShutter.value = 1;
-      u.uOpaque.value = 0.9;
-      this.mountScale = 0.82;
-    } else {
-      u.uSilver.value = vec3('discSilver');
-      u.uIri.value = 1;
-      u.uGroove.value = 620;
-      u.uGrain.value = 0;
-      u.uLabelR.value = 0;
-      u.uShutter.value = 0;
-      u.uOpaque.value = 0;
-      this.mountScale = 1;
-    }
+    const p = MOUNT_LOOK[id] ?? MOUNT_LOOK.cd;
+    u.uSilver.value = p.body;
+    u.uIri.value = p.iri;
+    u.uGroove.value = p.groove;
+    u.uGrain.value = p.grain;
+    u.uLabel.value = p.label;
+    u.uLabelR.value = p.labelR;
+    u.uShutter.value = p.shutter;
+    u.uOpaque.value = p.opaque;
+    u.uShape.value = p.square ? 1 : 0;
+    u.uEmit.value = p.emit;
+    this.mountScale = p.scale;
     this.mesh.scale.setScalar(this.mountScale);
+    // La GEOMETRIE change aussi : c'est la silhouette qui distingue une
+    // monture a distance de jeu, jamais sa texture.
+    const want = p.square ? this.slab : this.round;
+    if (this.mesh.geometry !== want) this.mesh.geometry = want;
   }
+
+
 
   update(time: number, charge: number, speedN: number, airT: number): void {
     this.mat.uniforms.uTime.value = time;
