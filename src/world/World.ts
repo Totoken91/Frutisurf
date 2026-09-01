@@ -19,6 +19,9 @@ import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
 import { Motes } from './Motes';
+import { Leaves } from './Leaves';
+import { Rain } from './Rain';
+import { setWind } from './Weather';
 import { Water } from './Water';
 import { Palms } from './Palms';
 import { Turbines } from './Turbines';
@@ -36,6 +39,8 @@ export class World {
   readonly ground: Ground;
   readonly blades: GrassBlades | null;
   readonly motes: Motes;
+  readonly leaves: Leaves;
+  readonly rain: Rain;
   readonly water: Water;
   readonly palms: Palms;
   readonly turbines: Turbines;
@@ -100,6 +105,13 @@ export class World {
     this.palms = new Palms();
     this.turbines = new Turbines(dense ? 14 : 9);
     this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
+    // Feuilles et pluie existent dans TOUS les mondes, a densite nulle hors
+    // d'octobre : c'est un quad par instance rejete des le sommet, soit rien.
+    // Les creer a la demande aurait coute une compilation de shader au moment
+    // precis ou l'on veut un fondu sans a-coup — exactement ce que toute
+    // l'architecture des mondes existe pour eviter.
+    this.leaves = new Leaves(quality === 'high' ? 1900 : quality === 'medium' ? 1200 : 700);
+    this.rain = new Rain(quality === 'high' ? 1300 : quality === 'medium' ? 850 : 480);
 
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
@@ -113,6 +125,7 @@ export class World {
     scene.add(this.boosters.mesh);
     scene.add(this.rings.veil, this.rings.group);
     scene.add(this.motes.mesh);
+    scene.add(this.leaves.mesh, this.rain.mesh);
 
     // Key : les highlights speculaires du verre.
     const key = new DirectionalLight(0xffffff, 2.6);
@@ -142,6 +155,8 @@ export class World {
       this.turbines.mat,
       this.clouds.mat,
       this.motes.mat,
+      this.leaves.mat,
+      this.rain.mat,
     ].filter(Boolean) as typeof this.lit;
     if (this.blades) this.lit.push(this.blades.mat);
     this.blendWorld(1);
@@ -201,8 +216,23 @@ export class World {
     }
     this.day.mix = t;
 
-    this.paint(L(a.city, b.city), L(a.turbines, b.turbines), L(a.palms, b.palms),
-      L(a.blades, b.blades), L(a.tech, b.tech));
+    // Le VENT passe par le meme tableau partage que le relief : une seule
+    // ecriture sert la physique du Controller et les trois couches qui le
+    // montrent. Il se fond comme le reste — la bourrasque monte pendant que la
+    // plaine se couvre, elle n'apparait pas d'un coup.
+    setWind(L(a.wind, b.wind));
+
+    this.paint({
+      city: L(a.city, b.city),
+      turbines: L(a.turbines, b.turbines),
+      palms: L(a.palms, b.palms),
+      blades: L(a.blades, b.blades),
+      leaves: L(a.leaves, b.leaves),
+      rain: L(a.rain, b.rain),
+      wind: L(a.wind, b.wind),
+      tech: L(a.tech, b.tech),
+      overcast: L(a.overcast, b.overcast),
+    });
   }
 
   /**
@@ -214,7 +244,17 @@ export class World {
    * decor ajoute plus tard. Ici, un decor qu'on n'inscrit pas reste bloque sur
    * les couleurs de la plaine, et ca se voit du premier coup d'oeil.
    */
-  private paint(city: number, turbines: number, palms: number, blades: number, tech: number): void {
+  private paint(d: {
+    city: number;
+    turbines: number;
+    palms: number;
+    blades: number;
+    leaves: number;
+    rain: number;
+    wind: number;
+    tech: number;
+    overcast: number;
+  }): void {
     const c = (k: WorldColorKey): Color => this.tint.get(k)!;
     // Un uniforme absent est ignore quand on l'a DIT — les tours et la ligne
     // d'arbres ne partagent pas les memes noms — et signale sinon. Sans ce
@@ -251,28 +291,47 @@ export class World {
     rgb(g.uSandPale, 'sandPale');
     rgb(g.uSandWet, 'sandWet');
     rgb(g.uSandShell, 'sandShell');
-    g.uTech.value = tech;
+    g.uTech.value = d.tech;
+    g.uWet.value = d.rain;
+    // Le tapis suit la densite des feuilles en vol : les deux decrivent la
+    // meme saison, il serait absurde qu'un monde ait l'une sans l'autre.
+    g.uLitter.value = d.leaves;
+    rgb(g.uLeafA, 'leafRust');
+    rgb(g.uLeafB, 'leafBlood');
 
     const w = this.water.mat.uniforms;
     rgb(w.uShallow, 'waterShallow');
     rgb(w.uDeep, 'waterDeep');
     rgb(w.uFoam, 'waterFoam');
+    w.uRain.value = d.rain;
+
+    const lv = this.leaves.mat.uniforms;
+    rgb(lv.uLeafA, 'leafRust');
+    rgb(lv.uLeafB, 'leafBlood');
+    rgb(lv.uLeafC, 'leafAmber');
+    lv.uDensity.value = d.leaves;
+    lv.uWind.value = d.wind;
+
+    const rn = this.rain.mat.uniforms;
+    rn.uAmount.value = d.rain;
+    rn.uWind.value = d.wind;
 
     if (this.blades) {
       const b = this.blades.mat.uniforms;
       rgb(b.uBase, 'grassNear');
       rgb(b.uTip, 'grassHorizon');
       rgb(b.uGlow, 'grassStreak');
-      b.uDensity.value = blades;
+      b.uDensity.value = d.blades;
+      b.uWind.value = d.wind;
     }
 
     const p = this.palms.mat.uniforms;
     rgb(p.uTrunk, 'warmAccent');
     rgb(p.uFrond, 'grassNear');
     rgb(p.uFrondTip, 'grassFar');
-    p.uDensity.value = palms;
+    p.uDensity.value = d.palms;
 
-    this.turbines.mat.uniforms.uDensity.value = turbines;
+    this.turbines.mat.uniforms.uDensity.value = d.turbines;
 
     // Deux materiaux aux jeux d'uniformes DIFFERENTS : les tours ont uFace,
     // uLit et uDeep ; la ligne d'arbres a uDark et uLit. D'ou les manques
@@ -286,8 +345,11 @@ export class World {
       // La ligne d'arbres emprunte son `uLit` a l'HERBE et non a la ville :
       // c'est de la vegetation, elle doit suivre le vert du monde.
       rgb(u.uLit, tree ? 'grassNear' : 'cityLit');
-      u.uDensity.value = city;
+      u.uDensity.value = d.city;
     }
+
+    // Le plafond ne concerne QUE le dome : c'est lui qui porte le soleil.
+    (this.sky.material as ShaderMaterial).uniforms.uOvercast.value = d.overcast;
 
     const cl = this.clouds.mat.uniforms;
     rgb(cl.uCore, 'cloudCore');
@@ -391,5 +453,10 @@ export class World {
     this.boosters.update(origin, time);
     this.rings.update(origin, time, dt);
     this.motes.update(origin, time);
+    this.leaves.update(origin, time);
+    // La pluie se replie autour de la CAMERA et non du joueur : c'est elle qui
+    // definit ce qu'on voit, et un champ centre sur le disque laisserait un
+    // trou juste devant l'objectif quand la camera recule dans un virage.
+    this.rain.update(camPos, time);
   }
 }

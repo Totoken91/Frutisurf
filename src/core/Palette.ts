@@ -92,6 +92,20 @@ export const HEX = {
 
   warmAccent: 0x9f7b6a,
   violetDeep: 0x233659,
+
+  // --- LES FEUILLES MORTES.
+  //
+  // Trois tons et pas un de plus : un tapis d'automne n'est pas un nuancier,
+  // c'est une seule gamme — de l'orange brule au brun — dans laquelle une
+  // rouge se detache de temps en temps. Le doré est le plus clair des trois
+  // parce que c'est lui qui s'allume a contre-jour ; les deux autres restent
+  // sous la luminance du sol pour que le tapis ne mange pas le paysage.
+  //
+  // Ces trois-la sont dans la palette canonique bien qu'un seul monde s'en
+  // serve : c'est la regle du fichier, aucune couleur n'est inventee ailleurs.
+  leafRust: 0xc95a1e,
+  leafBlood: 0x9c2f1c,
+  leafAmber: 0xd39a34,
 } as const;
 
 type PaletteKey = keyof typeof HEX;

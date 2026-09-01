@@ -36,6 +36,18 @@ export function createSky(): Mesh {
       uSun: { value: SUN_DIR.clone() },
       uNight: { value: 0 },
       uTime: { value: 0 },
+      /**
+       * 0 = ciel degage, 1 = plafond de nuages.
+       *
+       * Le soleil de ce dome n'est pas une lumiere, c'est un OBJET : un coeur
+       * brulant, une couronne, une etoile a douze branches et une trainee
+       * anamorphique. Baisser la puissance de la lumiere directe (cf. Daylight)
+       * n'y touche pas d'un pouce — et c'est exactement ce qui est arrive au
+       * monde d'octobre : un ciel de plomb, une lumiere a 0,58, et une etoile
+       * de cinema en plein milieu. Un jour couvert n'a pas d'etoile ; il a une
+       * TACHE CLAIRE derriere le plafond, et c'est tout ce qu'on lui laisse.
+       */
+      uOvercast: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -49,7 +61,7 @@ ${GLSL_SAFE}
 ${GLSL_NOISE}
       varying vec3 vDir;
       uniform vec3 uZenith, uHigh, uMid, uHorizon, uSun;
-      uniform float uNight, uTime;
+      uniform float uNight, uTime, uOvercast;
 
       void main(){
         vec3 d = normalize(vDir);
@@ -83,9 +95,15 @@ ${GLSL_NOISE}
         float sd = max(dot(d, sun), 0.0);
         // Doses resserrees : au premier reglage le lobe large seul brulait un
         // quart du cadre et noyait l'etoile qu'il etait cense mettre en valeur.
+        // Sous le plafond, seule la diffusion large survit — et elle survit
+        // MEME renforcee : c'est elle qui fait la tache claire d'un jour gris.
+        float clear = 1.0 - uOvercast;
         c += vec3(0.30, 0.44, 0.52) * pow(sd, 4.5) * 0.14;    // diffusion large
-        c += vec3(0.62, 0.70, 0.66) * pow(sd, 70.0) * 0.42;   // couronne
-        c += vec3(1.00, 0.97, 0.90) * pow(sd, 1600.0) * 2.1;  // coeur, cueilli par le bloom
+        c += vec3(0.62, 0.70, 0.66) * pow(sd, 70.0) * 0.42 * clear;   // couronne
+        c += vec3(1.00, 0.97, 0.90) * pow(sd, 1600.0) * 2.1 * clear;  // coeur
+        // La tache derriere les nuages : large, molle, et de la couleur du ciel
+        // et non du soleil. C'est le seul indice qu'il reste de sa position.
+        c += mix(uHorizon, vec3(1.0), 0.30) * pow(max(sd, 1e-4), 8.0) * 0.30 * uOvercast;
 
         // --- L'ETOILE. C'est la signature des references : un soleil qui ne
         // se contente pas de bruler, il envoie des branches. On les construit
@@ -105,12 +123,12 @@ ${GLSL_NOISE}
         float spikes = pow(max(abs(cos(ang * 3.0)), 1e-4), 22.0)
                      + 0.45 * pow(max(abs(cos(ang * 3.0 + 0.5236)), 1e-4), 34.0);
         float falloff = exp(-r * 19.0);
-        c += vec3(1.00, 0.98, 0.92) * spikes * falloff * 1.9;
+        c += vec3(1.00, 0.98, 0.92) * spikes * falloff * 1.9 * clear;
 
         // Trainee horizontale anamorphique, plus large et plus douce que les
         // branches : c'est elle qui donne le rendu "objectif de cinema".
         float streak = exp(-abs(t.y) * 190.0) * exp(-abs(t.x) * 7.0);
-        c += vec3(0.72, 0.86, 1.00) * streak * 0.85;
+        c += vec3(0.72, 0.86, 1.00) * streak * 0.85 * clear;
 
         // --- Voile atmospherique juste au-dessus de l'horizon. Il blanchit la
         // bande basse et donne la profondeur : sans lui, la plaine se colle au
@@ -139,6 +157,8 @@ ${GLSL_NOISE}
           vec2 cell = floor(sc);
           float rnd = hash21(cell);
           float bright = smoothstep(0.9955, 1.0, rnd);
+          // Un plafond de nuages cache aussi les etoiles.
+          bright *= clear;
           if (bright > 0.0) {
             vec2 sub = fract(sc) - 0.5;
             float dot2 = 1.0 - smoothstep(0.0, 0.34, length(sub));

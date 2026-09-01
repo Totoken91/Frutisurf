@@ -26,6 +26,7 @@ import { Run } from '../src/core/Run';
 import { Rings } from '../src/world/Rings';
 import { combine, MOUNTS, RIDERS } from '../src/core/Loadout';
 import { setTerrain, terrainHeight, waterLevel } from '../src/world/Terrain';
+import { setWind } from '../src/world/Weather';
 import { WORLDS } from '../src/world/Worlds';
 
 const STEP = 1 / 120;
@@ -75,6 +76,11 @@ function geometry(): { widest: number; land: number; wet: number } {
 function play(worldIdx: number, maxSeconds = 600) {
   const def = WORLDS[worldIdx];
   setTerrain(def.amp, def.water, def.shore[0], def.shore[1], def.swell);
+  // LE VENT AUSSI. L'oublier ici ferait mesurer un monde qui n'existe pas :
+  // OCTOBRE serait declare jouable sur une version de lui-meme sans sa
+  // mecanique principale. C'est exactement la faute que `swell` avait deja
+  // faite — le banc mesurait un ocean plat parce qu'on ne le lui passait pas.
+  setWind(def.wind);
 
   const run = new Run();
   const rings = new Rings(8, 20240607);
@@ -84,6 +90,12 @@ function play(worldIdx: number, maxSeconds = 600) {
   let skimMeters = 0;
   let waves = 0;
   let flights = 0;
+  // Combien le vent deporte-t-il, et combien le pilote passe-t-il de temps
+  // colle au bord du couloir ? Le premier chiffre dit si le vent existe, le
+  // second s'il est subissable.
+  let windSum = 0;
+  let windSteps = 0;
+  let pinned = 0;
   const c = new Controller({
     onSink: () => sinks++,
     onSkim: (m, _p) => {
@@ -121,6 +133,9 @@ function play(worldIdx: number, maxSeconds = 600) {
     const py = c.y;
     const pz = c.z;
     c.step(STEP, pad);
+    windSum += Math.abs(c.wind);
+    windSteps++;
+    if (Math.abs(c.x) > 30) pinned += STEP;
     const hit = rings.cross(px, py, pz, c.x, c.y, c.z);
     if (hit?.pass) {
       rings.take(hit.index);
@@ -147,6 +162,8 @@ function play(worldIdx: number, maxSeconds = 600) {
     flights,
     skimMeters,
     stalled: (stalled / t) * 100,
+    wind: windSteps ? windSum / windSteps : 0,
+    pinned: (pinned / t) * 100,
   };
 }
 
@@ -156,11 +173,12 @@ const fail = (m: string): void => {
   console.log(`  ECHEC  ${m}`);
 };
 
-console.log('monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  vagues   vols  enlise');
+console.log('monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  vagues   vols  enlise   vent  au bord');
 const ref: number[] = [];
 for (let i = 0; i < WORLDS.length; i++) {
   const def = WORLDS[i];
   setTerrain(def.amp, def.water, def.shore[0], def.shore[1], def.swell);
+  setWind(def.wind);
   const g = geometry();
   const r = play(i);
   ref.push(r.seconds);
@@ -171,6 +189,7 @@ for (let i = 0; i < WORLDS.length; i++) {
       ` ${r.seconds.toFixed(0).padStart(7)} s ${Math.round(r.score).toString().padStart(8)}` +
       ` ${r.rings.toString().padStart(8)} ${r.sinks.toString().padStart(7)}` +
       ` ${r.skims.toString().padStart(8)} ${r.waves.toString().padStart(7)} ${r.flights.toString().padStart(6)} ${r.stalled.toFixed(0).padStart(6)}%` +
+      ` ${r.wind.toFixed(1).padStart(6)} ${r.pinned.toFixed(0).padStart(6)}%` +
       `  sortie ${seuil.toFixed(1).padStart(4)} m/s${seuil < 9 ? ' (insubmersible)' : ''}`,
   );
 
@@ -204,7 +223,22 @@ for (let i = 0; i < WORLDS.length; i++) {
   if (r.seconds < 120) fail(`${def.id} : ${r.seconds.toFixed(0)} s seulement, on ne peut pas y jouer`);
   // 4. Et il ne doit pas passer sa partie a ramer.
   if (r.stalled > 35) fail(`${def.id} : ${r.stalled.toFixed(0)} % du temps sous ${RELAUNCH} m/s`);
+  // 5. LE VENT DOIT RESTER CORRIGEABLE.
+  //
+  //    Un vent qu'on ne peut pas contrer plaque le pilote contre la paroi du
+  //    couloir et l'y garde : la trajectoire cesse d'etre un choix. Le seuil
+  //    porte donc sur le temps passe au-dela de 30 m sur les 34 du couloir,
+  //    pas sur la force du vent — c'est le RESULTAT qui compte, et il depend
+  //    autant de l'autorite laterale du monde que de sa rafale.
+  if (def.wind > 0 && r.pinned > 25) {
+    fail(`${def.id} : ${r.pinned.toFixed(0)} % du temps colle au bord, le vent n'est pas corrigeable`);
+  }
+  // Et un monde qui declare du vent doit en produire : un `wind` pousse dans
+  // le mauvais tableau ne se verrait nulle part ailleurs.
+  if (def.wind > 0 && r.wind < def.wind * 0.2) {
+    fail(`${def.id} : vent declare a ${def.wind} m/s, mesure a ${r.wind.toFixed(2)}`);
+  }
 }
 
-console.log(bad ? `\n${bad} echec(s).` : '\nOK — les quatre mondes sont jouables, mesures a l autopilote.');
+console.log(bad ? `\n${bad} echec(s).` : `\nOK — les ${WORLDS.length} mondes sont jouables, mesures a l autopilote.`);
 process.exitCode = bad ? 1 : 0;

@@ -115,7 +115,7 @@ export class Select {
             <div class="worlds">
               ${WORLDS.map(
                 (w, i) => `
-              <button class="card wcard" type="button" data-world="${i}">
+              <button class="card wcard${w.rain > 0 ? ' wet' : ''}" type="button" data-world="${i}">
                 <span class="wsky" style="--sky:${w.swatch[0]};--land:${w.swatch[1]};--sea:${w.swatch[2]};--seah:${w.swatch[3]}%"></span>
                 <span class="nm">${w.name}</span>
               </button>`,

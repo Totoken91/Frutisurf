@@ -125,6 +125,32 @@ export class Ground {
         uDetailFar: { value: 0.13 },
         /** 0 = prairie, 1 = dalle et grille neon. Le monde CHROME le met a 1. */
         uTech: { value: 0 },
+        /**
+         * 0 = sol sec, 1 = sous l'averse. Le monde OCTOBRE le met a 1.
+         *
+         * Ce n'est PAS un filtre de couleur : la pluie change l'OPTIQUE du sol.
+         * Un sol mouille s'assombrit et se sature (le film d'eau piege la
+         * lumiere diffuse), il rend le ciel a l'incidence rasante au lieu de
+         * verdir, son speculaire s'elargit, et il retient des flaques dans ses
+         * creux plats. Repeindre l'herbe en gris n'aurait donne qu'une prairie
+         * sale ; c'est le passage du diffus au SPECULAIRE qui dit « il pleut ».
+         */
+        uWet: { value: 0 },
+        /**
+         * LE TAPIS DE FEUILLES, peint dans le sol. 0..1.
+         *
+         * Il n'est pas fait de feuilles, et c'est le point. Un tapis credible
+         * en demande des dizaines de milliers au metre carre ; le systeme de
+         * particules (cf. Leaves.ts) en pose quelques centaines dans tout le
+         * champ de vision — assez pour qu'on en voie TOMBER, jamais assez pour
+         * qu'on marche dessus. La division du travail est donc celle-ci : les
+         * particules font les feuilles qui tombent, le sol fait celles qui sont
+         * DEJA tombees. Chacune est bonne exactement la ou l'autre ne l'est pas.
+         */
+        uLitter: { value: 0 },
+        /** Les deux tons du tapis. Les MEMES que ceux des feuilles en vol. */
+        uLeafA: { value: vec3('leafRust') },
+        uLeafB: { value: vec3('leafBlood') },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -153,7 +179,8 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
-        uniform float uTech;
+        uniform float uTech, uWet, uLitter;
+        uniform vec3 uLeafA, uLeafB;
 ${RIDER_GLSL}
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
         uniform vec3 uCast;
@@ -179,6 +206,11 @@ ${shoreGLSL()}
           // rangee. Le terrain etant analytique, son gradient l'est aussi : le
           // recalculer ici coute quelques cosinus et rend un relief NET.
           vec3 N = terrainNormalAt(vWorld.xz, length(vWorld.xz - uOrigin.xz));
+          // La pente AVANT le micro-relief des brins. Les flaques se posent sur
+          // ce qui est plat a l'echelle du terrain, pas sur ce qui est plat a
+          // l'echelle d'une touffe d'herbe : lue apres, la normale perturbee
+          // aurait sable les flaques en confettis de dix centimetres.
+          float macroFlat = N.y;
 
           // --- Profondeur normalisee : asymptotique, jamais de coupure franche.
           //     A 95 m d'echelle, la plaine etait entierement noyee dans la
@@ -322,18 +354,22 @@ ${shoreGLSL()}
           // --- Sheen laque : il allume la bande d'horizon
           vec3 V = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
           float graze = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 4.5);
-          c += vec3(0.07, 0.22, 0.15) * graze * 0.50;
+          // Sous la pluie ce lisere n'est plus de la chlorophylle mais du
+          // CIEL : un sol mouille renvoie ce qu'il y a au-dessus de lui a
+          // l'incidence rasante, il ne verdit pas.
+          c += mix(vec3(0.07, 0.22, 0.15), uDayFill * 0.55, uWet) * graze * (0.50 + uWet * 0.80);
 
           //     Gloss Frutiger Aero : le speculaire est MASQUE par les brins.
           //     Une plaine qui brille uniformement lit comme du plastique ; ce
           //     sont les pointes qui doivent scintiller, pas la surface.
           vec3 H = normalize(V + L);
           float spec = pow(max(dot(N, H), 1e-4), 62.0);
-          c += vec3(0.26, 0.34, 0.24) * spec * (0.28 + blade * 1.05);
+          c += mix(vec3(0.26, 0.34, 0.24), uDayLight * 0.70, uWet)
+             * spec * (0.28 + blade * 1.05 + uWet * 1.10);
 
           //     Et un lisere sur les pointes vues de biais : c'est ce qui donne
           //     le duvet argente d'une prairie a contre-jour.
-          c += vec3(0.30, 0.40, 0.26) * graze * blade * detail * 0.55;
+          c += vec3(0.30, 0.40, 0.26) * graze * blade * detail * 0.55 * (1.0 - uWet * 0.7);
 
           // --- OMBRES DE NUAGES.
           //
@@ -371,7 +407,11 @@ ${shoreGLSL()}
           // --- Brume d'horizon. Elle separe les plans lointains les uns des
           //     autres : sans elle, des collines a 300 m et a 900 m ont
           //     exactement la meme valeur et le relief s'aplatit.
-          c = mix(c, mix(uHorizon, vec3(0.62, 0.92, 0.86), 0.35), smoothstep(0.50, 0.99, f) * 0.42);
+          // Sous l'averse la brume d'horizon EST le ciel : c'est la meme regle
+          // que la brume de la ville, qui relit deja l'horizon plutot qu'une
+          // couleur fixe. Les mondes secs gardent exactement leur teinte.
+          c = mix(c, mix(uHorizon, mix(vec3(0.62, 0.92, 0.86), uDayFill, uWet), 0.35),
+                  smoothstep(0.50, 0.99, f) * 0.42);
 
           // --- LA PLAGE.
           //
@@ -456,6 +496,92 @@ ${shoreGLSL()}
             c = mix(c, bed, sunk);
           }
 
+          // --- LE TAPIS DE FEUILLES MORTES.
+          //
+          //     Il vient AVANT le sol mouille, et l'ordre compte : sous
+          //     l'averse un tapis de feuilles fonce et se sature comme le reste
+          //     du sol. Pose apres, il serait resté sec au milieu d'un champ
+          //     trempe — le genre de detail qu'on ne sait pas nommer mais qui
+          //     fait que l'image ne tient pas.
+          if (uLitter > 0.002) {
+            //   Les feuilles S'AMASSENT. Elles ne se repartissent jamais
+            //   uniformement : le vent les pousse en trainees et les depose
+            //   dans les creux. D'ou deux echelles — la trainee de dix metres
+            //   et le grain du metre — et un seuil qui laisse de l'herbe entre
+            //   les tas. Un tapis integral effacerait le sol, et avec lui tout
+            //   le relief qu'on a besoin de lire pour sauter.
+            float drift = fbm2(vWorld.xz * 0.085);
+            float speck = fbm3(vWorld.xz * 1.15);
+            //   SEUIL CALE SUR LA STATISTIQUE, pas a vue. Ces deux champs ont
+            //   une moyenne de 0,48 et un ecart-type de l'ordre du dixieme ;
+            //   les moyenner en reduit encore la variance. Un premier seuil a
+            //   [0,44 ; 0,80] ne laissait donc passer que trois pour cent du
+            //   sol : le tapis existait dans le code et nulle part a l'ecran.
+            //   Une plage serree AUTOUR de la moyenne est ce qui donne une
+            //   couverture d'a peu pres la moitie, avec de vrais tas et de
+            //   vraies trouees.
+            float mat = smoothstep(0.39, 0.60, drift * 0.70 + speck * 0.30);
+            //   Plus dense en bas qu'en haut : c'est la que le vent les laisse.
+            mat *= mix(0.50, 1.30, 1.0 - smoothstep(-3.0, 5.0, vWorld.y));
+            //   Ni sur le sable, ni dans l'eau.
+            mat = clamp(mat, 0.0, 1.0) * uLitter * (1.0 - sand * 0.6)
+                * smoothstep(-0.2, 0.8, above);
+
+            if (mat > 0.003) {
+              //   Un tapis pietine n'a pas la couleur d'une feuille en vol : il
+              //   est plus sombre et plus brun. On part donc des MEMES deux
+              //   couleurs, assombries — c'est ce qui fait qu'on reconnait la
+              //   feuille qui vient de tomber dans celle qui est au sol.
+              vec3 litter = mix(uLeafB, uLeafA, smoothstep(0.38, 0.80, speck)) * 0.70;
+              //   Le grain, au premier plan seulement : sans lui c'est une
+              //   tache de couleur, avec lui c'est un tas de feuilles.
+              litter *= 0.84 + fbm3(vWorld.xz * 5.5) * 0.34 * detail;
+              c = mix(c, litter, mat * 0.82);
+            }
+          }
+
+          // --- LE SOL MOUILLE, ET SES FLAQUES.
+          //
+          //     Deux effets distincts, et il faut les deux. Le premier tient en
+          //     une ligne et porte tout le reste : un sol mouille s'ASSOMBRIT
+          //     et se SATURE. Le film d'eau piege la lumiere au lieu de la
+          //     diffuser, donc les couleurs foncent et gagnent en contraste.
+          //     Un simple assombrissement aurait donne de la terre grise ;
+          //     c'est le gain de saturation qui fait lire « trempe ».
+          if (uWet > 0.002) {
+            c = mix(c, c * c * 1.30, uWet * 0.55);
+
+            // Le second : LES FLAQUES. Deux conditions et pas une seule — plat
+            //   A L'ECHELLE DU TERRAIN, et dans un creux du champ de bruit. Une
+            //   flaque sur un versant est le genre de faute qu'on repere sans
+            //   savoir la nommer.
+            float pool = uWet
+                       * smoothstep(0.966, 0.994, macroFlat)
+                       * smoothstep(0.50, 0.82, fbm2(vWorld.xz * 0.055))
+                       * smoothstep(-0.1, 1.2, above)
+                       * (1.0 - sand * 0.35);
+
+            if (pool > 0.003) {
+              //   Une flaque n'est pas une tache sombre, c'est un MIROIR : elle
+              //   rend le ciel a l'incidence rasante et vire presque au noir vue
+              //   d'aplomb. C'est ce contraste, sur un sol par ailleurs mat, qui
+              //   la fait lire comme de l'eau et non comme de la boue.
+              vec3 mirror = mix(uDayFill, uHorizon, 0.35);
+              float pf = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 3.2);
+              vec3 pc = mix(c * 0.30, mirror, clamp(0.16 + pf * 1.25, 0.0, 0.92));
+
+              //   LES IMPACTS. Ce sont eux qui disent que l'averse est EN COURS :
+              //   une flaque lisse est une flaque d'apres la pluie. Ils
+              //   s'eteignent au loin, la ou l'anneau passerait sous le pixel et
+              //   ne produirait plus que du scintillement.
+              float rip = rainRings(vWorld.xz, uTime) * (1.0 - smoothstep(18.0, 85.0, dist));
+              pc += mirror * rip * 0.50;
+              pc += uDayLight * max(rip, 0.0) * 0.22;
+
+              c = mix(c, pc, pool);
+            }
+          }
+
           // --- LA GRILLE Y2K.
           //
           //     Deux mailles, une fine et une large, et surtout AUCUN
@@ -491,7 +617,8 @@ ${shoreGLSL()}
           //     avant le ciel est traversee par la lumiere et s'allume. Sans
           //     ce lisere, la plaine se termine par une decoupe de papier.
           float toward = max(dot(normalize(vec3(vWorld.x, 0.0, vWorld.z) - vec3(uCam.x, 0.0, uCam.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0);
-          c += vec3(0.34, 0.46, 0.30) * smoothstep(0.68, 0.99, f) * pow(max(toward, 1e-4), 2.0) * 1.05;
+          c += mix(vec3(0.34, 0.46, 0.30), uDayFill * 0.72, uWet)
+             * smoothstep(0.68, 0.99, f) * pow(max(toward, 1e-4), 2.0) * 1.05;
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));

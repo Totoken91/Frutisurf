@@ -94,6 +94,16 @@ export class Water {
         ...dayUniforms(),
         /** x, z du surfeur et force du sillage (0 hors de l'eau). */
         uWake: { value: new Vector3() },
+        /**
+         * 0 = surface calme, 1 = sous l'averse.
+         *
+         * La pluie fait a l'eau l'inverse de ce qu'elle fait au sol : le sol
+         * gagne un miroir, l'eau le PERD. Une surface crevee de gouttes est
+         * une surface rugueuse — elle diffuse au lieu de reflechir, ses
+         * paillettes s'eteignent, et c'est cette perte de brillance qui rend
+         * un etang d'octobre si mat.
+         */
+        uRain: { value: 0 },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -154,6 +164,7 @@ ${swellGLSL()}
 ${GLSL_SAFE}
         uniform float uTime;
         uniform vec3 uCam, uSun, uDeep, uShallow, uFoam, uSkyLow, uSkyHigh, uSkyLight, uWake;
+        uniform float uRain;
 ${GLSL_DAY}
         varying vec3 vWorld;
         varying float vDepth;
@@ -213,6 +224,22 @@ ${RIDER_GLSL}
           // ce n'est qu'une trainee blanche peinte sur l'eau.
           N = normalize(N + vec3(sign(rel.x) * wake * 0.55, 0.0, -wake * 0.35));
 
+          // --- LA PLUIE CREVE LA SURFACE.
+          //
+          //     Les memes anneaux d'impact que ceux des flaques du sol (cf.
+          //     Weather.rainRings) : ce qui tombe sur l'herbe et ce qui tombe
+          //     dans l'etang doivent etre la meme averse, au metre pres. On les
+          //     eteint au loin, ou l'anneau passe sous le pixel et ne produit
+          //     plus que du scintillement.
+          float rainNear = uRain * (1.0 - smoothstep(16.0, 70.0, length(vWorld.xz - uCam.xz)));
+          if (rainNear > 0.004) {
+            float e2 = 0.09;
+            float r0 = rainRings(vWorld.xz, uTime);
+            float rx = rainRings(vWorld.xz + vec2(e2, 0.0), uTime);
+            float rz = rainRings(vWorld.xz + vec2(0.0, e2), uTime);
+            N = normalize(N + vec3((r0 - rx), 0.0, (r0 - rz)) * rainNear * 0.55);
+          }
+
           // --- LE CORPS DE L'EAU, et lui seul, recoit l'heure.
           //
           //     C'est ici que le crepuscule tournait mal. La couleur finale —
@@ -255,7 +282,9 @@ ${RIDER_GLSL}
           // rang, et a ndh = 0 il produit un NaN qui, additionne a la couleur,
           // rend le pixel noir puis contamine le flou de bloom.
           float ndhs = max(ndh, 1e-4);
-          float glint = pow(ndhs, 340.0) * 5.0 + pow(ndhs, 46.0) * 0.55;
+          // Sous l'averse, la paillette MEURT : une surface crevee de gouttes
+          // n'a plus de facette assez large pour renvoyer le soleil d'un bloc.
+          float glint = (pow(ndhs, 340.0) * 5.0 + pow(ndhs, 46.0) * 0.55) * (1.0 - uRain * 0.72);
           // La paillette prend la couleur du SOLEIL, pas un blanc chaud fixe.
           // C'est elle qui dessine le chemin de lumiere sur l'eau, et un chemin
           // blanc sous un soleil orange est la faute qu'on remarque sans savoir
@@ -284,6 +313,15 @@ ${RIDER_GLSL}
           // une lueur qui glisse sur la mer la nuit est l'image que ce jeu
           // cherche depuis le debut.
           c += riderLight(vWorld) * (0.5 + uDayNight * 1.15);
+
+          // Et la surface DIFFUSE : elle se rapproche de sa propre couleur au
+          // lieu de rendre le ciel, et le semis de gouttes la blanchit d'un
+          // voile mat. Une eau de pluie qui resterait miroir serait la premiere
+          // chose qu'on trouverait fausse.
+          if (uRain > 0.004) {
+            c = mix(c, body, uRain * 0.34);
+            c += foamCol * clamp(rainNear, 0.0, 1.0) * 0.055;
+          }
 
           // Opacite : transparente au bord, franche au large.
           float alpha = mix(0.55, 0.97, smoothstep(0.0, 1.3, vDepth));

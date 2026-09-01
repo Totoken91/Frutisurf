@@ -913,3 +913,61 @@ explique**, et il n'explique que ce qui est sélectionné.
 | **DISQUETTE** | grip ×1,30 — les coins mordent | cruise ×0,88 |
 | **CD-R** | boost ×1,28 | lift ×0,90 |
 | **HOLO** | lift ×1,18 · plane ×1,16 | grip ×0,72 — sans matière, ça ne mord pas |
+
+
+## Le vent d'Octobre
+
+Chaque monde qui change le décor sans changer la main n'est qu'une peau. Il y en
+a maintenant trois qui changent la main, et chacun le fait avec un moyen
+différent :
+
+| Monde | Ce qui change la main |
+|---|---|
+| **OKINAWA** | on ne coule plus (`plane` 2,3, seuil de sortie à 8,3 m/s sous le plancher de 9) — et on **dérive** ; le risque a déménagé dans la houle, les îles et le chrono. |
+| **BLISS** | pas une goutte d'eau, donc pas un point de traversée. Tout le revenu vient des figures : le monde rend en portance et en boost ce qu'il enlève en lacs. |
+| **OCTOBRE** | le sol est détrempé (`grip` ×0,88) et **le vent pousse**. |
+
+### Une force qu'on voit arriver
+
+Une force latérale non annoncée n'est pas une mécanique, c'est un bug qui se
+répète. Celle-ci est la **même fonction** que la rafale qui couche l'herbe,
+emporte les feuilles et incline la pluie (voir
+[`02`](02-TECH-ARCHITECTURE.md) §13) : on la voit traverser le champ avant de la
+sentir dans les commandes.
+
+Elle est **centrée** : le disque part à droite quand la crête de rafale passe, il
+revient à gauche dans le creux. Une poussée à sens unique se contrerait une fois
+pour toutes et cesserait d'exister au bout de dix secondes ; celle-ci demande une
+correction continue, comme on tient un cap en mer.
+
+### Les chiffres
+
+6,2 m/s au pic, contre environ 13 m/s d'autorité latérale à vitesse de croisière
+avec le `grip` du monde : la rafale vaut **la moitié d'un appui à fond**. Assez
+pour qu'on ne puisse jamais lâcher la direction, pas assez pour qu'on ne puisse
+pas la corriger.
+
+Et elle mord plus quand le disque tient moins : ×0,8 à plat, ×1,15 en glisse sur
+l'eau, ×1,35 en l'air. Un vol long dans Octobre se pilote — on ne se contente
+plus d'attendre l'atterrissage.
+
+Mesure à l'autopilote sur dix minutes : poussée moyenne 5,2 m/s, **0 %** du temps
+plaqué contre la paroi du couloir, 273 anneaux contre 317 sur la plaine. Le vent
+coûte à peu près un anneau sur huit — un prix, pas une punition.
+
+### Ce que le monde rend
+
+Le sol glissant et le vent prennent ; le monde rend ailleurs. La rafale porte
+(`lift` ×1,10), l'eau est partout donc on y déjauge un peu mieux
+(`plane` ×1,06), et le vent de dos recharge (`boost` ×1,08). Le solde mesuré est
+volontairement légèrement négatif — 8,2 M de points contre 9,0 sur la plaine.
+Octobre est le monde le plus **exigeant** des cinq, et il le dit dans sa ligne de
+sélection avant qu'on y entre.
+
+### La noyade y reste possible, et c'est délibéré
+
+Okinawa est insubmersible parce qu'on y passe les deux tiers du temps sur l'eau
+et que la noyade y coûtait la partie sans faute du joueur. Octobre a 31 % d'eau
+en **367 mares distinctes** de 47 m de large en moyenne : couler y est une erreur
+qu'on a eu le temps de voir venir. Un monde mélancolique sans aucun risque serait
+une carte postale.

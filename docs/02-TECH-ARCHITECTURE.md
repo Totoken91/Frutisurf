@@ -781,3 +781,85 @@ machine lente lisait la même valeur aveugle.
 
 Deux durées désormais : `raw` pour ce qu'on mesure et ce qu'on affiche, `real`
 borné pour ce que la simulation consomme.
+
+
+## 13. Le vent, troisième source de vérité partagée
+
+Le projet en a maintenant trois, et elles ont toutes la même forme :
+
+| Source | Fichier | Tableau partagé | Jumeau GLSL |
+|---|---|---|---|
+| le relief | `Terrain.ts` | `AMP`, `SHORE` | `terrainGLSL()`, généré depuis les constantes |
+| la houle | `Terrain.ts` | `SWELL` | `swellGLSL()`, écrit à côté de son jumeau TS |
+| **le vent** | `Weather.ts` | `WIND` | `WEATHER_GLSL`, `gustAt` / `gustPush` |
+
+Le protocole est le même dans les trois cas et il n'a rien d'accessoire : le
+tableau est **muté en place, jamais remplacé**, parce qu'il est branché tel quel
+comme valeur d'uniforme dans chaque matériau concerné. Une écriture suffit donc à
+mettre à jour la physique **et** le GPU, sans plomberie de notification et sans
+qu'on ait à se souvenir de qui doit être prévenu. Le remplacer par un tableau
+neuf casserait le lien en silence : le CPU suivrait le nouveau monde pendant que
+le GPU resterait figé sur l'ancien.
+
+### La rafale était déjà là, elle ne servait qu'à décorer
+
+`gustAt` existait depuis les palmiers : une vague qui traverse le champ dans
+l'axe du vent, lue par l'herbe et par les palmes pour les coucher. Le joueur ne
+sentait rien.
+
+Octobre s'en sert comme mécanique. Le `Controller` lit **la même fonction, au
+même instant**, et applique une poussée latérale — exactement ce que la houle
+fait déjà pour l'océan. La rafale qu'on voit arriver dans les feuilles est celle
+qui déporte le disque, au mètre et à la seconde près.
+
+Elle est **centrée** (`gustPush = gustAt * 2 - 1`), et c'est le point de design :
+une rafale toujours orientée dans le même sens serait une taxe qu'on contre une
+fois pour toutes. Centrée, elle balance, et il faut la lire en continu.
+
+Elle mord d'autant plus que le disque tient moins au sol — × 0,8 à plat, × 1,15
+en glisse, × 1,35 en l'air. Et comme le champ est ancré en monde, la période
+ressentie dépend de la vitesse : le vent se durcit exactement quand on a le moins
+de temps pour le corriger, sans une ligne de code de plus.
+
+### Le banc doit recevoir le monde ENTIER
+
+`check:worlds` avait déjà oublié de passer `swell` à `setTerrain`, et mesurait
+donc un océan plat. Il aurait oublié `wind` de la même façon : Octobre aurait été
+déclaré jouable sur une version de lui-même **sans sa mécanique principale**.
+
+Deux mesures nouvelles en découlent, et elles portent sur le résultat plutôt que
+sur la cause :
+
+- le **temps passé collé au bord** du couloir (> 30 m sur 34). Un vent qu'on ne
+  peut pas contrer plaque le pilote contre la paroi et l'y garde : la trajectoire
+  cesse d'être un choix. Le seuil est à 25 % ;
+- la **poussée moyenne mesurée**, comparée à celle que le monde déclare. Un
+  `wind` écrit dans le mauvais tableau ne se verrait nulle part ailleurs.
+
+### Trois systèmes instanciés qui ne coûtent rien quand ils dorment
+
+Feuilles et pluie existent dans **tous** les mondes, à densité nulle hors
+d'Octobre. Les créer à la demande aurait coûté une compilation de shader au
+moment précis où l'on veut un fondu sans à-coup — c'est-à-dire exactement ce que
+toute l'architecture des mondes existe pour éviter.
+
+Le prix de leur sommeil est une ligne :
+
+```glsl
+if (uDensity < 0.004) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+```
+
+L'instance sort du volume de vue, le rastériseur n'a rien à faire, et il ne reste
+qu'un appel de dessin par système.
+
+### `uOvercast` : baisser la lumière ne suffit pas
+
+`power`, dans les clés de ciel, règle l'**intensité** de la lumière directe. Il
+ne touche pas au dôme, qui porte son propre soleil — cœur, couronne, étoile à
+douze branches, traînée anamorphique. Un monde couvert dont on baisse seulement
+la puissance garde donc une étoile de cinéma plantée au milieu de son ciel de
+plomb.
+
+D'où un uniforme séparé, et la règle générale dont il est le troisième exemple
+après la brume de la ville et le reflet de l'eau : **ce qui décrit une propriété
+du ciel ne peut pas se dériver d'un réglage de lumière.**

@@ -1,6 +1,7 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
 import { NEUTRAL, type Loadout } from '../core/Loadout';
 import { swellAt, swellShoal, terrainHeight, waterLevel } from '../world/Terrain';
+import { windAt } from '../world/Weather';
 import type { GameState } from '../core/GameState';
 
 /**
@@ -247,6 +248,13 @@ export class Controller {
 
   /** Vagues franchies depuis le debut de la partie. */
   waves = 0;
+  /**
+   * Poussee laterale du vent appliquee a ce pas, en m/s. Signee.
+   *
+   * Publique parce qu'elle doit se VOIR : le buddy s'incline dedans, et le
+   * banc de mondes la releve pour dire si le pilote passe sa partie a lutter.
+   */
+  wind = 0;
   /** Pente de la houle au pas precedent : sert a detecter le passage de crete. */
   private prevSwellSlope = 0;
 
@@ -696,7 +704,21 @@ export class Controller {
     // Coule, on ne dirige presque plus.
     if (this.sunk) grip *= 0.35;
     const lateral = st * effective * grip;
-    this.x += lateral * dt;
+
+    // --- LE VENT, et il pousse VRAIMENT.
+    //
+    // La meme rafale que celle qui couche l'herbe et emporte les feuilles
+    // (cf. Weather.windAt) : ce qu'on voit traverser le champ est ce qui
+    // deporte le disque, au metre et a la seconde pres. C'est la condition
+    // pour qu'un vent soit jouable plutot que subi — on le voit arriver.
+    //
+    // Il mord d'autant plus que le disque tient moins au sol : a plat la
+    // tranche mord l'herbe et encaisse une bonne part de la poussee, sur l'eau
+    // elle ne mord plus rien, et en l'air il n'y a plus que le vent.
+    this.wind =
+      windAt(this.x, this.z, this.clock) *
+      (this.airborne ? 1.35 : this.planing ? 1.15 : 0.8);
+    this.x += (lateral + this.wind) * dt;
     this.z -= effective * dt;
     this.distance += effective * dt;
     if (this.planing) this.skimMeters += effective * dt;
@@ -868,6 +890,7 @@ export class Controller {
     this.sunk = false;
     this.depth = 0;
     this.skimMeters = 0;
+    this.wind = 0;
     this.steer.snap(0);
     this.lean.snap(0);
     this.speed = 18;

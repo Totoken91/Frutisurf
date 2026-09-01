@@ -131,7 +131,8 @@ const waitFrames = async (n) => {
 const measure = async (hide, frames) => {
   await page.evaluate((names) => {
     const g = window.__game;
-    const all = ['ground', 'blades', 'water', 'clouds', 'city', 'motes', 'boosters', 'rings'];
+    const all = ['ground', 'blades', 'water', 'clouds', 'city', 'motes', 'boosters', 'rings',
+                 'leaves', 'rain'];
     for (const n of all) {
       const m = g.world[n];
       const on = !names.includes(n);
@@ -168,7 +169,25 @@ const cases = [
   ['sans ville', ['city']],
   ['sans pollen', ['motes']],
   ['sans plots+anneaux', ['boosters', 'rings']],
+  // Ces deux-la ne coutent rien hors d'OCTOBRE — leur shader de sommet rejette
+  // l'instance des la premiere ligne quand la densite est nulle. Les mesurer
+  // demande donc WORLD=octobre, sinon on ne mesure que le bruit.
+  ['sans feuilles', ['leaves']],
+  ['sans pluie', ['rain']],
 ];
+
+// Le monde a mesurer. Par defaut la plaine, qui est la reference historique de
+// ce banc ; `WORLD=octobre` sert a peser les feuilles et la pluie, qui sont
+// eteintes partout ailleurs.
+const WORLD = process.env.WORLD ?? null;
+if (WORLD) {
+  await page.evaluate((id) => {
+    const w = window.__worlds.find((x) => x.id === id);
+    if (w) window.__game.world.setWorld(w, true);
+  }, WORLD);
+  await waitFrames(8);
+  console.log(`monde : ${WORLD}`);
+}
 
 await freeze();
 const FRAMES = Number(process.env.FRAMES ?? 24);

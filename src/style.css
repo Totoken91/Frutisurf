@@ -1162,9 +1162,9 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
    transforme des qu'on touche une carte. Elle sert a reconnaitre un monde deja
    vu, pas a le decouvrir. C'est pour ca qu'elle peut se permettre d'etre
    abstraite — trois bandes, ciel, terre, eau. */
-.worldrow .worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-.wcard { padding: 0.42em 0.14em 0.4em; gap: 0.26em; border-radius: 11px; }
-.wcard .nm { font-size: 0.62em; letter-spacing: 0.04em; }
+.worldrow .worlds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.wcard { padding: 0.4em 0.1em 0.36em; gap: 0.24em; border-radius: 10px; }
+.wcard .nm { font-size: 0.56em; letter-spacing: 0.02em; }
 .wsky {
   position: relative;
   display: block;
@@ -1189,6 +1189,21 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
   transform: rotate(-3deg) translateY(10%);
   background: linear-gradient(180deg, color-mix(in srgb, var(--sea) 80%, #ffffff) 0%, var(--sea) 100%);
 }
+/* LA PLUIE, sur les vignettes des mondes qui en ont.
+   Sans elle, OCTOBRE se reduit a trois bandes ocres, et rien ne distingue une
+   plaine d'automne d'une plaine sechee par le soleil. C'est le climat qui fait
+   ce monde, donc c'est le climat que la vignette doit montrer — et des hachures
+   obliques le disent en une ligne de CSS, sans image. */
+.wcard.wet .wsky {
+  background-image:
+    repeating-linear-gradient(76deg,
+      rgba(232, 240, 255, 0.22) 0 1px,
+      rgba(232, 240, 255, 0) 1px 7px),
+    linear-gradient(180deg, var(--sky) 0%, color-mix(in srgb, var(--sky) 45%, #ffffff) 52%, var(--land) 52%, var(--land) 100%);
+}
+/* Le soleil ne perce pas un ciel couvert : sur ces mondes-la il s'efface. */
+.wcard.wet .wsky::before { opacity: 0.18; }
+
 /* Le soleil, en haut a droite : un point chaud qui casse le degrade et donne
    a la vignette l'air d'un paysage plutot que d'un nuancier. */
 .wsky::before {

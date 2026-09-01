@@ -46,7 +46,8 @@ export type WorldColorKey =
   | 'sandDry' | 'sandPale' | 'sandWet' | 'sandShell'
   | 'waterShallow' | 'waterDeep' | 'waterFoam'
   | 'cityFace' | 'cityLit' | 'cityDeep' | 'treeLine'
-  | 'warmAccent' | 'cloudCore' | 'cloudShadow' | 'cloudRim';
+  | 'warmAccent' | 'cloudCore' | 'cloudShadow' | 'cloudRim'
+  | 'leafRust' | 'leafBlood' | 'leafAmber';
 
 export const WORLD_COLOR_KEYS: WorldColorKey[] = [
   'grassHorizon', 'grassFar', 'grassMid', 'grassNear', 'grassShadow', 'grassStreak',
@@ -54,6 +55,7 @@ export const WORLD_COLOR_KEYS: WorldColorKey[] = [
   'waterShallow', 'waterDeep', 'waterFoam',
   'cityFace', 'cityLit', 'cityDeep', 'treeLine',
   'warmAccent', 'cloudCore', 'cloudShadow', 'cloudRim',
+  'leafRust', 'leafBlood', 'leafAmber',
 ];
 
 export interface WorldDef {
@@ -82,8 +84,33 @@ export interface WorldDef {
   turbines: number;
   palms: number;
   blades: number;
+  /** Tapis de feuilles mortes, 0..1. Zero partout sauf en octobre. */
+  leaves: number;
+  /** Averse, 0..1. Elle mouille le sol, crible l'eau, et voile le paysage. */
+  rain: number;
+  /**
+   * VENT LATERAL, en m/s au pic de rafale. Zero = pas de vent.
+   *
+   * C'est la troisieme mecanique de monde, apres le seuil de glisse d'OKINAWA
+   * et la houle : elle ne se contente pas de repeindre le decor, elle change
+   * la main du joueur. Le disque est DEPORTE par la meme rafale qui couche
+   * l'herbe et emporte les feuilles (cf. Weather.windAt), donc on la voit
+   * arriver avant de la sentir — sans quoi ce ne serait qu'un bruit ajoute aux
+   * commandes.
+   */
+  wind: number;
   /** 0 = herbe, 1 = grille Y2K. Bascule la matiere du sol. */
   tech: number;
+  /**
+   * 0 = ciel degage, 1 = plafond de nuages.
+   *
+   * Distinct de `power` dans les cles de ciel, et il le faut : `power` regle
+   * l'INTENSITE de la lumiere, pas l'aspect du dome. Un monde couvert dont on
+   * baisse seulement la puissance garde son soleil a douze branches en plein
+   * milieu de son ciel de plomb, ce qui est exactement l'erreur qu'octobre a
+   * faite au premier jet.
+   */
+  overcast: number;
   /**
    * Les regles du monde, multipliees a celles du buddy et de la monture.
    *
@@ -165,6 +192,48 @@ const SKY_BLISS: Keyframe[] = [
 ];
 
 /**
+ * OCTOBRE. Le seul monde qui ne cherche pas a etre beau au sens des autres.
+ *
+ * Les quatre premiers sont des mondes de PLEIN JOUR — meme Chrome, dont le
+ * crepuscule violet est sature comme un neon. Octobre est un monde COUVERT :
+ * sa lumiere ne vient jamais d'un point, elle vient de tout le ciel a la fois,
+ * et c'est ce qui lui donne son affect. Une lumiere sans direction est une
+ * lumiere sans heure ; on ne sait plus s'il est onze heures du matin ou cinq
+ * heures du soir, et c'est exactement la sensation d'un jour de pluie.
+ *
+ * D'ou trois choix que les autres ciels ne font pas :
+ *
+ *   - `night` ne descend JAMAIS a zero. Meme a son midi le monde garde un tiers
+ *     de nuit : le plafond de nuages ne se leve pas.
+ *   - `power` plafonne a 0,66 contre 1,0 ailleurs, et le remplissage (`fill`)
+ *     reste haut. C'est la definition d'un ciel couvert — peu de directe,
+ *     beaucoup d'ambiante — et c'est ce qui ecrase les ombres.
+ *   - le seul moment SATURE du cycle est le couchant, et il l'est violemment :
+ *     la trouee sous le plafond, quand le soleil passe dessous et met le
+ *     dessous des nuages en feu. C'est le seul instant ou ce monde est
+ *     spectaculaire, il dure quinze secondes, et tout le reste est fait pour
+ *     qu'on l'attende.
+ */
+const SKY_OCTOBRE: Keyframe[] = [
+  { at: 0.0, zenith: 0x2f3547, high: 0x4c5162, mid: 0x767074, horizon: 0xa5907a,
+    light: 0xb8a48f, power: 0.46, fill: 0x565d70, night: 0.52, warm: 0.60 },
+  { at: 0.25, zenith: 0x4a5468, high: 0x6b7384, mid: 0x929399, horizon: 0xc2b9a8,
+    light: 0xd8d3c6, power: 0.64, fill: 0x7a828e, night: 0.30, warm: 0.14 },
+  // LE moment du monde : la trouee sous le plafond. Le soleil passe DESSOUS,
+  // met le ventre des nuages en cuivre, et tout le reste reste violet.
+  //
+  // La lumiere directe est volontairement retenue a 0xdd9464 et non a l'orange
+  // franc des autres crepuscules : elle multiplie un sol deja ocre, et un
+  // orange sature sur de l'ocre ne donne pas un couchant, il donne du ROUGE.
+  // Le premier jet sortait un paysage martien — la faute classique des palettes
+  // d'automne, et elle se corrige dans la LUMIERE, pas dans le sol.
+  { at: 0.5, zenith: 0x281f3c, high: 0x4a3350, mid: 0x8a5642, horizon: 0xd08a58,
+    light: 0xc9a888, power: 0.50, fill: 0x54415e, night: 0.50, warm: 0.55 },
+  { at: 0.75, zenith: 0x080a16, high: 0x11142a, mid: 0x1e2038, horizon: 0x3c3448,
+    light: 0x8c93b4, power: 0.24, fill: 0x2a2c40, night: 1.0, warm: 0.20 },
+];
+
+/**
  * CHROME. Le monde Y2K, et le seul qui ne connaisse pas le plein jour.
  *
  * Son « midi » est un crepuscule violet : c'est deliberé. Toute l'imagerie de
@@ -208,7 +277,11 @@ export const WORLDS: WorldDef[] = [
     turbines: 1,
     palms: 1,
     blades: 1,
+    leaves: 0,
+    rain: 0,
+    wind: 0,
     tech: 0,
+    overcast: 0,
     sky: SKY_PLAIN,
     dayStart: 0.16,
     swatch: ['#1c9ce9', '#9ed93e', '#6fe8e0', 26],
@@ -289,7 +362,11 @@ export const WORLDS: WorldDef[] = [
     turbines: 0.35,
     palms: 1,
     blades: 0.7,
+    leaves: 0,
+    rain: 0,
+    wind: 0,
     tech: 0,
+    overcast: 0,
     sky: SKY_OKINAWA,
     dayStart: 0.22,
     swatch: ['#22b4ef', '#e8d8b4', '#8bf5e4', 56],
@@ -334,7 +411,11 @@ export const WORLDS: WorldDef[] = [
     turbines: 0,
     palms: 0,
     blades: 1,
+    leaves: 0,
+    rain: 0,
+    wind: 0,
     tech: 0,
+    overcast: 0,
     sky: SKY_BLISS,
     dayStart: 0.19,
     swatch: ['#1f5fd8', '#8ad438', '#b2e556', 0],
@@ -385,10 +466,110 @@ export const WORLDS: WorldDef[] = [
     turbines: 0.6,
     palms: 0,
     blades: 0,
+    leaves: 0,
+    rain: 0,
+    wind: 0,
     tech: 1,
+    overcast: 0,
     sky: SKY_CHROME,
     dayStart: 0.62,
     swatch: ['#2a2478', '#241f5c', '#9a7cff', 30],
+  },
+  {
+    id: 'octobre',
+    name: 'OCTOBRE',
+    blurb: 'champs noyés, vent de travers, feuilles',
+    // DES CHAMPS INONDES, PAS UN LAGON.
+    //
+    // Mesure sur quatre trajectoires : 31 % d'eau, 367 nappes distinctes de
+    // 47 m en moyenne, 130 m au plus large, 105 m de terre entre deux. C'est
+    // le CONTRAIRE d'Okinawa a part egale d'eau — la, une etendue continue
+    // qu'on traverse ; ici, un semis de mares dans lesquelles on tombe. La
+    // difference tient a la couche de fond, ecrasee de 6,0 a 4,6 : c'est elle
+    // qui fait les grandes cuvettes, et sans elle l'eau ne se rassemble plus.
+    //
+    // Consequence voulue : ON PEUT ENCORE COULER ICI. Okinawa est
+    // insubmersible parce qu'on y passe les deux tiers du temps sur l'eau et
+    // que la noyade y coutait la partie sans faute du joueur. Sur une mare de
+    // 47 m, couler est une erreur qu'on a eu le temps de voir venir — et un
+    // monde melancolique sans aucun risque serait une carte postale.
+    amp: [4.6, 3.4, 2.8, 1.35, 0.14],
+    water: -2.5,
+    // Berges ETROITES. Une plage large est une image d'ete ; en octobre la
+    // terre descend dans l'eau sans transition, avec juste un ourlet de boue.
+    shore: [1.1, 2.2],
+    // Un clapot, pas une houle : 34 m de long, rapide, faible. C'est ce que
+    // le vent fait a une mare — une eau nerveuse et sans rythme, l'inverse
+    // exact des longues vagues lisibles d'Okinawa.
+    swell: [0.35, 34, 1.9],
+    colors: {
+      // La gamme entiere bascule dans l'ocre. Le point delicat n'est pas de
+      // trouver les bruns, c'est de garder un ECART DE VALEUR du premier plan
+      // a l'horizon : sans lui un paysage brun devient une soupe, et c'est le
+      // defaut classique des palettes d'automne.
+      grassNear: 0x4e4f42,
+      grassMid: 0x63614f,
+      grassFar: 0x7b7962,
+      grassHorizon: 0x9a9580,
+      grassShadow: 0x2b2b22,
+      // La strie est franchement ROUILLE et non ocre : c'est elle qui porte
+      // les nappes de lumiere et les touffes, donc c'est elle qui met de
+      // l'orange dans le champ. Une strie assortie au sol n'aurait rien dit.
+      grassStreak: 0xa5732f,
+      // Plus de sable : de la BOUE. Meme mecanique de greve, autre matiere.
+      sandDry: 0x6e5a3c,
+      sandPale: 0x8d7852,
+      sandWet: 0x3e3423,
+      sandShell: 0xb0a288,
+      // L'eau d'un champ inonde ne renvoie rien : elle est vert-de-gris en
+      // surface et noire au fond. Aucun cyan nulle part — c'est le seul monde
+      // du jeu qui n'en contient pas une trace, et c'est ce qui le rend
+      // reconnaissable en une image.
+      waterShallow: 0x5d6450,
+      waterDeep: 0x1d242c,
+      waterFoam: 0xc4c0ac,
+      // La ville passe au BETON, et ses fenetres sont la seule source chaude
+      // du monde. Un immeuble gris avec des carreaux allumes a la tombee du
+      // jour est l'image la plus melancolique que ce jeu puisse produire, et
+      // elle ne coute qu'une couleur.
+      cityFace: 0x4a4d55,
+      cityLit: 0xb8905c,
+      cityDeep: 0x2b2d34,
+      treeLine: 0x3a2e1e,
+      warmAccent: 0x6a4a30,
+      // Le plafond : gris mauve, avec un liseré rouille sur les bords. C'est
+      // le lisere qui fait tout — un nuage gris borde de gris est une masse,
+      // borde de cuivre c'est un ciel de fin de journee.
+      cloudCore: 0x8b8492,
+      cloudShadow: 0x474252,
+      cloudRim: 0xd9a06a,
+    },
+    // La physique d'un jour de pluie. `grip` a 0,88 est le chiffre qui compte :
+    // le sol est detrempe, le disque chasse, et le vent en profite. Le monde
+    // rend ailleurs ce qu'il prend la — la rafale porte (`lift`), l'eau est
+    // partout donc on y dejauge un peu mieux, et le vent de dos recharge.
+    mods: { cruise: 0.97, grip: 0.88, lift: 1.10, plane: 1.06, boost: 1.08 },
+    city: 0.85,
+    // Les eoliennes ne sont plus un decor mais une INFORMATION : ce sont elles
+    // qui disent, depuis l'horizon, qu'il y a du vent dans ce monde.
+    turbines: 0.75,
+    palms: 0,
+    blades: 0.9,
+    leaves: 1,
+    rain: 1,
+    // 6,2 m/s au pic, contre 13 m/s d'autorite laterale a vitesse de croisiere :
+    // la rafale vaut donc environ la moitie d'un appui a fond. Assez pour qu'on
+    // ne puisse jamais lacher la direction, pas assez pour qu'on ne puisse pas
+    // la corriger — mesure a l'autopilote, cf. check:worlds.
+    wind: 6.2,
+    tech: 0,
+    // Le plafond. C'est lui qui eteint le soleil du dome : sans ca, un ciel de
+    // plomb avec une etoile de cinema plantee dedans.
+    overcast: 0.92,
+    sky: SKY_OCTOBRE,
+    // On arrive juste avant le couchant : la partie entiere bascule dedans.
+    dayStart: 0.42,
+    swatch: ['#6a4258', '#8a6f34', '#4f5648', 30],
   },
 ];
 

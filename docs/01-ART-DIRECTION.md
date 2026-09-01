@@ -873,7 +873,7 @@ bas, parce que la lumière du monde vient d'en haut. GIVRE a dû descendre son
 haut à `#3f7fc4` : un verre presque blanc sature dans le bloom et **perd sa
 silhouette** au lieu de gagner en clarté.
 
-## 15. Les quatre mondes
+## 15. Les cinq mondes
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un **jeu de
 paramètres** appliqué à la seule et même scène — cinq amplitudes de relief, un
@@ -898,6 +898,7 @@ c'est le ciel qui décide de quel endroit il s'agit.
 | **OKINAWA** | la même course du soleil, mais l'air d'un lagon — plus de blanc à l'horizon, un midi **surpuissant**. Sous les tropiques ce qu'on lit d'une photo n'est pas la couleur du ciel, c'est **l'écrasement des ombres**. |
 | **BLISS** | le plus **saturé** et le plus contrasté verticalement : un bleu presque violet qui tombe sur un blanc franc, **sans passer par du cyan**. Le cyan est partout ailleurs dans ce jeu ; ici il est volontairement absent, et c'est ce qui rend le monde reconnaissable en une image. |
 | **CHROME** | le seul qui ne connaisse **pas le plein jour**. Son « midi » est un crépuscule violet, et c'est délibéré : toute l'imagerie Y2K — visualiseurs de lecteur multimédia, écrans de veille en fil de fer, chrome liquide — repose sur des **néons**, et un néon a besoin de nuit. Un Chrome en plein soleil serait juste une plaine violette. |
+| **OCTOBRE** | le seul **couvert**. Sa lumière ne vient jamais d'un point, elle vient de tout le ciel à la fois — et une lumière sans direction est une lumière **sans heure**. On ne sait plus s'il est onze heures du matin ou cinq heures du soir, et c'est exactement la sensation d'un jour de pluie. Voir §17. |
 
 ### Ce que chaque monde change de sa palette
 
@@ -1040,3 +1041,121 @@ Le buddy est aussi remonté de 0,55 à 0,92 au-dessus du disque. Ils étaient bi
 là, mais le buste posait presque dessus et la caméra de poursuite n'en laissait
 dépasser qu'un croissant. **Six montures soigneusement distinctes dont on ne voit
 qu'un croissant sont six montures identiques.**
+
+
+## 17. OCTOBRE, le monde couvert
+
+Le cinquième monde ne cherche pas à être beau au sens des quatre autres. Ceux-là
+sont des mondes de **plein jour** — même Chrome, dont le crépuscule violet est
+saturé comme un néon. Octobre est le premier qui ait un **plafond**.
+
+### Trois règles de ciel que les autres n'ont pas
+
+- `night` ne descend **jamais** à zéro : même à son midi le monde garde un tiers
+  de nuit, parce que le plafond de nuages ne se lève pas ;
+- `power` plafonne à 0,64 contre 1,0 ailleurs, et le remplissage reste haut.
+  C'est la définition d'un ciel couvert — peu de directe, beaucoup d'ambiante —
+  et c'est ce qui **écrase les ombres** ;
+- le seul moment saturé du cycle est le **couchant**, la trouée sous le plafond
+  quand le soleil passe dessous et met le ventre des nuages en cuivre. Il dure
+  quinze secondes, et tout le reste du monde est fait pour qu'on l'attende.
+
+### Le soleil est un objet, pas une lumière
+
+Baisser `power` n'y touche pas d'un pouce. Le dôme porte son propre soleil — un
+cœur brûlant, une couronne, une étoile à douze branches, une traînée
+anamorphique — et le premier jet d'Octobre a donc rendu un ciel de plomb avec
+une **étoile de cinéma plantée au milieu**.
+
+D'où `uOvercast`, distinct de tout ce qui existait : il éteint le cœur, l'étoile,
+la traînée et les étoiles de la nuit, et laisse à leur place une **tache claire**
+large et molle, de la couleur du ciel et non du soleil. C'est le seul indice qui
+reste de la position du soleil un jour gris, et c'est exactement ce qu'il en
+reste dehors.
+
+### L'orange ne va PAS dans le sol
+
+Le premier jet peignait le sol en ocre franc et la lumière du couchant en orange
+saturé. Résultat : un paysage **martien**. C'est la faute classique des palettes
+d'automne, et elle ne se corrige pas dans le sol — elle se corrige dans la
+**lumière**.
+
+Un jour couvert n'envoie aucun faisceau direct sur l'herbe : le sol est éclairé
+par le *ciel*, qui est gris-violet. La lumière directe d'Octobre est donc un gris
+chaud (`0xc9a888`) et non un orange, la gamme du sol est un gris-olive
+désaturé — et **tout l'orange vit ailleurs** : dans le tapis de feuilles, dans
+les feuilles qui tombent, dans le liseré cuivre des nuages, dans les fenêtres
+allumées des tours. Le contraste chaud/froid en sort renforcé au lieu d'être
+noyé.
+
+### Le tapis n'est pas fait de feuilles
+
+Un tapis de feuilles crédible en demande des dizaines de milliers au mètre
+carré. Le système de particules en pose quelques centaines dans tout le champ de
+vision — assez pour qu'on en voie **tomber**, jamais assez pour qu'on marche
+dessus. Le premier jet donnait donc une pluie de confettis au-dessus d'une
+prairie vierge.
+
+La bonne division du travail est celle-ci :
+
+- **les particules** font les feuilles qui tombent. Elles culbutent (le quad se
+  referme sur sa largeur puis tourne dans le plan de l'écran — c'est le passage
+  par la **tranche** qui dit qu'une feuille tournoie), elles se **posent** au
+  sol ou flottent sur l'eau, et elles s'allument à contre-jour parce qu'une
+  feuille sèche est translucide ;
+- **le sol** fait celles qui sont déjà tombées. Deux échelles de bruit, un seuil
+  qui laisse de l'herbe entre les tas, et une densité plus forte dans les creux
+  — c'est là que le vent les dépose.
+
+Chacune est bonne exactement là où l'autre ne l'est pas, et les deux tirent leurs
+couleurs du **même** endroit : on reconnaît dans le tapis la feuille qu'on vient
+de voir tomber.
+
+Un détail de calibrage vaut d'être noté : le seuil du tapis était d'abord posé à
+vue, sur `[0,44 ; 0,80]`. Or ces champs de bruit ont une moyenne de 0,48 et un
+écart-type d'un dixième, et les moyenner réduit encore la variance : trois pour
+cent du sol passaient le seuil. **Le tapis existait dans le code et nulle part à
+l'écran.** Un seuil se cale sur la statistique du champ, jamais à vue.
+
+### La pluie fait à l'eau l'inverse de ce qu'elle fait au sol
+
+C'est le couple qui rend l'averse lisible :
+
+- le **sol** gagne un miroir. Le film d'eau piège la lumière diffuse, donc le sol
+  fonce et se sature ; il rend le ciel à l'incidence rasante au lieu de verdir ;
+  son spéculaire s'élargit ; et il retient des **flaques** dans ses creux plats
+  — deux conditions et pas une seule, car une flaque sur un versant est le genre
+  de faute qu'on repère sans savoir la nommer ;
+- l'**eau** le perd. Une surface criblée de gouttes est une surface rugueuse :
+  elle diffuse au lieu de réfléchir, ses paillettes s'éteignent, et c'est cette
+  perte de brillance qui rend un étang d'octobre si mat.
+
+Les **impacts** sont les mêmes des deux côtés — un semis d'anneaux dont chaque
+cellule a son propre rythme et son propre centre, jamais un sinus global qui
+ferait respirer toute la pluie à l'unisson. Ce qui tombe sur l'herbe et ce qui
+tombe dans l'étang sont la même averse, au mètre près.
+
+### La pluie est ancrée au monde, pas à la caméra
+
+Une pluie collée à l'écran est le réflexe évident et c'est aussi ce qui la
+trahit : les traits restent immobiles pendant que le paysage défile, donc ils
+lisent comme une texture posée sur l'objectif. Ici chaque goutte a une position
+en monde ; à 30 m/s le joueur la **traverse**, et c'est cette parallaxe qui fait
+tout.
+
+Et le mélange est **normal, pas additif** — pour une fois. Une pluie additive
+disparaît complètement sur un ciel clair et ne se voit que sur le sol sombre :
+elle change d'existence selon l'endroit où l'on regarde. Une averse **voile**.
+Elle prend enfin sa couleur du remplissage du ciel et jamais un gris fixe, sinon
+c'est le reflet de l'eau teinté deux fois qui recommence.
+
+### Ce qui fait lire le vent, c'est l'alignement
+
+L'amplitude ne suffit pas : une prairie qui s'agite dans tous les sens lit comme
+une prairie agitée. Ce qui fait le vent, c'est que **tout se couche dans le même
+sens**. L'orientation des touffes se rabat donc vers l'axe de la rafale à mesure
+qu'il forcit, et c'est ce cisaillement qu'on reconnaît sans savoir le nommer.
+
+Les trois couches — l'herbe, les feuilles, la pluie — obéissent au **même
+nombre** que la physique (voir [`02`](02-TECH-ARCHITECTURE.md) §13). La rafale
+qu'on voit traverser le champ est celle qui déporte le disque.

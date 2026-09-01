@@ -14,6 +14,14 @@
 | 5 | **Post-process** | Bloom, flou radial, lignes de vitesse, aberration, vignette | Le rendu tient la comparaison au pixel avec la référence | ✅ |
 | 6 | **Finition** | Audio, qualité adaptative, tactile | 60 fps stables, comparaison finale à la référence | ✅ |
 
+## Ajouté après coup
+
+| # | Ajout | Contenu | Critère de sortie | État |
+|---|---|---|---|---|
+| 7 | **Cinq mondes** | Un jeu de paramètres par monde appliqué à la même scène : relief, eau, grève, houle, palette, ciel, densités, **règles** | `check:worlds` : chacun jouable à l'autopilote, mesuré | ✅ |
+| 8 | **Équipement** | Six buddies × six montures, coûts dérivés des multiplicateurs | `check:pick` : le choix s'applique à la physique **et** à la livrée, et survit au rechargement | ✅ |
+| 9 | **OCTOBRE** | Monde couvert : pluie ancrée au monde, feuilles qui tombent et tapis peint dans le sol, sol mouillé et flaques, et le **vent comme mécanique** | `check:worlds` : le vent est mesuré et corrigeable (< 25 % du temps collé au bord du couloir) | ✅ |
+
 ## Retiré du périmètre
 
 **Poissons volants et bulles** ont été supprimés après le premier jalon complet,

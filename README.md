@@ -102,10 +102,10 @@ combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 ## Les mondes
 
 <p align="center">
-  <img src="docs/mondes.png" width="880" alt="Les quatre mondes cote a cote : plaine, Okinawa, Bliss, Chrome" />
+  <img src="docs/mondes.png" width="880" alt="Les cinq mondes cote a cote : plaine, Okinawa, Bliss, Chrome, Octobre" />
 </p>
 
-Quatre mondes, et ce ne sont pas quatre palettes. Chacun a son relief, son
+Cinq mondes, et ce ne sont pas cinq palettes. Chacun a son relief, son
 niveau d'eau, ses couleurs, son ciel et **ses règles**.
 
 | Monde | Eau | Ce qu'on y joue |
@@ -114,6 +114,7 @@ niveau d'eau, ses couleurs, son ciel et **ses règles**.
 | **OKINAWA** | 62 % | **la houle.** Un océan turquoise semé d'îles. On y déjauge à 8 m/s : impossible d'y couler, et c'est voulu — le risque déménage dans les vagues. Car la houle n'est pas un décor : elle porte une **pente** et une **courbure**, donc on la lit, on l'anticipe et on saute dessus, exactement comme une colline. Chaque crête franchie paie. |
 | **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
 | **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. |
+| **OCTOBRE** | 31 % | **le vent.** Champs noyés, pluie battante, tapis de feuilles mortes et crépuscule de plomb. Le sol détrempé fait chasser le disque, et la rafale le **déporte** pour de bon — la même rafale qui couche l'herbe, emporte les feuilles et incline la pluie. On la voit arriver avant de la sentir. |
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un jeu de
 paramètres appliqué à la même scène. Rien n'est détruit, aucun shader n'est
@@ -233,11 +234,13 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   séparées, l'hystérésis doit tenir (pas de glisse qui clignote au milieu du
   lac), et sortir en glissant doit laisser au moins **deux fois** la vitesse de
   sortir en coulant — sinon l'erreur ne coûte rien.
-- `check:worlds` : les quatre mondes, **à l'autopilote**. Dès qu'un monde change
+- `check:worlds` : les cinq mondes, **à l'autopilote**. Dès qu'un monde change
   le relief et l'eau, il change le jeu, et on peut en livrer un injouable — c'est
   arrivé. Le banc mesure la largeur de la nappe la plus large (traversable ?), la
-  terre entre deux nappes (de quoi se relancer ?), la survie du pilote et le
-  temps passé sous 22 m/s.
+  terre entre deux nappes (de quoi se relancer ?), la survie du pilote, le temps
+  passé sous 22 m/s, et depuis Octobre le temps passé **collé au bord du
+  couloir** : un vent qu'on ne peut pas contrer plaque le pilote contre la paroi
+  et la trajectoire cesse d'être un choix.
 - `check:artifact` : **le fichier réellement publié** démarre-t-il. Tout le reste
   de la suite tourne sur `index.html` servi par Vite ; l'artefact mono-fichier
   n'était chargé par rien, et il a été livré mort deux fois — un `<div>` ajouté à

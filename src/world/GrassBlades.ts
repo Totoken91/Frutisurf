@@ -113,6 +113,16 @@ export class GrassBlades {
             sol quand le monde n'en veut pas. Un champ qui palit est un calque
             qu'on eteint ; un champ qui se couche est une saison qui change. */
         uDensity: { value: 1 },
+        /**
+         * Force du vent du monde, en m/s. Elle ALIGNE les brins.
+         *
+         * L'amplitude du mouvement ne suffit pas a lire du vent : une prairie
+         * qui s'agite dans tous les sens lit comme une prairie agitee. Ce qui
+         * fait le vent, c'est que tout se couche DANS LE MEME SENS — donc
+         * l'orientation des touffes se rabat vers l'axe de la rafale a mesure
+         * qu'il forcit, et c'est ce cisaillement qu'on reconnait.
+         */
+        uWind: { value: 0 },
         uSun: { value: SUN_DIR.clone() },
         // Base sur le vert MEDIAN et non sur l'ombre : le brin doit sortir de
         // la matiere du sol, pas s'y detacher en sombre.
@@ -126,7 +136,7 @@ export class GrassBlades {
         attribute vec2 iCell;
         attribute float aBlade;
         uniform vec3 uOrigin;
-        uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity;
+        uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity, uWind;
         varying vec3 vWorldPos;
         uniform vec3 uSun;
         varying float vV, vTint, vLight, vGlint, vShade;
@@ -163,6 +173,10 @@ ${shoreGLSL()}
           float fade = smoothstep(uRadius, uRadius * 0.45, dist) * smoothstep(0.9, 3.0, dist);
 
           float ang = r3 * 6.2831;
+          // L'axe de la rafale, en radians : atan(0.57, 0.82) — les memes deux
+          // nombres que gustAt dans Weather.ts. Un monde sans vent garde ses
+          // touffes orientees au hasard.
+          ang = mix(ang, 0.6073, clamp(uWind * 0.115, 0.0, 0.70));
           // Hauteur DIVISEE PAR DEUX : a 25-46 cm chaque touffe lisait comme
           // un arbuste plante dans une pelouse tondue.
           // Un brin sur huit depasse nettement les autres : une hauteur
@@ -189,7 +203,12 @@ ${shoreGLSL()}
           // qu'on lit comme du vent, pas l'inclinaison moyenne.
           float wind = sin(uTime * 1.9 + wp.x * 0.35 + wp.y * 0.21) * 0.5 + 0.5;
           float gust = gustAt(wp, uTime);
-          float lay = (0.10 + wind * 0.14 + gust * 0.34 + uSpeed * 0.26) * v * v;
+          // Et sous le vent elles se couchent VRAIMENT : la rafale centree
+          // (cf. Weather.gustPush) les pousse en avant sur la crete et les
+          // laisse revenir dans le creux, exactement comme elle deporte le
+          // disque du joueur.
+          float lay = (0.10 + wind * 0.14 + gust * 0.34 + uSpeed * 0.26
+                     + gustPush(wp, uTime) * uWind * 0.055) * v * v;
           // La meme ombre de nuage que le sol, lue au meme endroit : sans ca les
           // brins resteraient au soleil dans une plage d'ombre.
           vShade = cloudShade(wp, uTime);

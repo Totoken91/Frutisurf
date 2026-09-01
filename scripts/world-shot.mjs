@@ -75,6 +75,18 @@ for (let i = 0; i < ids.length; i++) {
     // surfeur se retrouvait a moitie enterre — un defaut du banc, pas du jeu.
     // On laisse donc la camera converger, et on attend qu'elle soit posee.
     g.rig.snap(c);
+
+    // --- ON EFFACE LES TRACES DU BANC, PAS CELLES DU JEU.
+    //
+    //     Geler le surfeur fait s'accumuler tout ce qui le SUIT : la gerbe et
+    //     le ruban s'empilent au meme endroit image apres image, et le ruban
+    //     finit par barrer le cadre d'une echarpe pale. On a deja pris cet
+    //     artefact pour un defaut du monde une fois (c'etait la gerbe, sur
+    //     l'ocean) ; il coute une demi-heure a chaque fois qu'on l'oublie.
+    g.spray.emit = () => {};
+    g.spray.burst = () => {};
+    g.trail.mesh.visible = false;
+    g.aura.mesh.visible = false;
   }, [i, PHASE]);
   await page.waitForTimeout(2400);
   const tag = PHASE !== null ? `-p${PHASE}` : '';
