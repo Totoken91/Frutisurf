@@ -20,7 +20,7 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(String(e)));
 
-await seedLoadout(page);
+await seedLoadout(page, process.env.RIDER ?? 'bleu', process.env.MOUNT ?? 'cd', process.env.WORLD ?? null);
 await page.goto(URL, { waitUntil: 'networkidle' });
 
 // Pilotage scripte : permet de capturer une pose precise (virage, saut).

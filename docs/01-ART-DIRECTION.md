@@ -872,3 +872,84 @@ haut plus dense**. L'inverse donne un personnage qui a l'air posé la tête en
 bas, parce que la lumière du monde vient d'en haut. GIVRE a dû descendre son
 haut à `#3f7fc4` : un verre presque blanc sature dans le bloom et **perd sa
 silhouette** au lieu de gagner en clarté.
+
+## 15. Les quatre mondes
+
+Un monde n'est pas une scène chargée à la place d'une autre : c'est un **jeu de
+paramètres** appliqué à la seule et même scène — cinq amplitudes de relief, un
+niveau d'eau, une largeur de grève, vingt et une couleurs, quatre densités de
+décor et quatre palettes de ciel. Rien n'est détruit, rien n'est reconstruit,
+aucun shader n'est recompilé.
+
+Ce n'est pas une économie. C'est ce qui permet de **fondre** d'un monde à
+l'autre : la plaine s'inonde et devient l'archipel sous les yeux du joueur
+pendant qu'il lit l'écran de sélection. Un monde chargé à la place d'un autre
+n'aurait jamais pu faire ça.
+
+### Le ciel EST le monde
+
+Chaque monde a ses **quatre keyframes**, pas seulement ses couleurs de sol. Une
+palette de terrain sous un ciel partagé donne quatre variantes du même endroit ;
+c'est le ciel qui décide de quel endroit il s'agit.
+
+| Monde | Signature du ciel |
+|---|---|
+| **PLAINE** | la référence Frutiger Aero : azur profond au zénith, blanchi à l'horizon. |
+| **OKINAWA** | la même course du soleil, mais l'air d'un lagon — plus de blanc à l'horizon, un midi **surpuissant**. Sous les tropiques ce qu'on lit d'une photo n'est pas la couleur du ciel, c'est **l'écrasement des ombres**. |
+| **BLISS** | le plus **saturé** et le plus contrasté verticalement : un bleu presque violet qui tombe sur un blanc franc, **sans passer par du cyan**. Le cyan est partout ailleurs dans ce jeu ; ici il est volontairement absent, et c'est ce qui rend le monde reconnaissable en une image. |
+| **CHROME** | le seul qui ne connaisse **pas le plein jour**. Son « midi » est un crépuscule violet, et c'est délibéré : toute l'imagerie Y2K — visualiseurs de lecteur multimédia, écrans de veille en fil de fer, chrome liquide — repose sur des **néons**, et un néon a besoin de nuit. Un Chrome en plein soleil serait juste une plaine violette. |
+
+### Ce que chaque monde change de sa palette
+
+**OKINAWA.** Le sable des Ryukyu est un sable **corallien** : presque blanc, très
+légèrement rose. Il monte donc nettement plus haut que celui de la plaine, qui
+est calé sur la luminance de l'herbe. La végétation d'île est plus **sombre** et
+plus bleue que la prairie — ce sont des feuillages épais, pas de l'herbe rase.
+
+**BLISS.** Le vert n'est pas le chartreuse de la plaine : plus franc, plus dense,
+tirant au bleu dans l'ombre. De l'herbe grasse de printemps. Et les cumulus les
+plus blancs et les plus contrastés du jeu, parce qu'ici ils sont le **seul
+sujet** — il n'y a rien d'autre à regarder.
+
+**CHROME.** Le sol n'est plus de l'herbe mais une dalle sombre, et la grille
+lumineuse par-dessus fait tout le travail. L'eau devient du mercure : presque
+noire en profondeur, violet électrique en surface.
+
+### La grille Y2K
+
+Deux mailles — 4 m et 20 m — et surtout **aucun appel à `fwidth`**.
+L'anti-aliasing par dérivées est l'outil évident pour une grille, mais il repose
+sur une extension dont la disponibilité dépend du profil GLSL, et ce projet a
+déjà perdu assez de temps sur des shaders qui échouent en silence. La largeur du
+fil est calculée depuis la **distance** : même travail, réglable à la main, et
+qui marche partout.
+
+L'extinction au loin n'est pas cosmétique. Une grille qui ne s'atténue pas moire
+dès la ligne d'horizon, et une grille qui moire lit comme un bug — jamais comme
+une texture.
+
+La dalle est **assombrie de 58 %** avant que le néon s'y pose : un néon ne se
+voit que sur du sombre, et la couleur du monde n'y suffit pas. C'est le
+**contraste** qui fait le néon.
+
+### Ce qui suit l'horizon doit relire l'horizon
+
+La brume de la ville et de la ligne d'arbres était une couleur de palette fixe.
+Sous le ciel magenta de Chrome, la forêt virait **turquoise** — une bande d'un
+autre monde posée au milieu de celui-ci. Elle relit désormais l'horizon du cycle,
+exactement comme le reflet de l'eau. Règle générale : **tout ce qui se dissout
+dans l'horizon doit lire l'horizon courant**, jamais une constante.
+
+### Les décors ne s'éteignent pas, ils s'en vont
+
+Chaque densité de décor a sa propre façon de disparaître, et aucune n'est un
+fondu d'opacité générique :
+
+- les **palmiers** déciment le semis — le seuil de tirage monte, les individus
+  les moins bien placés partent. Un palmier à moitié transparent est un bug, un
+  bosquet plus clair est un paysage ;
+- l'**herbe** rentre dans le sol : sa hauteur tombe. Un champ qui pâlit est un
+  calque qu'on éteint, un champ qui se couche est une saison qui change ;
+- la **ligne d'arbres** s'abaisse, pour la même raison ;
+- seules les **tours** et les **éoliennes** se dissolvent vraiment — elles sont
+  déjà à moitié dans le ciel, la brume fait le reste.

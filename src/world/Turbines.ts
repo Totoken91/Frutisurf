@@ -10,7 +10,7 @@ import {
 } from 'three';
 import { GLSL_SAFE, Rng } from '../core/Noise';
 import { GLSL_DAY, dayUniforms } from './Daylight';
-import { terrainGLSL } from './Terrain';
+import { terrainGLSL, terrainUniforms } from './Terrain';
 
 /**
  * Les eoliennes de l'horizon.
@@ -134,9 +134,14 @@ export class Turbines {
       transparent: true,
       depthWrite: false,
       uniforms: {
+        // Le relief est pilote par uniformes : changer de monde ne recompile
+        // aucun shader (cf. Terrain.terrainGLSL).
+        ...terrainUniforms(),
         uTime: { value: 0 },
         uOrigin: { value: new Vector3() },
         uBody: { value: [0.97, 0.99, 1.0] },
+        /** Presence, 0..1. Un monde sans eoliennes les met a zero. */
+        uDensity: { value: 1 },
         ...dayUniforms(),
       },
       vertexShader: /* glsl */ `
@@ -186,15 +191,16 @@ ${GLSL_SAFE}
       fragmentShader: /* glsl */ `
 ${GLSL_SAFE}
         uniform vec3 uBody;
+        uniform float uDensity;
 ${GLSL_DAY}
         varying float vBlade, vAlong, vFade;
 
         void main(){
-          if (vFade < 0.01) discard;
+          if (vFade * uDensity < 0.01) discard;
           // La pale s'affine vers la pointe, donc elle y devient translucide.
           float a = vFade * (vBlade > 0.5 ? 0.86 - vAlong * 0.30 : 0.92);
           vec3 c = daylight(uBody, 0.18 + uDayNight * 0.35);
-          gl_FragColor = vec4(c, a * 0.88);
+          gl_FragColor = vec4(c, a * 0.88 * uDensity);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }

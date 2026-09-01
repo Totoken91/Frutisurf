@@ -30,21 +30,32 @@ export const MAX_TIME = 45;
 const RAMP_SECONDS = 140;
 const RAMP_MAX = 1.4;
 
-const KEY = 'frutigersurfer.best.v2';
+/**
+ * UN RECORD PAR MONDE.
+ *
+ * Les quatre mondes n'ont ni le meme relief, ni la meme part d'eau, ni les
+ * memes occasions de figures : un record unique les mettrait en concurrence et
+ * la seule strategie gagnante serait de toujours jouer le plus genereux. Les
+ * trois autres deviendraient alors du decor qu'on visite une fois.
+ *
+ * Une cle par monde, et chacun devient son propre defi. C'est aussi ce qui
+ * rend le choix du monde reversible : y revenir ne coute pas son record.
+ */
+const KEY = 'frutigersurfer.best.v3';
 
-/** localStorage leve dans certains bacs a sable : jamais sans garde. */
-function readBest(): number {
+function readBest(world: string): number {
   try {
-    const v = Number(localStorage.getItem(KEY));
+    const v = Number(localStorage.getItem(`${KEY}.${world}`));
     return Number.isFinite(v) && v > 0 ? v : 0;
   } catch {
+    // localStorage leve dans certains bacs a sable : jamais sans garde.
     return 0;
   }
 }
 
-function writeBest(v: number): void {
+function writeBest(world: string, v: number): void {
   try {
-    localStorage.setItem(KEY, String(Math.round(v)));
+    localStorage.setItem(`${KEY}.${world}`, String(Math.round(v)));
   } catch {
     /* pas de persistance : le record vit le temps de la session */
   }
@@ -54,7 +65,9 @@ export class Run {
   phase: Phase = 'running';
   timeLeft = START_TIME;
   elapsed = 0;
-  best = readBest();
+  /** Le monde dont on tient le record. Change avec le monde choisi. */
+  world = 'plaine';
+  best = readBest('plaine');
   /** Vrai des l'instant ou le score du run passe devant le record. */
   recordBeaten = false;
   /** Score fige a la fin du run, pour l'ecran de fin. */
@@ -70,6 +83,12 @@ export class Run {
   /** Vitesse d'ecoulement du chrono. 1 au depart, 2 au bout de RAMP_SECONDS. */
   get drain(): number {
     return 1 + Math.min(RAMP_MAX, this.elapsed / RAMP_SECONDS);
+  }
+
+  /** Bascule sur le record d'un autre monde. Appele au choix du monde. */
+  setWorld(id: string): void {
+    this.world = id;
+    this.best = readBest(id);
   }
 
   /** Temps ajoute par une prise. Toujours passer par ici pour le plafond. */
@@ -103,7 +122,7 @@ export class Run {
     if (score > this.best) {
       this.best = Math.round(score);
       this.recordBeaten = true;
-      writeBest(this.best);
+      writeBest(this.world, this.best);
     }
   }
 

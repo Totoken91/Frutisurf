@@ -1147,3 +1147,74 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
   .pickgo u { animation: none; }
   .pickpanel, .card, .meter .fill { transition: none; }
 }
+
+/* --- LA RANGEE DES MONDES.
+   Quatre cartes au lieu de trois, donc plus etroites : elles ne portent qu'une
+   vignette et un nom. La description part dans le bloc de lecture, avec celles
+   du buddy et de la monture — le meme principe que partout ici, les cartes
+   montrent, le bloc explique.
+
+   La vignette n'est pas la vraie information : le decor DERRIERE le panneau se
+   transforme des qu'on touche une carte. Elle sert a reconnaitre un monde deja
+   vu, pas a le decouvrir. C'est pour ca qu'elle peut se permettre d'etre
+   abstraite — trois bandes, ciel, terre, eau. */
+.worldrow .worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.wcard { padding: 0.42em 0.14em 0.4em; gap: 0.26em; border-radius: 11px; }
+.wcard .nm { font-size: 0.62em; letter-spacing: 0.04em; }
+.wsky {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(26px, 7.6vw, 34px);
+  border-radius: 5px;
+  overflow: hidden;
+  /* Le ciel occupe la moitie haute, franchement : c'est lui qui identifie un
+     monde de loin. Une vignette qui donnerait autant de place au sol qu'au ciel
+     rendrait les quatre mondes indistinguables a cette taille. */
+  background: linear-gradient(180deg, var(--sky) 0%, color-mix(in srgb, var(--sky) 45%, #ffffff) 52%, var(--land) 52%, var(--land) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4), 0 1px 2px rgba(3, 32, 64, 0.4);
+}
+/* L'eau : une bande basse, en biais, comme une rive vue de loin. Sa HAUTEUR
+   varie par monde, et c'est elle qui distingue les vignettes — une plaine a
+   lacs, un archipel et une prairie sans eau ne se reconnaissent qu'a ca. */
+.wsky::after {
+  content: '';
+  position: absolute;
+  left: -10%; right: -10%; bottom: 0;
+  height: var(--seah, 30%);
+  transform: rotate(-3deg) translateY(10%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sea) 80%, #ffffff) 0%, var(--sea) 100%);
+}
+/* Le soleil, en haut a droite : un point chaud qui casse le degrade et donne
+   a la vignette l'air d'un paysage plutot que d'un nuancier. */
+.wsky::before {
+  content: '';
+  position: absolute;
+  right: 14%; top: 12%;
+  width: 22%; height: 0;
+  padding-bottom: 22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.95) 0 40%, rgba(255,255,255,0) 72%);
+}
+/* Les navigateurs sans `color-mix` retombent sur des couleurs plates plutot
+   que sur du transparent : une vignette terne vaut mieux qu'une vignette vide. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .wsky { background: linear-gradient(180deg, var(--sky) 0%, var(--sky) 52%, var(--land) 52%, var(--land) 100%); }
+  .wsky::after { background: var(--sea); }
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  /* rien : la regle nominale s'applique */
+}
+
+/* La ligne de monde ouvre le bloc de lecture, et elle est plus forte que les
+   deux autres : le monde est le choix qui change le plus de choses. */
+.pickread .wline {
+  color: #ffffff;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.34em;
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid rgba(190, 236, 255, 0.22);
+  text-shadow: 0 1px 0 rgba(4, 44, 80, 0.9), 0 0 10px rgba(150, 230, 255, 0.35);
+}
+.pickread p + p { opacity: 0.86; }
+.pickread .wline + p { opacity: 1; }

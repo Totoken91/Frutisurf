@@ -10,6 +10,8 @@ import {
   WebGLRenderer,
 } from 'three';
 import { col } from '../core/Palette';
+import { setTerrain } from './Terrain';
+import { WORLD_COLOR_KEYS, WORLDS, worldPalette, type WorldColorKey, type WorldDef } from './Worlds';
 import { City } from './City';
 import { Boosters } from './Boosters';
 import { Rings } from './Rings';
@@ -21,6 +23,7 @@ import { Water } from './Water';
 import { Palms } from './Palms';
 import { Turbines } from './Turbines';
 import { Daylight, pushDay } from './Daylight';
+import { pushTerrain } from './Terrain';
 import { createEnvironment } from './Environment';
 import { createSky, SUN_DIR } from './Sky';
 import type { Quality } from '../core/Engine';
@@ -37,7 +40,7 @@ export class World {
   readonly palms: Palms;
   readonly turbines: Turbines;
   /** L'heure. Source unique, relue par tous les materiaux ci-dessous. */
-  readonly day = new Daylight();
+  readonly day: Daylight;
   /** Tout ce qui doit recevoir l'heure. Une liste, pour n'en oublier aucun. */
   private lit: Array<{ uniforms: Record<string, { value: unknown } | undefined> }> = [];
   private key!: DirectionalLight;
@@ -49,7 +52,30 @@ export class World {
   readonly lights = new Group();
   private sky: Mesh;
 
-  constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality) {
+  // --- LE MONDE COURANT, ET LE FONDU.
+  //
+  // On ne charge pas un monde, on FOND vers lui. `from` est celui qu'on
+  // quitte, `to` celui qu'on rejoint, `mix` va de 0 a 1 en un peu plus d'une
+  // seconde. Tout ce qui definit un monde — relief, eau, greve, vingt et une
+  // couleurs, quatre densites de decor, la matiere du sol et les quatre
+  // palettes de ciel — passe par ce meme fondu, sans exception.
+  //
+  // C'est ce qui permet a l'ecran de selection de laisser le monde VIVANT
+  // derriere lui : le joueur touche OKINAWA, et la plaine s'inonde sous ses
+  // yeux pendant qu'il lit la carte suivante. Un monde detruit puis reconstruit
+  // n'aurait jamais pu faire ca, et aurait coute un a-coup a chaque essai.
+  private from: WorldDef = WORLDS[0];
+  private to: WorldDef = WORLDS[0];
+  private mix = 1;
+  /** Couleurs melangees de l'image courante. Reecrites, jamais recreees. */
+  private tint = new Map<WorldColorKey, Color>();
+  private amp: number[] = [0, 0, 0, 0, 0];
+
+  constructor(scene: Scene, renderer: WebGLRenderer, quality: Quality, start: WorldDef = WORLDS[0]) {
+    this.from = start;
+    this.to = start;
+    this.day = new Daylight(start.sky, start.dayStart);
+    for (const k of WORLD_COLOR_KEYS) this.tint.set(k, new Color());
     const dense = quality !== 'low';
     this.ground = new Ground(dense, quality === 'low' ? 384 : 512);
     // Le champ de touffes existe MEME en qualite basse, avec un rayon reduit.
@@ -117,14 +143,172 @@ export class World {
       this.motes.mat,
     ].filter(Boolean) as typeof this.lit;
     if (this.blades) this.lit.push(this.blades.mat);
+    this.blendWorld(1);
     this.applyDay();
     scene.add(this.lights);
   }
 
+  /** Le monde vers lequel on va. C'est lui que l'ecran de selection annonce. */
+  get world(): WorldDef {
+    return this.to;
+  }
+
+  /**
+   * Demande un monde. Le fondu part de l'etat COURANT et non du monde
+   * precedent : changer d'avis au milieu d'une transition enchaine proprement
+   * au lieu de sauter en arriere.
+   */
+  setWorld(next: WorldDef, instant = false): void {
+    if (next === this.to && !instant) return;
+    // On fige l'etat courant comme point de depart. Le seul moyen honnete de
+    // le faire sans inventer un troisieme monde intermediaire est de repartir
+    // du monde de depart quand on est deja arrive, et de laisser le fondu en
+    // cours se terminer sinon — d'ou le `mix` conserve.
+    this.from = this.mix >= 1 ? this.to : this.from;
+    this.to = next;
+    this.mix = instant ? 1 : Math.min(this.mix, 0.0);
+    this.day.from = this.from.sky;
+    this.day.to = next.sky;
+    if (instant) {
+      this.from = next;
+      this.day.from = next.sky;
+      this.day.phase = next.dayStart;
+    }
+    this.blendWorld(instant ? 1 : this.mix);
+  }
+
+  /**
+   * Applique l'etat melange. `t` = 0 -> `from`, 1 -> `to`.
+   *
+   * Le relief passe par `setTerrain`, qui ecrit dans les tableaux PARTAGES avec
+   * les shaders : une seule ecriture met a jour la physique et les six
+   * materiaux qui deplacent des sommets, sans qu'aucun n'ait a etre prevenu.
+   */
+  private blendWorld(t: number): void {
+    const a = this.from;
+    const b = this.to;
+    const L = (x: number, y: number): number => x + (y - x) * t;
+
+    for (let i = 0; i < 5; i++) this.amp[i] = L(a.amp[i], b.amp[i]);
+    setTerrain(this.amp, L(a.water, b.water), L(a.shore[0], b.shore[0]), L(a.shore[1], b.shore[1]));
+
+    const pa = worldPalette(a);
+    const pb = worldPalette(b);
+    for (const k of WORLD_COLOR_KEYS) {
+      this.tint.get(k)!.copy(pa.get(k)!).lerp(pb.get(k)!, t);
+    }
+    this.day.mix = t;
+
+    this.paint(L(a.city, b.city), L(a.turbines, b.turbines), L(a.palms, b.palms),
+      L(a.blades, b.blades), L(a.tech, b.tech));
+  }
+
+  /**
+   * Pousse les couleurs et les densites du monde dans les materiaux.
+   *
+   * La liste est ECRITE A LA MAIN, comme le registre `lit` : un balayage
+   * automatique attraperait des uniformes de meme nom qui n'ont rien a voir
+   * (`uNear` existe ailleurs), et surtout il rendrait invisible l'oubli d'un
+   * decor ajoute plus tard. Ici, un decor qu'on n'inscrit pas reste bloque sur
+   * les couleurs de la plaine, et ca se voit du premier coup d'oeil.
+   */
+  private paint(city: number, turbines: number, palms: number, blades: number, tech: number): void {
+    const c = (k: WorldColorKey): Color => this.tint.get(k)!;
+    // Un uniforme absent est ignore quand on l'a DIT — les tours et la ligne
+    // d'arbres ne partagent pas les memes noms — et signale sinon. Sans ce
+    // partage explicite, une faute de frappe laisserait un decor bloque sur la
+    // palette de la plaine sans un mot, et c'est exactement le genre de panne
+    // qui survit des mois.
+    //
+    // Un premier jet comptait simplement les manques et attendait « quatre » :
+    // il y en avait trois, et l'alerte n'a rien signale d'autre que ma propre
+    // erreur de comptage. Un nombre magique ne dit pas QUOI manque ; un drapeau
+    // par appel, si. `check:shaders` echoue sur toute erreur de console, donc
+    // le filet est deja tendu.
+    const missing: string[] = [];
+    const rgb = (u: { value: unknown } | undefined, k: WorldColorKey, optional = false): void => {
+      if (!u) {
+        if (!optional) missing.push(k);
+        return;
+      }
+      const col3 = c(k);
+      const v = u.value as number[];
+      v[0] = col3.r;
+      v[1] = col3.g;
+      v[2] = col3.b;
+    };
+
+    const g = this.ground.mat.uniforms;
+    rgb(g.uNear, 'grassNear');
+    rgb(g.uMid, 'grassMid');
+    rgb(g.uFar, 'grassFar');
+    rgb(g.uHorizon, 'grassHorizon');
+    rgb(g.uShadow, 'grassShadow');
+    rgb(g.uStreak, 'grassStreak');
+    rgb(g.uSandDry, 'sandDry');
+    rgb(g.uSandPale, 'sandPale');
+    rgb(g.uSandWet, 'sandWet');
+    rgb(g.uSandShell, 'sandShell');
+    g.uTech.value = tech;
+
+    const w = this.water.mat.uniforms;
+    rgb(w.uShallow, 'waterShallow');
+    rgb(w.uDeep, 'waterDeep');
+    rgb(w.uFoam, 'waterFoam');
+
+    if (this.blades) {
+      const b = this.blades.mat.uniforms;
+      rgb(b.uBase, 'grassNear');
+      rgb(b.uTip, 'grassHorizon');
+      rgb(b.uGlow, 'grassStreak');
+      b.uDensity.value = blades;
+    }
+
+    const p = this.palms.mat.uniforms;
+    rgb(p.uTrunk, 'warmAccent');
+    rgb(p.uFrond, 'grassNear');
+    rgb(p.uFrondTip, 'grassFar');
+    p.uDensity.value = palms;
+
+    this.turbines.mat.uniforms.uDensity.value = turbines;
+
+    // Deux materiaux aux jeux d'uniformes DIFFERENTS : les tours ont uFace,
+    // uLit et uDeep ; la ligne d'arbres a uDark et uLit. D'ou les manques
+    // declares optionnels de part et d'autre.
+    for (const m of this.city.mats) {
+      const tree = !!m.uniforms.uDark;
+      const u = m.uniforms;
+      rgb(u.uFace, 'cityFace', tree);
+      rgb(u.uDeep, 'cityDeep', tree);
+      rgb(u.uDark, 'treeLine', !tree);
+      // La ligne d'arbres emprunte son `uLit` a l'HERBE et non a la ville :
+      // c'est de la vegetation, elle doit suivre le vert du monde.
+      rgb(u.uLit, tree ? 'grassNear' : 'cityLit');
+      u.uDensity.value = city;
+    }
+
+    const cl = this.clouds.mat.uniforms;
+    rgb(cl.uCore, 'cloudCore');
+    rgb(cl.uShadow, 'cloudShadow');
+    rgb(cl.uRim, 'cloudRim');
+
+    if (!this.painted) {
+      this.painted = true;
+      if (missing.length) {
+        console.error(`World.paint : uniforme(s) introuvable(s) — ${missing.join(', ')}`);
+      }
+    }
+  }
+
+  private painted = false;
+
   /** Pousse l'heure courante dans chaque materiau et dans les deux lampes. */
   private applyDay(): void {
     const d = this.day;
-    for (const m of this.lit) pushDay(m.uniforms, d);
+    for (const m of this.lit) {
+      pushDay(m.uniforms, d);
+      pushTerrain(m.uniforms);
+    }
 
     // Le dome de ciel a ses propres couleurs, qui SONT l'heure.
     const sky = (this.sky.material as ShaderMaterial).uniforms;
@@ -140,6 +324,20 @@ export class World {
     const w = this.water.mat.uniforms;
     (w.uSkyLow.value as Color).copy(d.horizon);
     (w.uSkyHigh.value as Color).copy(d.mid);
+
+    // La BRUME de la ville et de la ligne d'arbres est le ciel a l'horizon, pas
+    // une couleur de palette. Fixee au cyan canonique, elle rendait la foret de
+    // CHROME turquoise sous un ciel magenta — une bande d'un autre monde posee
+    // au milieu de celui-ci. C'est le meme principe que le reflet de l'eau :
+    // tout ce qui se dissout dans l'horizon doit relire l'horizon.
+    for (const m of this.city.mats) {
+      const h = m.uniforms.uHaze;
+      if (!h) continue;
+      const v = h.value as number[];
+      v[0] = d.horizon.r;
+      v[1] = d.horizon.g;
+      v[2] = d.horizon.b;
+    }
 
     this.key.color.copy(d.light);
     this.key.intensity = 2.6 * d.power;
@@ -166,6 +364,18 @@ export class World {
     // traverser la camera (le ciel scintillait), puis on en sortait et tout
     // passait au noir — apres environ 70 s de jeu a vitesse de croisiere.
     // L'heure AVANT tout le reste : chaque couche doit lire la meme.
+    // Le fondu de monde AVANT l'heure : le ciel du jour courant depend du
+    // melange des deux mondes, donc `mix` doit etre a jour quand Daylight
+    // echantillonne.
+    if (this.mix < 1) {
+      // 1,15 s, et une courbe en S. Un fondu lineaire sur un relief qui monte
+      // et descend se lit comme un ascenseur ; la courbe donne un depart et une
+      // arrivee doux, ce qui est la seule chose qui empeche le mal de mer.
+      this.mix = Math.min(1, this.mix + dt / 1.15);
+      const t = this.mix * this.mix * (3 - 2 * this.mix);
+      this.blendWorld(t);
+      if (this.mix >= 1) this.from = this.to;
+    }
     this.day.step(dt);
     this.applyDay();
     this.sky.position.copy(camPos);

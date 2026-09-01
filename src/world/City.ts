@@ -32,6 +32,8 @@ export class City {
   readonly group = new Group();
   private mesh: InstancedMesh;
   private mat: ShaderMaterial;
+  /** Tours et ligne d'arbres. Le monde y pousse ses couleurs et sa densite. */
+  readonly mats: ShaderMaterial[] = [];
 
   constructor(count = 78) {
     this.mat = new ShaderMaterial({
@@ -43,6 +45,8 @@ export class City {
         uLit: { value: vec3('cityLit') },
         uDeep: { value: vec3('cityDeep') },
         uHaze: { value: vec3('skyHorizon') },
+        /** Presence de la ville, 0..1. Pilotee par le monde (cf. Worlds.ts). */
+        uDensity: { value: 1 },
       },
       vertexShader: /* glsl */ `
 ${GLSL_SAFE}
@@ -61,6 +65,7 @@ ${GLSL_SAFE}
       fragmentShader: /* glsl */ `
 ${GLSL_SAFE}
         uniform vec3 uFace, uLit, uDeep, uHaze;
+        uniform float uDensity;
         varying float vH;
         varying vec3 vNormalW;
         varying vec3 vViewDir;
@@ -85,7 +90,12 @@ ${GLSL_SAFE}
           // seule tour ; il en faut assez pour la reculer, pas pour l'effacer.
           c = mix(c, uHaze, 0.20);
 
-          float a = 0.72 + fres * 0.28;
+          // La ville se DISSOUT quand le monde n'en veut pas, elle ne
+          // disparait pas d'un coup : changer de monde est un fondu, et un pan
+          // de decor qui s'eteint sur une seule image casse l'illusion que le
+          // paysage se transforme.
+          float a = (0.72 + fres * 0.28) * uDensity;
+          if (a < 0.004) discard;
           gl_FragColor = vec4(c, a);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -115,6 +125,7 @@ ${GLSL_SAFE}
       this.mesh.setMatrixAt(i, m);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.mats.push(this.mat);
     this.group.add(this.mesh);
     this.group.add(this.treeline());
     this.group.renderOrder = -800;
@@ -146,6 +157,7 @@ ${GLSL_SAFE}
         uDark: { value: vec3('treeLine') },
         uLit: { value: vec3('grassNear') },
         uHaze: { value: vec3('skyHorizon') },
+        uDensity: { value: 1 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -156,13 +168,17 @@ ${GLSL_SAFE}
       `,
       fragmentShader: /* glsl */ `
         uniform vec3 uDark, uLit, uHaze;
+        uniform float uDensity;
         varying vec2 vUv;
         ${GLSL_NOISE}
         void main(){
           // Deux octaves : la premiere donne les bosquets, la seconde
           // l'irregularite des cimes. Une seule ferait une haie taillee.
           float crown = fbm(vec2(vUv.x * 26.0, 0.5)) * 0.62 + fbm(vec2(vUv.x * 96.0, 3.7)) * 0.38;
-          float top = 0.30 + crown * 0.62;
+          // La ligne d'arbres ne s'efface pas en transparence : elle
+          // S'ABAISSE. Une foret qui devient translucide est un calque qu'on
+          // eteint ; une foret qui rentre dans le sol est un paysage qui change.
+          float top = (0.30 + crown * 0.62) * uDensity;
           if (vUv.y > top) discard;
 
           // Les cimes accrochent la lumiere, le pied reste dans l'ombre : sans
@@ -180,6 +196,7 @@ ${GLSL_SAFE}
     // ville (1150 m) elle etait masquee en permanence par les cretes situees
     // entre elle et la camera : le relief culmine a 13 m et depasse la ligne
     // d'oeil, il faut donc s'en degager franchement pour exister.
+    this.mats.push(mat);
     const m = new Mesh(new PlaneGeometry(3000, 64), mat);
     m.position.set(90, 16, 450);
     m.renderOrder = -750;

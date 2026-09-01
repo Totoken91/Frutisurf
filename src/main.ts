@@ -1,4 +1,6 @@
 import { Game } from './Game';
+import { WORLDS } from './world/Worlds';
+import { terrainHeight, waterDepth } from './world/Terrain';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const game = new Game(canvas);
@@ -6,6 +8,11 @@ game.start();
 
 // Exposition pour les captures automatisees (scripts/shot.mjs).
 (window as unknown as Record<string, unknown>).__game = game;
+(window as unknown as Record<string, unknown>).__worlds = WORLDS;
+// Les bancs ont besoin de savoir ou est l'eau pour cadrer une capture qui
+// montre le monde plutot qu'un bout de prairie au hasard.
+(window as unknown as Record<string, unknown>).__depth = waterDepth;
+(window as unknown as Record<string, unknown>).__height = terrainHeight;
 
 /**
  * Sonde de diagnostic, chargee A LA DEMANDE : elle synchronise le pipeline

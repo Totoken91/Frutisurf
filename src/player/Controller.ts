@@ -1,6 +1,6 @@
 import { clamp, Decay, lerp, Spring, smoothstep } from '../core/Spring';
 import { NEUTRAL, type Loadout } from '../core/Loadout';
-import { terrainHeight, WATER_LEVEL } from '../world/Terrain';
+import { terrainHeight, waterLevel } from '../world/Terrain';
 import type { GameState } from '../core/GameState';
 
 /**
@@ -306,7 +306,7 @@ export class Controller {
   private probeTerrain(): void {
     // --- L'eau d'abord : elle REMPLACE le relief quand elle est la.
     const floor = terrainHeight(this.x, this.z);
-    this.depth = Math.max(0, WATER_LEVEL - floor);
+    this.depth = Math.max(0, waterLevel() - floor);
     const over = this.depth > 0.12;
     const wasPlaning = this.planing;
     const wasSunk = this.sunk;
@@ -350,7 +350,7 @@ export class Controller {
       // Une surface d'eau est PLATE : ni pente, ni courbure, donc ni frein de
       // montee ni decollage naturel. C'est aussi ce qui rend la traversee si
       // douce — on cesse d'un coup de sentir le relief.
-      this.groundY = this.planing ? WATER_LEVEL : WATER_LEVEL - SINK_DEPTH;
+      this.groundY = this.planing ? waterLevel() : waterLevel() - SINK_DEPTH;
       this.slopeTravel = 0;
       this.curvature = 0;
       this.lipFactor = 0;

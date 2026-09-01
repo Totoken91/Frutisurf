@@ -16,7 +16,7 @@
  * regression la ferait disparaitre en silence.
  */
 import { Controller, type SurfInput } from '../src/player/Controller';
-import { isWater, terrainHeight, WATER_LEVEL } from '../src/world/Terrain';
+import { isWater, terrainHeight, waterLevel } from '../src/world/Terrain';
 
 const STEP = 1 / 120;
 
@@ -181,7 +181,7 @@ for (const [name, speed, boost, expected] of cases) {
   if (flips > 6) fails.push(`${flips} bascules planing : l'hysteresis ne tient pas, la glisse clignote`);
 }
 
-console.log(`niveau d'eau ${WATER_LEVEL} m`);
+console.log(`niveau d'eau ${waterLevel()} m`);
 
 if (fails.length) {
   console.error('\nECHEC :');

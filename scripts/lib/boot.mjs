@@ -15,15 +15,16 @@
  *
  * A appeler imperativement avant `page.goto`.
  */
-export async function seedLoadout(page, rider = 'bleu', mount = 'cd') {
+export async function seedLoadout(page, rider = 'bleu', mount = 'cd', world = null) {
   await page.addInitScript(
-    ([r, m]) => {
+    ([r, m, w]) => {
       try {
         localStorage.setItem('frutisurf.loadout', JSON.stringify({ r, m }));
+        if (w) localStorage.setItem('frutisurf.world', w);
       } catch {
         // Stockage refuse : le jeu ouvrira l'ecran, et le script le verra.
       }
     },
-    [rider, mount],
+    [rider, mount, world],
   );
 }

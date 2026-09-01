@@ -5,7 +5,7 @@ import { makeGrassTexture } from './GrassTexture';
 import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
 import { WEATHER_GLSL } from './Weather';
-import { terrainGLSL, shoreGLSL } from './Terrain';
+import { shoreGLSL, terrainGLSL, terrainUniforms } from './Terrain';
 
 /**
  * La plaine, desormais vallonnee.
@@ -90,6 +90,9 @@ export class Ground {
     this.mat = new ShaderMaterial({
       fog: false,
       uniforms: {
+        // Le relief est pilote par uniformes : changer de monde ne recompile
+        // aucun shader (cf. Terrain.terrainGLSL).
+        ...terrainUniforms(),
         uNear: { value: vec3('grassNear') },
         uMid: { value: vec3('grassMid') },
         uFar: { value: vec3('grassFar') },
@@ -118,6 +121,8 @@ export class Ground {
         // de tuile y ferait une couture franche en travers de la plaine.
         uDetail: { value: grass.scale },
         uDetailFar: { value: 0.13 },
+        /** 0 = prairie, 1 = dalle et grille neon. Le monde CHROME le met a 1. */
+        uTech: { value: 0 },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -146,6 +151,7 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
+        uniform float uTech;
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
         uniform vec3 uCast;
         uniform vec3 uSkyLight;
@@ -445,6 +451,37 @@ ${shoreGLSL()}
             vec3 bed = uSandWet * (0.92 + fbm3(vWorld.xz * 1.3) * 0.16);
             bed = mix(bed, vec3(0.05, 0.30, 0.34), smoothstep(0.0, -3.4, above) * 0.82);
             c = mix(c, bed, sunk);
+          }
+
+          // --- LA GRILLE Y2K.
+          //
+          //     Deux mailles, une fine et une large, et surtout AUCUN
+          //     appel a fwidth : l'anti-aliasing par derivees est l'outil evident
+          //     pour une grille, mais il repose sur une extension dont la
+          //     disponibilite depend du profil GLSL, et ce projet a deja perdu
+          //     assez de temps sur des shaders qui echouent en silence. Ici la
+          //     largeur du fil est calculee depuis la DISTANCE, ce qui fait le
+          //     meme travail, se regle a la main, et marche partout.
+          //
+          //     L'extinction au loin n'est pas cosmetique : une grille qui ne
+          //     s'attenue pas moire des la ligne d'horizon, et une grille qui
+          //     moire lit comme un bug, jamais comme une texture.
+          if (uTech > 0.002) {
+            float w = 0.05 + dist * 0.011;
+            vec2 q4 = abs(fract(vWorld.xz * 0.25 + 0.5) - 0.5) * 4.0;
+            vec2 q20 = abs(fract(vWorld.xz * 0.05 + 0.5) - 0.5) * 20.0;
+            float fine = 1.0 - smoothstep(0.0, w, min(q4.x, q4.y));
+            float bold = 1.0 - smoothstep(0.0, w * 2.2, min(q20.x, q20.y));
+            float reach = 1.0 - smoothstep(90.0, 320.0, dist);
+            // La dalle est plus sombre que l'herbe qu'elle remplace : un neon
+            // ne se voit que sur du sombre, et la couleur du monde ne suffit
+            // pas — c'est le CONTRASTE qui fait le neon.
+            c = mix(c, c * 0.42, uTech);
+            c += uStreak * (fine * 0.55 + bold * 1.35) * reach * uTech;
+            // Balayage lent en travers : l'ecran de veille qui respire. Sans
+            // lui la grille est un quadrillage, avec lui c'est une machine.
+            float sweepZ = fract(vWorld.z * 0.006 + uTime * 0.05);
+            c += uStreak * smoothstep(0.94, 1.0, sweepZ) * reach * uTech * 0.5;
           }
 
           // --- Contre-jour. Le soleil est devant : la derniere bande d'herbe

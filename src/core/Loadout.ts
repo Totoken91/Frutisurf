@@ -82,7 +82,32 @@ export const MOUNTS: Perk[] = [
   },
 ];
 
-/** Produit des deux choix. C'est ce que le Controller lit. */
+/**
+ * Les cinq multiplicateurs, nus. Un monde en porte aussi : ce n'est pas une
+ * generalisation gratuite, c'est une necessite qu'une mesure a imposee.
+ *
+ * OKINAWA est a moitie sous l'eau. Avec le seuil de dejaugeage de la plaine —
+ * 25 m/s alors qu'on demarre a 18 — le premier lagon coulait le joueur avant
+ * qu'il ait accelere, la vitesse tombait a 5 m/s, et il n'y avait plus assez de
+ * terre entre deux nappes pour se relancer. Le monde etait injouable, et aucun
+ * reglage de relief ne le rattrapait sans le transformer en plaine.
+ *
+ * La bonne reponse etait dans le theme : un LAGON est peu profond, on y
+ * dejauge tout de suite. Le monde porte donc `plane` a 1,55, et le seuil tombe
+ * a 16 m/s — on skie sur le lagon des le depart, ce qui est exactement l'image
+ * qu'on venait chercher. Le cout est ailleurs : on derive.
+ */
+export interface Mods {
+  cruise: number;
+  grip: number;
+  lift: number;
+  plane: number;
+  boost: number;
+}
+
+export const NO_MODS: Mods = { cruise: 1, grip: 1, lift: 1, plane: 1, boost: 1 };
+
+/** Produit des trois choix. C'est ce que le Controller lit. */
 export interface Loadout {
   rider: Perk;
   mount: Perk;
@@ -95,15 +120,15 @@ export interface Loadout {
 
 const KEY = 'frutisurf.loadout';
 
-export function combine(rider: Perk, mount: Perk): Loadout {
+export function combine(rider: Perk, mount: Perk, world: Mods = NO_MODS): Loadout {
   return {
     rider,
     mount,
-    cruise: rider.cruise * mount.cruise,
-    grip: rider.grip * mount.grip,
-    lift: rider.lift * mount.lift,
-    plane: rider.plane * mount.plane,
-    boost: rider.boost * mount.boost,
+    cruise: rider.cruise * mount.cruise * world.cruise,
+    grip: rider.grip * mount.grip * world.grip,
+    lift: rider.lift * mount.lift * world.lift,
+    plane: rider.plane * mount.plane * world.plane,
+    boost: rider.boost * mount.boost * world.boost,
   };
 }
 

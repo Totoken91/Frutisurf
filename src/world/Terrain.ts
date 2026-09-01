@@ -13,9 +13,21 @@ import { GLSL_NOISE } from '../core/Noise';
  * echantillonner, ce qui rend la detection de crete exacte.
  */
 
+/**
+ * UNE BASE, PLUSIEURS MONDES.
+ *
+ * Les frequences, les phases et les fondus sont communs a TOUS les mondes ;
+ * seules les cinq amplitudes changent. Ce n'est pas une economie de code, c'est
+ * ce qui rend les mondes interpolables : une combinaison lineaire des memes
+ * fonctions de base reste une fonction de la meme famille, donc on peut passer
+ * de la plaine a l'archipel en fondu continu, sans recompiler un shader et sans
+ * que le sol ne glisse sous les pieds du surfeur.
+ *
+ * Faire varier les FREQUENCES aurait donne des mondes plus differents et un
+ * changement de monde inregardable : le relief se serait mis a defiler
+ * lateralement pendant toute la transition.
+ */
 interface Layer {
-  /** amplitude en metres */
-  a: number;
   /** frequence le long de l'axe de deplacement */
   fz: number;
   /** frequence laterale — casse les cretes en lignes droites */
@@ -43,21 +55,40 @@ interface Layer {
  */
 const LAYERS: readonly Layer[] = [
   // lambda 480 m — la houle de fond, elle donne le grand rythme du paysage.
-  { a: 6.0, fz: 0.01309, fx: 0.0049, p: 0.0, fade: [2600, 3600] },
+  { fz: 0.01309, fx: 0.0049, p: 0.0, fade: [2600, 3600] },
   // lambda 190 m — les vallons.
-  { a: 3.6, fz: 0.03307, fx: -0.0124, p: 1.73, fade: [1500, 2400] },
+  { fz: 0.03307, fx: -0.0124, p: 1.73, fade: [1500, 2400] },
   // lambda 84 m — le relief roulable.
-  { a: 2.3, fz: 0.0748, fx: 0.0263, p: 3.91, fade: [800, 1400] },
+  { fz: 0.0748, fx: 0.0263, p: 3.91, fade: [800, 1400] },
   // lambda 42 m — LES collines a sauter. Longueur d'onde raccourcie de 61 a
   // 42 m : a 61 m la bosse etait trop etalee pour se VOIR depuis une camera
   // rasante, et on ne peut pas timer ce qu'on ne voit pas.
-  { a: 1.05, fz: 0.1496, fx: -0.0524, p: 5.24, fade: [420, 700] },
+  { fz: 0.1496, fx: -0.0524, p: 5.24, fade: [420, 700] },
   // lambda 21 m — trop court pour viser, mais ca anime la glisse et ca lance.
   // Amplitude volontairement basse : cette couche apporte peu de PENTE mais
   // enormement de COURBURE (a*f2), donc beaucoup d'envols subis pour peu de
   // relief visible. A 0.26 elle envoyait en l'air un quart du temps en croisiere.
-  { a: 0.16, fz: 0.2992, fx: 0.1024, p: 2.08, fade: [180, 320] },
+  { fz: 0.2992, fx: 0.1024, p: 2.08, fade: [180, 320] },
 ];
+
+/**
+ * LES AMPLITUDES COURANTES, en metres. L'etat du monde, et le seul.
+ *
+ * Le tableau est MUTE EN PLACE et jamais remplace : il est branche tel quel
+ * comme valeur de l'uniforme `uAmp` dans chaque materiau qui deplace des
+ * sommets. Ecrire dedans suffit donc a changer le relief partout a la fois —
+ * CPU et GPU — sans une seule recompilation et sans avoir a se souvenir de qui
+ * doit etre prevenu. Le remplacer par un nouveau tableau casserait ce lien, et
+ * le sol du GPU se figerait sur l'ancien monde pendant que la physique suivrait
+ * le nouveau : le surfeur volerait au-dessus du decor.
+ */
+export const AMP: number[] = [6.0, 3.6, 2.3, 1.05, 0.16];
+
+/** Idem pour la greve : [base, part variable], partage avec les shaders. */
+export const SHORE: number[] = [1.55, 3.2];
+
+/** Niveau de l'eau. Scalaire, donc pousse explicitement (cf. pushTerrain). */
+let water = -5.5;
 
 /**
  * Niveau de l'eau, en metres.
@@ -73,30 +104,39 @@ const LAYERS: readonly Layer[] = [
  * assez frequent pour que la mecanique compte, assez court pour que la
  * traversee reste une figure et non un couloir.
  */
-export const WATER_LEVEL = -5.5;
+export function waterLevel(): number {
+  return water;
+}
 
 /**
- * Largeur de la greve, en hauteur au-dessus de l'eau : une base plus une part
- * variable. Resserrees d'un cinquieme sur retour joueur — la plage mangeait
- * trop de premier plan, et une greve trop large cesse d'etre une transition
- * pour devenir un decor a part entiere.
+ * Installe un relief. Appele par le fondu de monde, a chaque image pendant la
+ * transition — c'est donc volontairement une ecriture en place et rien d'autre.
  */
-const SHORE_BASE = 1.55;
-const SHORE_VARY = 3.2;
+export function setTerrain(amp: readonly number[], w: number, shoreBase: number, shoreVary: number): void {
+  for (let i = 0; i < AMP.length; i++) AMP[i] = amp[i] ?? 0;
+  water = w;
+  SHORE[0] = shoreBase;
+  SHORE[1] = shoreVary;
+}
 
-/** Amplitude cumulee : sert a caler la camera et les garde-fous. */
-export const TERRAIN_MAX = LAYERS.reduce((s, l) => s + l.a, 0);
+/** Amplitude cumulee courante : sert a caler la camera et les garde-fous. */
+export function terrainMax(): number {
+  return AMP.reduce((s, a) => s + a, 0);
+}
 
 /** Hauteur du sol. Pleine resolution : c'est la reference physique. */
 export function terrainHeight(x: number, z: number): number {
   let h = 0;
-  for (const l of LAYERS) h += l.a * Math.sin(l.fz * z + l.fx * x + l.p);
+  for (let i = 0; i < LAYERS.length; i++) {
+    const l = LAYERS[i];
+    h += AMP[i] * Math.sin(l.fz * z + l.fx * x + l.p);
+  }
   return h;
 }
 
 /** Vrai si le point est sous le niveau de l'eau. */
 export function isWater(x: number, z: number): boolean {
-  return terrainHeight(x, z) < WATER_LEVEL;
+  return terrainHeight(x, z) < water;
 }
 
 /**
@@ -105,17 +145,18 @@ export function isWater(x: number, z: number): boolean {
  * fond, et c'est la vitesse seule qui decide si l'on flotte ou si l'on coule.
  */
 export function waterDepth(x: number, z: number): number {
-  return Math.max(0, WATER_LEVEL - terrainHeight(x, z));
+  return Math.max(0, water - terrainHeight(x, z));
 }
 
 /** Gradient analytique (dh/dx, dh/dz). */
 export function terrainGradient(x: number, z: number, out: { dx: number; dz: number }): void {
   let dx = 0;
   let dz = 0;
-  for (const l of LAYERS) {
+  for (let i = 0; i < LAYERS.length; i++) {
+    const l = LAYERS[i];
     const c = Math.cos(l.fz * z + l.fx * x + l.p);
-    dx += l.a * l.fx * c;
-    dz += l.a * l.fz * c;
+    dx += AMP[i] * l.fx * c;
+    dz += AMP[i] * l.fz * c;
   }
   out.dx = dx;
   out.dz = dz;
@@ -154,8 +195,9 @@ ${GLSL_NOISE}
 // Largeur de greve. C'est une HAUTEUR au-dessus de l'eau, pas une distance au
 // sol : sur une pente douce elle donne une plage large, sur une pente raide un
 // simple ourlet — le comportement d'une vraie cote, gratuitement.
+uniform vec2 uShore;
 float shoreWidth(vec2 wp){
-  return ${SHORE_BASE.toFixed(2)} + fbm2(wp * 0.010) * ${SHORE_VARY.toFixed(2)};
+  return uShore.x + fbm2(wp * 0.010) * uShore.y;
 }
 // Trois echelles de decoupe : les anses, les langues de sable qui remontent
 // dans l'herbe, la dentelure fine. C'est leur superposition qui empeche de lire
@@ -185,21 +227,27 @@ float shoreMask(vec2 wp, float above){
 
 export function terrainGLSL(): string {
   const terms = LAYERS.map(
-    (l) =>
-      `  h += ${l.a.toFixed(4)} * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
+    (l, i) =>
+      `  h += uAmp[${i}] * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
       ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));`,
   ).join('\n');
 
   const grads = LAYERS.map(
-    (l) =>
+    (l, i) =>
       `  { float c = cos(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
       ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));` +
-      ` g += vec2(${(l.a * l.fx).toFixed(8)} * c, ${(l.a * l.fz).toFixed(8)} * c); }`,
+      ` g += uAmp[${i}] * vec2(${l.fx.toFixed(8)} * c, ${l.fz.toFixed(8)} * c); }`,
   ).join('\n');
 
   return /* glsl */ `
 // --- GENERE depuis src/world/Terrain.ts : ne pas editer a la main ---
-const float WATER_LEVEL = ${WATER_LEVEL.toFixed(3)};
+// Seules les AMPLITUDES sont des uniformes : frequences, phases et fondus sont
+// communs a tous les mondes et restent des litteraux, donc le compilateur les
+// replie. Changer de monde ne recompile rien.
+#ifndef FS_TERRAIN
+#define FS_TERRAIN
+uniform float uAmp[${LAYERS.length}];
+uniform float WATER_LEVEL;
 float terrainHeightAt(vec2 p, float d){
   float h = 0.0;
 ${terms}
@@ -214,5 +262,29 @@ vec3 terrainNormalAt(vec2 p, float d){
   vec2 g = terrainGradAt(p, d);
   return normalize(vec3(-g.x, 1.0, -g.y));
 }
+#endif
 `;
+}
+
+/**
+ * Les uniformes que DOIT fusionner tout materiau incluant `terrainGLSL()` ou
+ * `shoreGLSL()`. En oublier un donne un sol plat au niveau zero — visible, mais
+ * seulement si on regarde ce materiau-la. `npm run check:world` verifie
+ * statiquement que les deux vont toujours ensemble.
+ *
+ * `uAmp` et `uShore` pointent sur les tableaux PARTAGES : ils se mettent a jour
+ * tout seuls. Seul le niveau de l'eau, qui est un scalaire, doit etre pousse.
+ */
+export function terrainUniforms(): Record<string, { value: unknown }> {
+  return {
+    uAmp: { value: AMP },
+    uShore: { value: SHORE },
+    WATER_LEVEL: { value: water },
+  };
+}
+
+/** Pousse le scalaire du niveau d'eau. Ignore les materiaux qui n'en ont pas. */
+export function pushTerrain(uniforms: Record<string, { value: unknown } | undefined>): void {
+  const u = uniforms.WATER_LEVEL;
+  if (u) u.value = water;
 }

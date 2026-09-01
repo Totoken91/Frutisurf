@@ -11,7 +11,7 @@ import { GLSL_NOISE } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
-import { terrainGLSL, shoreGLSL } from './Terrain';
+import { shoreGLSL, terrainGLSL, terrainUniforms } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
 /**
@@ -98,12 +98,19 @@ export class GrassBlades {
     this.mat = new ShaderMaterial({
       side: DoubleSide,
       uniforms: {
+        // Le relief est pilote par uniformes : changer de monde ne recompile
+        // aucun shader (cf. Terrain.terrainGLSL).
+        ...terrainUniforms(),
         uOrigin: { value: new Vector3() },
         uTime: { value: 0 },
         uSpeed: { value: 0 },
         uCell: { value: cell },
         uGrid: { value: grid },
         uRadius: { value: radius },
+        /** Presence, 0..1. Elle agit sur la HAUTEUR : l'herbe rentre dans le
+            sol quand le monde n'en veut pas. Un champ qui palit est un calque
+            qu'on eteint ; un champ qui se couche est une saison qui change. */
+        uDensity: { value: 1 },
         uSun: { value: SUN_DIR.clone() },
         // Base sur le vert MEDIAN et non sur l'ombre : le brin doit sortir de
         // la matiere du sol, pas s'y detacher en sombre.
@@ -117,7 +124,7 @@ export class GrassBlades {
         attribute vec2 iCell;
         attribute float aBlade;
         uniform vec3 uOrigin;
-        uniform float uTime, uSpeed, uCell, uGrid, uRadius;
+        uniform float uTime, uSpeed, uCell, uGrid, uRadius, uDensity;
         uniform vec3 uSun;
         varying float vV, vTint, vLight, vGlint, vShade;
 
@@ -170,7 +177,7 @@ ${shoreGLSL()}
           // Quelques oyats survivent en haut de plage : la coupure nette est
           // moins credible qu'une frange clairsemee.
           float dry = (1.0 - sand * 0.92) * smoothstep(WATER_LEVEL - 0.1, WATER_LEVEL + 0.6, gh);
-          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade * dry;
+          float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15) * fade * dry * uDensity;
           float v = uv.y;
 
           // Le vent couche les touffes, et la vitesse du joueur les couche

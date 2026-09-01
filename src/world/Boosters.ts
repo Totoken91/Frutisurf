@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
-import { terrainHeight, WATER_LEVEL } from './Terrain';
+import { terrainHeight, waterLevel } from './Terrain';
 
 /**
  * Les plots de vitesse.
@@ -255,7 +255,7 @@ ${GLSL_SAFE}
 
       // La colonne reste VERTICALE meme en pente : c'est un faisceau, pas un
       // objet pose, et l'incliner le rendrait moins lisible sans rien gagner.
-      p.pos.y = Math.max(terrainHeight(p.pos.x, p.pos.z), WATER_LEVEL);
+      p.pos.y = Math.max(terrainHeight(p.pos.x, p.pos.z), waterLevel());
       this.m.compose(p.pos, this.q, this.scale);
       this.mesh.setMatrixAt(i, this.m);
     }

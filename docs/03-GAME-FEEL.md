@@ -762,3 +762,67 @@ chose.
 Au **premier lancement uniquement**, et depuis le panneau de fin. Un menu imposé
 à chaque lancement est exactement ce qui tue le « encore une » d'un jeu de
 quarante secondes.
+
+---
+
+## 11. Quatre mondes, quatre façons de jouer
+
+### Un monde change le jeu, pas le décor
+
+| Monde | Eau | Ce qu'on y joue |
+|---|---|---|
+| **PLAINE** | 17 % | l'équilibre de référence : on lit le relief, on enfile les anneaux, un lac toutes les neuf secondes. |
+| **OKINAWA** | 50 % | **la glisse**. On passe la moitié du temps sur l'eau ; l'autopilote y compte 108 traversées contre 45 sur la plaine. |
+| **BLISS** | 0 % | **les figures**. Pas une goutte d'eau, donc pas un seul point de traversée : on n'a plus que le relief et l'air. |
+| **CHROME** | 28 % | **la vitesse**. Relief anguleux, mercure glissant, on saute beaucoup et on lit peu. |
+
+### Les mondes portent des multiplicateurs, et ils y sont obligés
+
+J'ai d'abord décidé que les mondes seraient purement cosmétiques : le terrain
+change déjà énormément, et des modificateurs de stats ouvraient un gouffre
+d'équilibrage. **La mesure a tranché contre moi.**
+
+Okinawa, à moitié sous l'eau, coulait le joueur dans le premier lagon : départ à
+18 m/s, seuil de déjaugeage à 25, vitesse qui tombe à 5, et plus assez de terre
+entre deux nappes pour se relancer. Le monde n'existait pas, et aucun réglage de
+relief ne le rattrapait sans le transformer en plaine.
+
+La bonne réponse était **dans le thème** : un lagon est peu profond, on y déjauge
+tout de suite. Okinawa porte donc `plane` à **1,55** — le seuil tombe à 16 m/s,
+on skie sur le lagon dès le départ, et c'est exactement l'image qu'on venait
+chercher. Le coût est ailleurs : on **dérive**.
+
+| Monde | Avantage | Coût |
+|---|---|---|
+| **PLAINE** | — | — |
+| **OKINAWA** | `plane` ×1,55 — on déjauge à 16 m/s | `grip` ×0,92 |
+| **BLISS** | `lift` ×1,08 · `boost` ×1,10 | `grip` ×0,94 |
+| **CHROME** | `cruise` ×1,08 · `plane` ×1,15 | `grip` ×0,94 · `lift` ×0,96 |
+
+Bliss n'a pas d'eau, donc pas de traversées : c'est **toute une source de score
+et de secondes** qui disparaît. Le monde la rend en portance et en boost — on y
+joue les figures, faute de lacs. Ça se voit dans les chiffres : 971 000 points
+contre 2,4 millions sur la plaine, pour une durée de vie comparable. Bliss est
+le monde **calme**, et il l'assume.
+
+### Un record par monde
+
+Un record unique aurait mis les quatre mondes en concurrence, et la seule
+stratégie gagnante serait de toujours jouer le plus généreux : les trois autres
+seraient devenus du décor qu'on visite une fois. Une clé de stockage par monde,
+et chacun devient son propre défi. C'est aussi ce qui rend le choix
+**réversible** — y revenir ne coûte pas son record.
+
+### Le monde est le troisième perk
+
+L'écran d'équipement a donc trois rangées, et les cinq jauges du bas donnent le
+profil du **produit des trois** : monde × buddy × monture. C'est ce qui rend
+lisible pourquoi Okinawa se joue autrement — la jauge GLISSE part à fond, la
+jauge ACCROCHE recule, et on n'a rien eu à expliquer.
+
+### Le décor reste vivant pendant qu'on choisit
+
+Toucher une carte de monde applique le monde **immédiatement**, avant toute
+validation : le fondu dure 1,15 s et se joue derrière le panneau. On ne lit pas
+la description d'un lagon, **on le voit apparaître**. La vignette de la carte ne
+sert plus qu'à reconnaître un monde déjà vu.

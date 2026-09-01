@@ -99,6 +99,30 @@ tranche, le spray s'intensifie, le son monte d'une tierce. Relâche au bon momen
 et tout se libère d'un coup : poussée, FOV qui s'ouvre, hitstop de 45 ms,
 combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 
+## Les mondes
+
+<p align="center">
+  <img src="docs/mondes.png" width="880" alt="Les quatre mondes cote a cote : plaine, Okinawa, Bliss, Chrome" />
+</p>
+
+Quatre mondes, et ce ne sont pas quatre palettes. Chacun a son relief, son
+niveau d'eau, ses couleurs, son ciel et **ses règles**.
+
+| Monde | Eau | Ce qu'on y joue |
+|---|---|---|
+| **PLAINE** | 17 % | l'équilibre de référence : collines, lacs toutes les neuf secondes, ville de cristal. |
+| **OKINAWA** | 50 % | **la glisse.** Un lagon turquoise semé d'îles à palmiers. On déjauge à 16 m/s au lieu de 25 — un lagon est peu profond — donc on skie dessus dès le départ. En échange, on dérive. |
+| **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
+| **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. |
+
+Un monde n'est pas une scène chargée à la place d'une autre : c'est un jeu de
+paramètres appliqué à la même scène. Rien n'est détruit, aucun shader n'est
+recompilé — **donc on peut fondre d'un monde à l'autre**. Touche OKINAWA et la
+plaine s'inonde derrière le panneau pendant que tu lis la carte suivante.
+
+Chaque monde tient **son propre record** : ils ne se font pas concurrence, et y
+revenir ne coûte rien.
+
 ## L'équipement
 
 Trois buddies, trois montures, six combinaisons. **Chaque choix se paie** —
@@ -179,6 +203,11 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   séparées, l'hystérésis doit tenir (pas de glisse qui clignote au milieu du
   lac), et sortir en glissant doit laisser au moins **deux fois** la vitesse de
   sortir en coulant — sinon l'erreur ne coûte rien.
+- `check:worlds` : les quatre mondes, **à l'autopilote**. Dès qu'un monde change
+  le relief et l'eau, il change le jeu, et on peut en livrer un injouable — c'est
+  arrivé. Le banc mesure la largeur de la nappe la plus large (traversable ?), la
+  terre entre deux nappes (de quoi se relancer ?), la survie du pilote et le
+  temps passé sous 22 m/s.
 - `check:pick` : l'écran d'équipement, **au clic**. Tout le reste de la suite
   pilote le jeu par `window.__game`, ce qui ne prouve rien sur un écran dont
   l'unique interface est le doigt. Il vérifie que l'écran s'ouvre au premier

@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
-import { terrainHeight, WATER_LEVEL } from './Terrain';
+import { terrainHeight, waterLevel } from './Terrain';
 
 /**
  * Les anneaux de verre. C'est EUX qui font le jeu.
@@ -309,7 +309,7 @@ ${GLSL_SAFE}
       : this.side * r.range(SPREAD * 0.30, SPREAD);
     // Un anneau au-dessus d'une etendue se cale sur la SURFACE et non sur le
     // fond : sinon il serait a moitie noye et deviendrait infranchissable.
-    const floorY = Math.max(terrainHeight(x, z), WATER_LEVEL);
+    const floorY = Math.max(terrainHeight(x, z), waterLevel());
     ring.pos.set(x, floorY + (high ? HIGH_Y : LOW_Y), z);
     ring.high = high;
     ring.alive = true;

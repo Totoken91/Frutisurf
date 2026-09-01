@@ -16,9 +16,10 @@ import { Spray } from './player/Spray';
 import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
 import { SUN_DIR } from './world/Sky';
-import { terrainGradient, terrainHeight, WATER_LEVEL } from './world/Terrain';
+import { terrainGradient, terrainHeight, waterLevel } from './world/Terrain';
 import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
+import { loadWorld } from './world/Worlds';
 
 const STEP = 1 / 120;
 
@@ -84,7 +85,13 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
-    this.world = new World(this.engine.scene, this.engine.renderer, this.engine.quality);
+    // Le monde est choisi AVANT la construction du decor : le relief, les
+    // couleurs et le ciel sont alors poses d'entree, sans une seule image
+    // passee dans la plaine. Un fondu au demarrage se lirait comme un bug de
+    // chargement, pas comme une transition.
+    const startWorld = loadWorld();
+    this.world = new World(this.engine.scene, this.engine.renderer, this.engine.quality, startWorld);
+    this.run.setWorld(startWorld.id);
     this.surfer = new Surfer(this.engine.scene, this.engine.quality === 'low');
     this.input = new Input(canvas);
 
@@ -147,7 +154,7 @@ export class Game {
         // avec l'eau physique. Ce qui change, c'est ce qui suit.
         this.spray.foam = 1;
         this.spray.burst(this.contactPoint(), planing ? 110 : 70, planing ? 1.5 : 1.0, this.time);
-        this.shock.spawn(this.contactPoint(), planing ? 1.1 : 0.7, this.time, WATER_LEVEL);
+        this.shock.spawn(this.contactPoint(), planing ? 1.1 : 0.7, this.time, waterLevel());
         this.audio.splash(planing);
         this.rig.punch(planing ? 0.16 : 0.10, planing ? 8 : 4);
         // Pas de banniere a l'ENTREE : le lac suivant arrive neuf secondes
@@ -164,7 +171,7 @@ export class Game {
         this.rig.punch(0.30, -12);
         this.spray.foam = 1;
         this.spray.burst(this.contactPoint(), 130, 0.9, this.time);
-        this.shock.spawn(this.contactPoint(), 1.3, this.time, WATER_LEVEL);
+        this.shock.spawn(this.contactPoint(), 1.3, this.time, waterLevel());
         this.audio.sink();
         this.hud.banner('COULÉ', '', 'sunk');
         this.buzz(45);
@@ -217,12 +224,17 @@ export class Game {
     // charger le monde avec une monture neutre puis la remplacer une frame
     // plus tard ferait sauter la vitesse de croisiere sous les yeux du joueur.
     const saved = loadChoice();
-    this.applyLoadout(combine(saved.rider, saved.mount));
+    this.applyLoadout(combine(saved.rider, saved.mount, startWorld.mods));
 
     this.select = new Select(document.getElementById('pick')!);
     this.select.onToggle = (open) => document.body.classList.toggle('picking', open);
-    this.select.onConfirm = (l) => {
+    // Le monde s'applique DES LE SURVOL, pas a la validation : c'est le decor
+    // derriere le panneau qui sert de vignette.
+    this.select.onWorld = (w) => this.world.setWorld(w);
+    this.select.onConfirm = (l, w) => {
       this.applyLoadout(l);
+      this.world.setWorld(w);
+      this.run.setWorld(w.id);
       // Valider vaut geste utilisateur : l'audio peut s'armer ici, sans
       // attendre que le joueur touche la zone de jeu.
       this.state.started = true;
@@ -499,7 +511,7 @@ export class Game {
       c.airborne,
       // La trace se pose sur la SURFACE : sur l'eau elle doit flotter, pas
       // suivre le fond du lac.
-      (x, z) => Math.max(terrainHeight(x, z), WATER_LEVEL),
+      (x, z) => Math.max(terrainHeight(x, z), waterLevel()),
     );
     this.shock.update(this.time);
 

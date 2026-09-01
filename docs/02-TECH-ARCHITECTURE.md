@@ -633,3 +633,97 @@ avec six échecs à la clé.
 chargement, exactement comme un joueur qui revient. Fermer le panneau après coup
 aurait été plus court et faux : la fermeture appelle `restart()`, et on mesurerait
 alors une partie qui vient de repartir à zéro.
+
+## 11. Plusieurs mondes, une seule scène
+
+### Une base, cinq amplitudes
+
+Les **fréquences**, les **phases** et les **fondus** de relief sont communs à
+tous les mondes ; seules les cinq amplitudes changent. Ce n'est pas une économie
+de code, c'est ce qui rend les mondes **interpolables** : une combinaison
+linéaire des mêmes fonctions de base reste une fonction de la même famille, donc
+on passe de la plaine à l'archipel en fondu continu.
+
+Faire varier les fréquences aurait donné des mondes plus différents et un
+changement de monde **inregardable** : le relief se serait mis à défiler
+latéralement pendant toute la transition.
+
+La contrainte est réelle et assumée : deux mondes ne peuvent pas différer par la
+**taille** de leurs collines, seulement par leur **hauteur**. En pratique ça
+suffit — une plaine et un archipel se distinguent par ce qui dépasse de l'eau,
+pas par leur spectre.
+
+### Le relief passe par des uniformes
+
+`terrainGLSL()` génère toujours son code depuis `Terrain.ts`, mais les
+amplitudes y sont devenues `uniform float uAmp[5]`. Le reste — fréquences,
+phases, fondus — demeure littéral, donc le compilateur le replie. **Changer de
+monde ne recompile rien.**
+
+Le tableau `AMP` est **muté en place et jamais remplacé** : il est branché tel
+quel comme valeur de l'uniforme dans chacun des six matériaux qui déplacent des
+sommets. Écrire dedans met à jour le CPU *et* le GPU d'un coup, sans qu'aucun
+matériau ait à être prévenu. Le remplacer par un nouveau tableau casserait ce
+lien, et le sol du GPU se figerait sur l'ancien monde pendant que la physique
+suivrait le nouveau : **le surfeur volerait au-dessus du décor**.
+
+Le niveau de l'eau est un scalaire, donc il doit être poussé — `pushTerrain()`
+le fait dans la même boucle que `pushDay()`, sur le même registre.
+
+### Le registre de peinture
+
+`World.paint()` écrit les vingt et une couleurs du monde dans les uniformes, et
+la liste est **tenue à la main**, comme le registre `lit`. Un balayage
+automatique attraperait des uniformes de même nom qui n'ont rien à voir, et
+surtout il rendrait invisible l'oubli d'un décor ajouté plus tard.
+
+Un uniforme absent est ignoré **quand on l'a dit** — les tours et la ligne
+d'arbres ne partagent pas les mêmes noms — et signalé sinon. Le premier jet
+comptait simplement les manques et attendait « quatre » : il y en avait trois, et
+l'alerte n'a signalé que ma propre erreur de comptage. **Un nombre magique ne dit
+pas quoi manque ; un drapeau par appel, si.** `check:shaders` échoue sur toute
+erreur de console, donc le filet était déjà tendu.
+
+### Le ciel se fond, les clés ne se fondent pas
+
+`Daylight` évalue **deux** jeux de keyframes — celui du monde qu'on quitte, celui
+qu'on rejoint — et mélange les **résultats**. Interpoler les tables de clés
+donnerait des teintes qui n'existent dans aucun des deux mondes, parce que deux
+mondes n'ont pas leurs moments clés aux mêmes couleurs.
+
+En régime établi `mix` vaut 1 et les deux jeux sont identiques : on paie alors
+une évaluation de trop par image, ce qui est le prix — parfaitement négligeable —
+de n'avoir **aucun cas particulier** à maintenir entre « en transition » et « pas
+en transition ».
+
+### `check:worlds`
+
+Un monde qui n'est qu'une palette ne demande aucune vérification. Dès qu'il
+change le relief et le niveau de l'eau, il change le **jeu**, et il devient
+possible d'en livrer un dans lequel on ne peut rien faire.
+
+C'est exactement ce qui est arrivé. Okinawa, à moitié sous l'eau, coulait le
+joueur dans le premier lagon : on démarre à 18 m/s, le seuil de déjaugeage était
+à 25, la vitesse tombait à 5, et il ne restait plus assez de terre entre deux
+nappes pour se relancer. **La capture montrait un joli lagon turquoise et le mot
+COULÉ en travers de l'écran.** Rien dans le code ne l'aurait signalé.
+
+Le banc pose trois questions à chaque monde, et l'autopilote de `check:run` y
+répond :
+
+| | Mesure | Seuil |
+|---|---|---|
+| Géométrie | largeur de la nappe la plus large | ≤ 250 m, sinon couler au milieu coûte la partie |
+| Géométrie | terre moyenne entre deux nappes | ≥ 30 m, de quoi repasser de 5 à 25 m/s |
+| Survie | temps tenu par l'autopilote | ≥ la moitié de la plaine |
+| Enlisement | part du temps sous 22 m/s | ≤ 35 % |
+
+État mesuré :
+
+```
+monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  enlise
+plaine        17%       106 m       214 m     217 s  2398089      111       0       45      1%
+okinawa       50%       125 m        42 m     161 s  3990593       69       0      108      2%
+bliss          0%         0 m        -- m     186 s   971481       84       0        0      1%
+chrome        28%       107 m       129 m     199 s  3244109       96       0       55      0%
+```

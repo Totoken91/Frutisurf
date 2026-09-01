@@ -12,7 +12,7 @@ import { GLSL_NOISE, GLSL_SAFE, Rng } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { GLSL_DAY, dayUniforms } from './Daylight';
 import { SUN_DIR } from './Sky';
-import { shoreGLSL, terrainGLSL } from './Terrain';
+import { shoreGLSL, terrainGLSL, terrainUniforms } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
 /**
@@ -142,12 +142,19 @@ export class Palms {
     this.mat = new ShaderMaterial({
       side: DoubleSide,
       uniforms: {
+        // Le relief est pilote par uniformes : changer de monde ne recompile
+        // aucun shader (cf. Terrain.terrainGLSL).
+        ...terrainUniforms(),
         uTime: { value: 0 },
         uOrigin: { value: new Vector3() },
         uSun: { value: SUN_DIR.clone() },
         uTrunk: { value: vec3('warmAccent') },
         uFrond: { value: vec3('grassNear') },
         uFrondTip: { value: vec3('grassFar') },
+        /** Presence, 0..1. Elle DECIME le semis au lieu de le rendre pale :
+            un palmier a moitie transparent est un bug, un bosquet plus clair
+            est un paysage. */
+        uDensity: { value: 1 },
         ...dayUniforms(),
       },
       vertexShader: /* glsl */ `
@@ -156,6 +163,7 @@ ${GLSL_NOISE}
         attribute float aPart, aU;
         attribute float iSeed;
         uniform float uTime;
+        uniform float uDensity;
         uniform vec3 uOrigin;
         varying float vPart, vU, vShade, vSeed;
 
@@ -186,7 +194,10 @@ ${shoreGLSL()}
 
           // On ne garde que le HAUT de plage : un palmier les pieds dans l'eau
           // est un cliche de carte postale, mais pas une plante.
-          float ok = sand * smoothstep(0.15, 1.1, above) * step(0.42, h2);
+          // Le seuil de tirage MONTE quand la densite baisse : le semis se
+          // vide de ses individus les moins bien places, il ne palit pas.
+          float ok = sand * smoothstep(0.15, 1.1, above)
+                   * step(mix(1.2, 0.42, uDensity), h2);
 
           if (ok < 0.35) {
             // Hors greve : on replie l'instance sur un point degenere. Elle ne

@@ -10,6 +10,7 @@ import {
   type Loadout,
   type Perk,
 } from '../core/Loadout';
+import { WORLDS, loadWorld, saveWorld, type WorldDef } from '../world/Worlds';
 
 /**
  * L'ecran d'equipement.
@@ -76,11 +77,21 @@ export class Select {
   private dns: HTMLElement[] = [];
   private blurbs: HTMLElement[] = [];
   private row = 0;
-  private idx = [0, 0];
+  private idx = [0, 0, 0];
+  private worldCards: HTMLButtonElement[] = [];
+  private worldLine!: HTMLElement;
   private opened = false;
 
   /** Appele a la validation, avec la combinaison retenue. */
-  onConfirm: ((l: Loadout) => void) | null = null;
+  onConfirm: ((l: Loadout, w: WorldDef) => void) | null = null;
+  /**
+   * Appele des qu'un monde est SURVOLE, pas seulement valide.
+   *
+   * C'est ce qui fait tout l'interet de l'ecran : le monde derriere le panneau
+   * se transforme pendant qu'on choisit. On ne lit pas une description d'un
+   * lagon, on le voit apparaitre. Aucune vignette ne peut faire ca.
+   */
+  onWorld: ((w: WorldDef) => void) | null = null;
   /** Appele a l'ouverture et a la fermeture. Sert a masquer le HUD. */
   onToggle: ((open: boolean) => void) | null = null;
 
@@ -88,6 +99,7 @@ export class Select {
     const saved = loadChoice();
     this.idx[0] = Math.max(0, RIDERS.indexOf(saved.rider));
     this.idx[1] = Math.max(0, MOUNTS.indexOf(saved.mount));
+    this.idx[2] = Math.max(0, WORLDS.indexOf(loadWorld()));
 
     root.innerHTML = `
       <div class="pickscrim"></div>
@@ -97,9 +109,22 @@ export class Select {
             <b>ÉQUIPEMENT</b>
             <i>chaque choix se paie</i>
           </div>
+          <div class="pickrow worldrow">
+            <h3>MONDE</h3>
+            <div class="worlds">
+              ${WORLDS.map(
+                (w, i) => `
+              <button class="card wcard" type="button" data-world="${i}">
+                <span class="wsky" style="--sky:${w.swatch[0]};--land:${w.swatch[1]};--sea:${w.swatch[2]};--seah:${w.swatch[3]}%"></span>
+                <span class="nm">${w.name}</span>
+              </button>`,
+              ).join('')}
+            </div>
+          </div>
           ${this.rowHtml('BUDDY', RIDERS, 0, 'av')}
           ${this.rowHtml('MONTURE', MOUNTS, 1, 'mv')}
           <div class="pickread">
+            <p class="wline" data-el="world"></p>
             <p data-el="blurb0"></p>
             <p data-el="blurb1"></p>
             <div class="meters">
@@ -121,11 +146,17 @@ export class Select {
       </div>
     `;
 
-    for (const b of Array.from(root.querySelectorAll<HTMLButtonElement>('.card'))) {
+    for (const b of Array.from(root.querySelectorAll<HTMLButtonElement>('.card[data-row]'))) {
       const r = Number(b.dataset.row);
       this.cards[r][Number(b.dataset.i)] = b;
       b.addEventListener('click', () => this.pick(r, Number(b.dataset.i)));
     }
+    for (const b of Array.from(root.querySelectorAll<HTMLButtonElement>('.wcard'))) {
+      const i = Number(b.dataset.world);
+      this.worldCards[i] = b;
+      b.addEventListener('click', () => this.pick(2, i));
+    }
+    this.worldLine = root.querySelector<HTMLElement>('[data-el="world"]')!;
     for (const a of AXES) {
       this.ups.push(root.querySelector<HTMLElement>(`[data-up="${a.key}"]`)!);
       this.dns.push(root.querySelector<HTMLElement>(`[data-dn="${a.key}"]`)!);
@@ -163,7 +194,11 @@ export class Select {
   }
 
   get loadout(): Loadout {
-    return combine(RIDERS[this.idx[0]], MOUNTS[this.idx[1]]);
+    return combine(RIDERS[this.idx[0]], MOUNTS[this.idx[1]], this.world.mods);
+  }
+
+  get world(): WorldDef {
+    return WORLDS[this.idx[2]];
   }
 
   open(): void {
@@ -185,14 +220,19 @@ export class Select {
   pick(row: number, i: number): void {
     this.row = row;
     this.idx[row] = i;
+    // Le monde s'applique IMMEDIATEMENT, avant toute validation : c'est le
+    // decor derriere le panneau qui sert de vignette, pas l'inverse.
+    if (row === 2) this.onWorld?.(this.world);
     this.refresh();
   }
 
   confirm(): void {
     const l = this.loadout;
+    const w = this.world;
     saveChoice(l.rider, l.mount);
+    saveWorld(w);
     this.close();
-    this.onConfirm?.(l);
+    this.onConfirm?.(l, w);
   }
 
   /**
@@ -202,16 +242,16 @@ export class Select {
    */
   private readonly key = (e: KeyboardEvent): void => {
     if (!this.opened) return;
-    const n = this.row === 0 ? RIDERS.length : MOUNTS.length;
+    const n = this.row === 0 ? RIDERS.length : this.row === 1 ? MOUNTS.length : WORLDS.length;
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA': case 'KeyQ':
         this.pick(this.row, (this.idx[this.row] + n - 1) % n); break;
       case 'ArrowRight': case 'KeyD':
         this.pick(this.row, (this.idx[this.row] + 1) % n); break;
       case 'ArrowUp': case 'KeyW':
-        this.row = 0; this.refresh(); break;
+        this.row = (this.row + 2) % 3; this.refresh(); break;
       case 'ArrowDown': case 'KeyS':
-        this.row = 1; this.refresh(); break;
+        this.row = (this.row + 1) % 3; this.refresh(); break;
       case 'Enter': case 'Space': case 'NumpadEnter':
         this.confirm(); break;
       default:
@@ -226,6 +266,13 @@ export class Select {
   };
 
   private refresh(): void {
+    for (let i = 0; i < this.worldCards.length; i++) {
+      this.worldCards[i].classList.toggle('on', i === this.idx[2]);
+      this.worldCards[i].classList.toggle('cursor', this.row === 2 && i === this.idx[2]);
+    }
+    const w = this.world;
+    this.worldLine.textContent = `${w.name} — ${w.blurb}`;
+
     for (let r = 0; r < 2; r++) {
       for (let i = 0; i < this.cards[r].length; i++) {
         const c = this.cards[r][i];

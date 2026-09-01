@@ -3,7 +3,7 @@ import { GLSL_SAFE, GLSL_NOISE } from '../core/Noise';
 import { colClone, vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 import { GLSL_DAY, dayUniforms } from './Daylight';
-import { terrainGLSL, WATER_LEVEL } from './Terrain';
+import { terrainGLSL, terrainUniforms } from './Terrain';
 import { WEATHER_GLSL } from './Weather';
 
 /**
@@ -76,6 +76,9 @@ export class Water {
       transparent: true,
       depthWrite: true,
       uniforms: {
+        // Le relief est pilote par uniformes : changer de monde ne recompile
+        // aucun shader (cf. Terrain.terrainGLSL).
+        ...terrainUniforms(),
         uTime: { value: 0 },
         uCam: { value: new Vector3() },
         uOrigin: { value: new Vector3() },
@@ -234,4 +237,3 @@ ${GLSL_DAY}
   }
 }
 
-export { WATER_LEVEL };

@@ -42,7 +42,7 @@ import { Color, Vector3 } from 'three';
 /** Duree d'un tour complet, en secondes. */
 export const CYCLE = 180;
 
-interface Keyframe {
+export interface Keyframe {
   /** Position dans le cycle, 0 = lever. */
   at: number;
   zenith: number;
@@ -61,39 +61,72 @@ interface Keyframe {
   warm: number;
 }
 
-const KEYS: Keyframe[] = [
-  {
-    // --- AUBE. Le haut est encore la nuit, le bas est deja le jour.
-    at: 0.0,
-    zenith: 0x1e4a8c, high: 0x5a7fb8, mid: 0xd99a7a, horizon: 0xffd3a0,
-    light: 0xffb373, power: 0.72, fill: 0x6d86bd, night: 0.30, warm: 1.0,
-  },
-  {
-    // --- MIDI. La palette d'origine, celle de la reference Frutiger Aero.
-    at: 0.25,
-    zenith: 0x0d6fe0, high: 0x1c9ce9, mid: 0x4cc4f2, horizon: 0xc6ecfa,
-    light: 0xfff6e2, power: 1.0, fill: 0x8fc4e8, night: 0.0, warm: 0.0,
-  },
-  {
-    // --- CREPUSCULE. Le contraste le plus fort des quatre : violet au zenith,
-    //     braise a l'horizon. C'est LE moment que le joueur voudra capturer.
-    at: 0.5,
-    zenith: 0x24306e, high: 0x6a4f9c, mid: 0xe0673f, horizon: 0xffb072,
-    light: 0xff7a3c, power: 0.78, fill: 0x6a5a9e, night: 0.34, warm: 1.0,
-  },
-  {
-    // --- NUIT. Bleu de minuit, jamais noir : un jeu de vitesse qui s'eteint
-    //     devient injouable, et la nuit doit rester une nuit CLAIRE.
-    at: 0.75,
-    zenith: 0x081436, high: 0x102354, mid: 0x1d3a72, horizon: 0x3b6094,
-    light: 0x8aa6e0, power: 0.34, fill: 0x33508c, night: 1.0, warm: 0.15,
-  },
-];
+/**
+ * Un echantillon du ciel a un instant donne. Deux exemplaires suffisent : on
+ * evalue le ciel du monde qu'on quitte et celui du monde qu'on rejoint, puis on
+ * fond entre les deux.
+ *
+ * Fondre les RESULTATS et non les cles est la seule facon correcte de faire :
+ * deux mondes n'ont pas leurs moments cles aux memes couleurs, et interpoler
+ * des tables de cles donnerait des teintes qui n'existent dans aucun des deux.
+ */
+class Sample {
+  readonly zenith = new Color();
+  readonly high = new Color();
+  readonly mid = new Color();
+  readonly horizon = new Color();
+  readonly light = new Color();
+  readonly fill = new Color();
+  power = 1;
+  night = 0;
+  warm = 0;
+}
+
+const tmpA = new Color();
+const tmpB = new Color();
+
+/** Evalue un jeu de cles a une position du cycle. */
+function sample(keys: readonly Keyframe[], p: number, out: Sample): void {
+  let i = 0;
+  for (let k = 0; k < keys.length; k++) if (keys[k].at <= p) i = k;
+  const a = keys[i];
+  const b = keys[(i + 1) % keys.length];
+  const span = (b.at > a.at ? b.at : b.at + 1) - a.at;
+  const raw = (p - a.at) / span;
+  // Lissage aux jonctions : une interpolation lineaire entre deux palettes
+  // fait un COUDE visible au passage de chaque cle, et l'oeil accroche dessus.
+  const u = raw * raw * (3 - 2 * raw);
+  const lerp = (o: Color, ca: number, cb: number): void => {
+    tmpA.setHex(ca);
+    tmpB.setHex(cb);
+    o.copy(tmpA).lerp(tmpB, u);
+  };
+  lerp(out.zenith, a.zenith, b.zenith);
+  lerp(out.high, a.high, b.high);
+  lerp(out.mid, a.mid, b.mid);
+  lerp(out.horizon, a.horizon, b.horizon);
+  lerp(out.light, a.light, b.light);
+  lerp(out.fill, a.fill, b.fill);
+  out.power = a.power + (b.power - a.power) * u;
+  out.night = a.night + (b.night - a.night) * u;
+  out.warm = a.warm + (b.warm - a.warm) * u;
+}
 
 /** Etat courant, relu par tout le monde. Jamais recree : on ecrit dedans. */
 export class Daylight {
   /** Position dans le cycle, 0..1. */
   phase = 0.16;
+
+  /**
+   * Le ciel du monde qu'on quitte, celui du monde qu'on rejoint, et le fondu.
+   * En regime etabli `mix` vaut 1 et `from` egale `to` : on paie alors une
+   * evaluation de trop par image, ce qui est le prix — parfaitement negligeable —
+   * de n'avoir aucun cas particulier a maintenir entre « en transition » et
+   * « pas en transition ».
+   */
+  from: readonly Keyframe[] = [];
+  to: readonly Keyframe[] = [];
+  mix = 1;
 
   readonly sun = new Vector3();
   readonly zenith = new Color();
@@ -108,10 +141,12 @@ export class Daylight {
   /** Hauteur du soleil, -1..1. Negative = sous l'horizon. */
   elevation = 0;
 
-  private tmpA = new Color();
-  private tmpB = new Color();
+  private sa = new Sample();
+  private sb = new Sample();
 
-  constructor(startPhase = 0.16) {
+  constructor(keys: readonly Keyframe[], startPhase = 0.16) {
+    this.from = keys;
+    this.to = keys;
     this.phase = startPhase;
     this.step(0);
   }
@@ -120,32 +155,21 @@ export class Daylight {
     this.phase = (this.phase + dt / CYCLE) % 1;
     const p = this.phase;
 
-    // --- Trouve les deux cles qui encadrent, en refermant la boucle.
-    let i = 0;
-    for (let k = 0; k < KEYS.length; k++) if (KEYS[k].at <= p) i = k;
-    const a = KEYS[i];
-    const b = KEYS[(i + 1) % KEYS.length];
-    const span = (b.at > a.at ? b.at : b.at + 1) - a.at;
-    const raw = (p - a.at) / span;
-    // Lissage aux jonctions : une interpolation lineaire entre deux palettes
-    // fait un COUDE visible au passage de chaque cle, et l'oeil accroche
-    // dessus. Le smoothstep rend la derivee continue.
-    const u = raw * raw * (3 - 2 * raw);
-
-    const lerp = (out: Color, ca: number, cb: number): void => {
-      this.tmpA.setHex(ca);
-      this.tmpB.setHex(cb);
-      out.copy(this.tmpA).lerp(this.tmpB, u);
+    sample(this.from, p, this.sa);
+    sample(this.to, p, this.sb);
+    const m = this.mix;
+    const pick = (out: Color, key: 'zenith' | 'high' | 'mid' | 'horizon' | 'light' | 'fill'): void => {
+      out.copy(this.sa[key]).lerp(this.sb[key], m);
     };
-    lerp(this.zenith, a.zenith, b.zenith);
-    lerp(this.high, a.high, b.high);
-    lerp(this.mid, a.mid, b.mid);
-    lerp(this.horizon, a.horizon, b.horizon);
-    lerp(this.light, a.light, b.light);
-    lerp(this.fill, a.fill, b.fill);
-    this.power = a.power + (b.power - a.power) * u;
-    this.night = a.night + (b.night - a.night) * u;
-    this.warm = a.warm + (b.warm - a.warm) * u;
+    pick(this.zenith, 'zenith');
+    pick(this.high, 'high');
+    pick(this.mid, 'mid');
+    pick(this.horizon, 'horizon');
+    pick(this.light, 'light');
+    pick(this.fill, 'fill');
+    this.power = this.sa.power + (this.sb.power - this.sa.power) * m;
+    this.night = this.sa.night + (this.sb.night - this.sa.night) * m;
+    this.warm = this.sa.warm + (this.sb.warm - this.sa.warm) * m;
 
     // --- La course du soleil.
     //
