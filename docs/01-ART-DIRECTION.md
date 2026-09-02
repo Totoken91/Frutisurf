@@ -1218,6 +1218,15 @@ elles seules les deux tiers du score d'octobre. Mesuré à l'autopilote, il pass
 de 8,2 M à 2,7 M — le monde reste jouable (600 s, 296 anneaux, 0 % du temps
 enlisé) mais il vit désormais sur les anneaux et les vols, comme Bliss.
 
+Et les **berges** ont dû être resserrées deux fois, pour une raison qui ne se
+lit pas dans le réglage : le masque de grève ajoute au niveau une **dentelure**
+d'amplitude 1,5 m, si bien qu'une largeur nominale d'un mètre couvre en fait
+tout ce qui est à moins de deux mètres cinquante au-dessus de l'eau. Sur une
+pente douce, ça fait cent mètres de grève — et c'est cette bande **tan** qui
+barrait le milieu de chaque capture. Un ourlet est un ourlet : 0,40 + 0,75, et
+du sable devenu **boue sombre**, parce que du sable clair au bord d'une mare
+sous un ciel de plomb, c'est une vasière.
+
 Corollaire moins évident, appris en même temps : **la rampe de sol doit rester
 sombre jusqu'au fond**. Sous un plafond de nuages, le lointain ne s'éclaircit
 pas parce qu'il est loin — il s'éclaircit parce que la brume s'interpose, et
@@ -1270,10 +1279,109 @@ gratuitement, et le faisceau semble s'y poser.
 Deux pièges d'additif au passage, tous deux vus à l'image. Le quad ne doit
 **jamais** se voir : une valeur infime mais non nulle sur toute sa surface
 éclaircit uniformément le ciel derrière lui et on lit un rectangle clair autour
-de la lampe — d'où un seuil de rejet explicite. Et le **débordement des
-fenêtres** doit rester près de sa fenêtre : dosé trop large il couvre la cellule
-entière, toutes les cellules d'une rangée s'allument ensemble, et la façade
-devient un rectangle lumineux à bords francs — une enseigne, pas une maison.
+de la lampe. Et le **débordement des fenêtres** doit rester près de sa fenêtre :
+dosé trop large il couvre la cellule entière, toutes les cellules d'une rangée
+s'allument ensemble, et la façade devient un rectangle lumineux à bords francs —
+une enseigne, pas une maison. (Mesure : `max(d2)` vit entre 0,25 et 0,50, donc
+une rampe qui commence à 0,40 est allumée sur plus de la moitié de la cellule.
+À vingt mètres, ça ne faisait pas des fenêtres, ça faisait une façade entière
+en pêche pâle posée sur le ciel.)
+
+#### Le rectangle du halo, et pourquoi un seuil de rejet ne suffisait pas
+
+Le premier remède au quad visible était un seuil : sous 0,004, on rejette. Il
+n'a pas tenu, et il fallait trois corrections et pas une.
+
+1. **Le lobe large portait jusqu'aux coins.** Le halo est fait de deux lobes —
+   un cœur dur et une nappe longue — et c'est l'**écart entre les deux
+   exposants** qui fait une lampe plutôt qu'une pastille. Mais la nappe portait
+   jusqu'à `r = 1,9`, c'est-à-dire au-delà du bord du plan : quelques centièmes
+   de lumière chaude étalés sur sept mètres carrés, et l'œil lit un
+   **rectangle**. Un bord droit se détecte bien avant une luminance, et il n'y a
+   rien de droit dans une rue.
+2. **Le bulbe était coupé net par le haut du quad.** La lanterne était posée à
+   `v = 0,92` alors que le bulbe déborde de trois dixièmes au-dessus d'elle : la
+   coupe se lisait comme un trait horizontal en travers du halo. Un demi-mètre
+   de marge suffit.
+3. **Le seuil se retranche, il ne se teste pas.** Testé, il laisse un bord : le
+   pixel juste au-dessus vaut encore deux centièmes, celui d'à côté vaut zéro,
+   et l'ellipse du lobe se redessine — on avait remplacé un rectangle par un
+   œuf. Retranché (`a = max(a − s, 0)`), la lueur atteint zéro d'elle-même et il
+   n'y a plus de bord du tout.
+
+#### Une seule route ne fait pas un quartier, elle fait un couloir
+
+Il n'y avait rien **à mi-distance** : le regard sautait du bitume sous les pieds
+à la frise de maisons au fond, et les cent mètres entre les deux restaient une
+bande vide. Une rue perpendiculaire tous les cent douze mètres remplit
+exactement ce trou. Elle donne au sol une trame lisible, elle passe **sous** le
+joueur — donc elle se lit comme de la vitesse, ce qu'une route parallèle ne fait
+jamais — et elle justifie les maisons : elles bordent enfin quelque chose des
+deux côtés au lieu de s'aligner le long d'un ruban.
+
+Son pas est un **multiple non entier** de celui des rangées, pour qu'une rue ne
+tombe jamais deux fois sur la même maison, et il ne s'ancre sur rien : c'est un
+modulo de la position monde, donc il ne peut structurellement pas glisser.
+
+#### Un lotissement n'est pas une densité de maisons, c'est un alignement
+
+Et c'est la **vue de dessus** qui l'a dit. Depuis la caméra de course, un semis
+de maisons entre trente et cent quatre-vingts mètres de la route passait pour du
+désordre ; vu à cent quatre-vingt-dix mètres d'altitude, c'était sans appel — des
+boîtes noires éparpillées dans un champ, sans rapport les unes avec les autres
+ni avec le bitume. **Ce qui fait la rue, c'est que les façades soient à la même
+distance du trottoir.**
+
+D'où trois alignements, et un recul faiblement tiré (deux mètres d'écart entre
+voisines, pas dix — le désordre doit se voir sans se lire) :
+
+| rang | où | ce qu'il fait |
+| --- | --- | --- |
+| **0** | 22 m de l'axe, un de chaque côté | le premier rang, celui qu'on double et le seul dont on lise les fenêtres |
+| **1** | 41 m | le fond de parcelle. Il ne borde rien : il sert à ce que le premier rang ait quelque chose derrière lui, sinon la rue est une frise posée sur le vide |
+| **2 et 3** | les deux bords de la rue transversale | leur z ne vient plus de la rangée mais de la **rue elle-même**. C'est ce qui fait qu'une rue latérale se lit comme une rue et pas comme une traînée claire dans un pré |
+
+Les lampadaires ont suivi : de quinze mètres à **neuf**. À quinze, la flaque
+tombait derrière l'accotement et la chaussée restait noire entre deux mâts. Et
+un arbre sur deux est maintenant un **arbre d'alignement**, entre le trottoir et
+les façades — sans rien entre l'asphalte et les maisons, la chaussée a l'air
+posée sur un pré. (Il est aussi plus étroit et plus haut que l'arbre de plein
+champ : taillé, il vit entre un trottoir et une façade, et garder la silhouette
+large lui faisait avaler le lampadaire d'à côté.)
+
+#### Un plafond de nuages n'est pas une ombre
+
+C'est la mesure qui a tranché, et elle était brutale. Sur une capture d'octobre,
+le premier plan valait **(121, 83, 56)** ; en coupant la seule contribution du
+quartier au sol — les flaques de lampadaire et la lumière des fenêtres — il
+tombait à **(18, 15, 10)**. Autrement dit ce n'était plus le paysage qu'on
+regardait : c'était le beurre des lampadaires posé par-dessus un monde noir.
+
+Deux fautes se cumulaient, et aucune n'était une question de goût.
+
+- **L'ombre des nuages n'a pas de sens sous une couverture totale.** Une tache
+  d'ombre suppose une trouée à côté. Quand le plafond est fermé, la lumière est
+  diffuse et le sol est uniformément éclairé — garder les taches retirait
+  quarante pour cent de la luminance, et par-dessus le voile et le sol mouillé
+  il ne restait rien à regarder.
+- **`daylight()` bascule vers la couleur de *remplissage*,** qui décrit ce que
+  reçoit une face **à l'ombre** : sombre par construction. Un ciel couvert n'est
+  pas une ombre, c'est une source de mille mètres de large — plus douce que le
+  soleil, pas plus faible. Le sol et le quartier rendent maintenant ce que la
+  couverture diffuse vraiment.
+
+Même bascule sur les **faces** du décor, et c'est deux modèles et non un. Par
+beau temps la lumière vient d'un point : ce qui sépare deux faces est leur angle
+au soleil. Sous une averse il n'y a plus de point : ce qui les sépare est la
+**part de ciel qu'elles voient** — un toit la voit toute, un mur vertical la
+moitié, une face vers le bas presque rien. Garder le modèle ensoleillé donnait
+exactement ce qu'on avait : des boîtes noires dont une face est un peu moins
+noire. Le toit est devenu la face la plus **claire** d'une maison, ce qu'il est
+sous un plafond, et le quartier a cessé d'être un semis de cubes d'encre.
+
+Le sol mouillé, enfin, fonce moins fort : `c²` compensé par un gain plus élevé.
+Sans le gain, un sol trempé ne fonce pas, il **disparaît** — 45 % de luminance
+perdue, cumulée avec tout le reste.
 
 #### La route, et les deux leçons qu'elle a coûtées
 

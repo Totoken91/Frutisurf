@@ -918,3 +918,31 @@ touche pas, et les captures sont des **arrêts sur image** — or un décor qui 
 téléporte est parfaitement correct sur chaque image prise séparément. **Le
 défaut n'existe qu'entre deux images.** C'est une classe entière de bugs que la
 suite ne couvrait pas, et le joueur l'a trouvée en trois secondes de jeu.
+
+### Deux outils de diagnostic qui valent mieux qu'un avis
+
+Les deux corrections les plus lourdes du quartier ne sont pas venues d'un œil
+exercé mais de deux vues qu'on ne se donne pas spontanément.
+
+**La vue de dessus.** Poser la caméra à cent quatre-vingt-dix mètres au-dessus
+du joueur, regard vertical, coûte dix lignes dans un script jetable — et elle
+répond en une image à une question sur laquelle on peut tourner une heure
+depuis le sol : *est-ce que les maisons bordent la rue, ou est-ce qu'elles sont
+éparpillées ?* Depuis la caméra de course, un semis passe pour du désordre. De
+dessus, il n'y a pas de doute possible.
+
+**Couper les couches une par une.** Rendre la même vue en masquant un maillage
+à la fois et en comparant la moyenne d'une bande de l'image dit *qui* peint
+quoi. C'est ce qui a montré que le premier plan d'octobre tombait de
+`(121, 83, 56)` à `(18, 15, 10)` dès qu'on retirait la contribution du quartier
+au sol : le paysage était noir et on ne regardait que le beurre des lampadaires.
+Aucune quantité de réglage à vue n'aurait trouvé ça, parce qu'à l'écran le
+résultat n'a l'air ni trop sombre ni trop clair — il a l'air **beige**.
+
+Corollaire pour les bancs de capture : **un banc qui gèle le joueur doit aussi
+éteindre tout ce qui le suit**. Le ruban et l'aura étaient déjà masqués ; la
+gerbe était seulement *silencieuse*, et les particules émises pendant les six
+mille pas de repérage se figeaient en une plaque **turquoise** à bord droit dans
+un coin du cadre — sur un monde d'octobre, la seule chose cyan de l'image. On a
+déjà pris cet artefact pour un défaut du monde une fois (c'était la gerbe, sur
+l'océan) ; il coûte une demi-heure à chaque fois qu'on l'oublie.

@@ -364,6 +364,7 @@ export class World {
     rgb(t0.uWindow, 'townWindow');
     t0.uDensity.value = d.town;
     t0.uWet.value = d.rain;
+    t0.uOvercast.value = d.overcast;
     const t1 = this.town.mats[1].uniforms;
     rgb(t1.uWindow, 'townWindow');
     t1.uDensity.value = d.town;
@@ -373,6 +374,7 @@ export class World {
     // pas vivre dans le decor, qui ne connait pas le pixel de sol qu'il
     // eclaire (cf. Town.TOWN_GLSL, relu par Ground).
     g.uTown.value = d.town;
+    g.uOvercast.value = d.overcast;
     rgb(g.uLamp, 'townWindow');
 
     // Deux materiaux aux jeux d'uniformes DIFFERENTS : les tours ont uFace,

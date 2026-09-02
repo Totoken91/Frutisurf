@@ -537,12 +537,19 @@ export const WORLDS: WorldDef[] = [
     // a dix-sept — et c'est voulu : ici l'humidite se dit par le sol mouille,
     // les flaques et l'averse, pas par des etendues.
     water: -6.5,
-    // Berges ETROITES, et encore resserrees depuis. Une plage large est une
+    // Berges ETROITES, et resserrees deux fois depuis. Une plage large est une
     // image d'ete ; en octobre la terre descend dans l'eau sans transition,
     // avec juste un ourlet de boue. A 1,1 + 2,2 l'ourlet faisait encore des
     // bancs clairs de plusieurs metres autour de chaque mare, et c'est de la
     // que venait l'essentiel de l'effet marecage.
-    shore: [0.7, 1.3],
+    //
+    // A 0,7 + 1,3 il restait un defaut plus sournois, et il vient de la
+    // DENTELURE : shoreMask ajoute au niveau un bruit d'amplitude 1,5 m, si
+    // bien qu'une largeur nominale d'un metre couvre en fait tout ce qui est
+    // a moins de deux metres cinquante au-dessus de l'eau. Sur une pente
+    // douce, ca fait cent metres de greve — et c'est cette bande TAN qui
+    // barrait le milieu de chaque capture. Un ourlet est un ourlet.
+    shore: [0.40, 0.75],
     // Un clapot, pas une houle : 34 m de long, rapide, faible. C'est ce que
     // le vent fait a une mare — une eau nerveuse et sans rythme, l'inverse
     // exact des longues vagues lisibles d'Okinawa.
@@ -570,10 +577,10 @@ export const WORLDS: WorldDef[] = [
       // Plus de sable : de la BOUE. Meme mecanique de greve, autre matiere.
       // De la BOUE, et sombre. Tiree claire elle lit comme du sable, et du
       // sable au bord d'une mare sous un ciel de plomb, c'est une vasiere.
-      sandDry: 0x574833,
-      sandPale: 0x6d5f45,
+      sandDry: 0x483c2a,
+      sandPale: 0x5a4e39,
       sandWet: 0x2e281c,
-      sandShell: 0x8a8270,
+      sandShell: 0x6b675a,
       // L'eau d'un champ inonde ne renvoie rien : elle est vert-de-gris en
       // surface et noire au fond. Aucun cyan nulle part — c'est le seul monde
       // du jeu qui n'en contient pas une trace, et c'est ce qui le rend

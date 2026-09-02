@@ -163,6 +163,15 @@ export class Ground {
          */
         uTown: { value: 0 },
         uLamp: { value: vec3('townWindow') },
+        /**
+         * 0 = ciel degage, 1 = plafond de nuages.
+         *
+         * Sous un plafond, l'essentiel de l'eclairement vient du DOME et non du
+         * soleil. Un ombrage qui reste pilote par N·L donne alors un relief en
+         * carton : des versants francs sous une lumiere qui n'existe pas, et un
+         * paysage qui a l'air d'attendre un soleil qui ne viendra jamais.
+         */
+        uOvercast: { value: 0 },
       },
       vertexShader: /* glsl */ `
         uniform vec3 uOrigin;
@@ -191,7 +200,7 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
-        uniform float uTech, uWet, uLitter, uTown;
+        uniform float uTech, uWet, uLitter, uTown, uOvercast;
         uniform vec3 uLeafA, uLeafB, uLamp;
 ${RIDER_GLSL}
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
@@ -328,9 +337,24 @@ ${TOWN_GLSL}
           // Plage RESSERREE autour de la valeur de travail : avec un soleil a
           // 19 degres et un sol presque plat, ndl vit entre 0,18 et 0,48. Une
           // rampe large sur [-0.28, 0.58] n'en exploitait qu'un tiers.
-          c *= 0.78 + 0.34 * smoothstep(0.10, 0.52, ndl);
-          // Les versants exposes accrochent un lisere clair sur la crete.
-          c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5);
+          //     ET SOUS UN PLAFOND, ELLE N'A PLUS DE DIRECTION DU TOUT.
+          //
+          //     Le ciel couvert eclaire par le DOME : ce qui decide de la
+          //     luminance d'un point n'est plus l'angle au soleil mais son
+          //     OUVERTURE VERS LE HAUT. On fond donc la rampe directionnelle
+          //     vers une rampe en N.y, et on ajoute une ambiante franche prise
+          //     sur le remplissage du ciel. C'est ce qui separe un jour gris
+          //     d'un jour de soleil assombri — et c'est la seule chose qui
+          //     manquait vraiment a la lumiere d'octobre.
+          float lambert = 0.78 + 0.34 * smoothstep(0.10, 0.52, ndl);
+          float dome = 0.80 + 0.30 * clamp(N.y, 0.0, 1.0);
+          c *= mix(lambert, dome, uOvercast);
+          c += uDayFill * (0.045 + 0.11 * clamp(N.y, 0.0, 1.0)) * uOvercast;
+          // Les versants exposes accrochent un lisere clair sur la crete — mais
+          // pas sous les nuages : un lisere de soleil sans soleil est la faute
+          // qui trahit un eclairage peint.
+          c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5)
+             * (1.0 - uOvercast * 0.75);
 
           // --- 4. Grandes nappes de lumiere.
           //
@@ -397,7 +421,14 @@ ${TOWN_GLSL}
           // (Et pas d'accent grave dans ces commentaires : ils vivent dans un
           //  gabarit JS, un seul backtick termine la chaine.)
           float cloudDark = cloudShade(vWorld.xz, uTime);
-          c = mix(c, c * 0.62 + uSkyLight * 0.055, cloudDark * 0.85);
+          // SOUS UNE COUVERTURE TOTALE, IL N'Y A PLUS D'OMBRE DE NUAGE.
+          // Une tache d'ombre suppose une trouee a cote ; quand le plafond est
+          // ferme, la lumiere est diffuse et le sol est uniformement eclaire.
+          // Garder les taches sous l'averse retirait quarante pour cent de la
+          // luminance d'octobre, et par-dessus le voile et le sol mouille il ne
+          // restait rien a regarder.
+          c = mix(c, c * 0.62 + uSkyLight * 0.055,
+                  cloudDark * 0.85 * (1.0 - uOvercast * 0.75));
 
           // --- OMBRE PORTEE DU SURFEUR.
           //
@@ -534,7 +565,7 @@ ${TOWN_GLSL}
               // lit comme du sable et l'oeil voit une plage le long de la
               // route — on l'a eu, et c'etait la premiere chose qu'on
               // remarquait dans le cadre.
-              vec3 dirt = mix(uSandWet, uSandDry, 0.30) * 0.40;
+              vec3 dirt = mix(uSandWet, uSandDry, 0.30) * 0.32;
               dirt *= 0.66 + fbm3(vWorld.xz * 3.4) * 0.66 + fbm2(vWorld.xz * 0.5) * 0.22;
               c = mix(c, dirt, berm * 0.88);
             }
@@ -549,7 +580,13 @@ ${TOWN_GLSL}
               //     a un metre et demi de l'axe. Il ne coute qu'une gaussienne.
               vec3 tar = vec3(0.052, 0.049, 0.056);
               tar *= 0.66 + fbm3(vWorld.xz * 2.6) * 0.55 + fbm2(vWorld.xz * 0.28) * 0.30;
-              wheel = exp(-pow((abs(vWorld.x) - 1.7) * 1.45, 2.0));
+              // Ornieres, bande axiale et rive n'existent que sur la route
+              // LONGITUDINALE : une rue de desserte n'a ni marquage ni trafic
+              // assez dense pour polir deux bandes. Sans cette distinction, les
+              // ornieres de la grande route traversaient les rues laterales en
+              // travers, ce qui n'a aucun sens.
+              float main = townMainBand(vWorld.xz);
+              wheel = exp(-pow((abs(vWorld.x) - 1.7) * 1.45, 2.0)) * main;
               tar *= 1.0 - wheel * 0.24;
 
               // --- LES FISSURES. Un RESEAU, pas des rayures : on prend la
@@ -576,14 +613,18 @@ ${TOWN_GLSL}
               //     centre du cadre, exactement la ou il ne doit pas rester.
               float lane = (1.0 - smoothstep(0.07, 0.15, abs(vWorld.x)))
                          * step(0.62, fract(vWorld.z * 0.14))
-                         * smoothstep(0.30, 0.62, fbm2(vWorld.xz * 0.7));
+                         * smoothstep(0.30, 0.62, fbm2(vWorld.xz * 0.7)) * main;
               // --- ET LA RIVE, continue, posee EXACTEMENT sur le bord que
               //     townRoad utilise. C'est elle qui donne sa largeur a la
               //     route : sans elle, l'oeil ne sait pas ou la chaussee finit.
               float ex = townEdge(vWorld.xz) - 0.55;
               float rive = (1.0 - smoothstep(0.09, 0.19, abs(abs(vWorld.x) - ex)))
-                         * smoothstep(0.32, 0.68, fbm2(vWorld.xz * 0.9));
-              tar = mix(tar, vec3(0.26, 0.25, 0.22), max(lane, rive) * 0.78);
+                         * smoothstep(0.32, 0.68, fbm2(vWorld.xz * 0.9)) * main;
+              // ASSEZ CLAIRES POUR SE VOIR SUR DU NOIR MOUILLE. Le marquage
+              // est la seule chose qui donne sa LARGEUR a la chaussee : pose a
+              // 0,26 sur un enrobe a 0,05, il disparaissait des vingt metres et
+              // la route redevenait une bande sombre sans bords.
+              tar = mix(tar, vec3(0.44, 0.42, 0.36), max(lane, rive) * 0.85);
 
               c = mix(c, tar, road * 0.96);
             }
@@ -634,7 +675,13 @@ ${TOWN_GLSL}
               //   est plus sombre et plus brun. On part donc des MEMES deux
               //   couleurs, assombries — c'est ce qui fait qu'on reconnait la
               //   feuille qui vient de tomber dans celle qui est au sol.
-              vec3 litter = mix(uLeafB, uLeafA, smoothstep(0.38, 0.80, speck)) * 0.70;
+              //   ET IL EST DETREMPE, DONC BRUN. Une feuille qui vient de
+              //   tomber garde sa couleur ; celle qui est au sol depuis une
+              //   semaine a vire. Prises a la meme saturation que les feuilles
+              //   en vol, elles peignaient une bande ROUILLE VIF le long de la
+              //   route — la couleur d'un tapis neuf, pas d'un mois d'octobre.
+              vec3 litter = mix(uLeafB, uLeafA, smoothstep(0.38, 0.80, speck));
+              litter = mix(litter, uShadow, 0.34) * 0.74;
               //   Une feuille plaquee sur du bitume mouille est plus SOMBRE et
               //   plus collee qu'une feuille dans l'herbe : elle a perdu son
               //   relief. Sans ce terme, le tapis flotte au-dessus de la route.
@@ -655,7 +702,11 @@ ${TOWN_GLSL}
           //     Un simple assombrissement aurait donne de la terre grise ;
           //     c'est le gain de saturation qui fait lire « trempe ».
           if (uWet > 0.002) {
-            c = mix(c, c * c * 1.30, uWet * 0.55);
+            //   Le gain compense la mise au carre : sans lui, le sol trempe
+            //   ne fonce pas, il DISPARAIT. Mesure a 0,55 / 1,30 le premier
+            //   plan perdait 45 % de sa luminance, et par-dessus l'ombre des
+            //   nuages il ne restait que du noir.
+            c = mix(c, c * c * 1.75, uWet * 0.44);
 
             //   LES IMPACTS NE SONT PAS QUE DANS LES FLAQUES.
             //
@@ -742,8 +793,8 @@ ${TOWN_GLSL}
               // Deux lobes : un coeur serre sous la lanterne et une nappe
               // longue qui meurt dans le noir. Un seul lobe fait un rond de
               // projecteur.
-              float fall = pow(max(1.0 - clamp(dl / 26.0, 0.0, 1.0), 1e-4), 2.4) * 0.80
-                         + pow(max(1.0 - clamp(dl / 9.0, 0.0, 1.0), 1e-4), 1.6) * 1.10;
+              float fall = pow(max(1.0 - clamp(dl / 15.0, 0.0, 1.0), 1e-4), 3.0) * 0.50
+                         + pow(max(1.0 - clamp(dl / 6.5, 0.0, 1.0), 1e-4), 1.6) * 1.10;
               lampGlow += uLamp * fall;
             }
             lampGlow *= uTown * (0.45 + uDayNight * 0.95);
@@ -760,8 +811,41 @@ ${TOWN_GLSL}
             //     Le reflet passe par le meme terme rasant que le sheen du sol :
             //     il s'allonge vers l'horizon et disparait sous les pieds, ce
             //     qui est exactement le comportement d'un reflet.
-            c += lampGlow * (0.10 + uWet * 0.13);
-            c += lampGlow * graze * (0.45 + uWet * 1.70);
+            //     LA PART DIFFUSE EST MINUSCULE, ET C'EST TOUT LE REGLAGE.
+            //
+            //     Une nappe large et generalement etalee ne fait pas une rue
+            //     eclairee, elle fait un cadre BEIGE : mesure a la capture,
+            //     couper uTown faisait passer le premier plan de (121, 83, 56)
+            //     a (18, 15, 10) — autrement dit ce n'etait plus le paysage
+            //     qu'on voyait, c'etait le beurre des lampadaires par-dessus.
+            //     Le rapprochement des mats a neuf metres, qui les remet enfin
+            //     sur la chaussee, a rendu la faute quatre fois plus visible.
+            c += lampGlow * (0.035 + uWet * 0.045);
+            c += lampGlow * graze * (0.30 + uWet * 1.25);
+
+            // --- LA LUMIERE DES FENETRES SUR L'HERBE.
+            //
+            //     Une maison allumee qui n'eclaire rien autour d'elle flotte :
+            //     elle est une vignette posee sur le paysage, pas un objet
+            //     dedans. Une tache chaude devant sa facade la POSE, et c'est
+            //     le seul terme qui relie le quartier au sol qu'on traverse.
+            //
+            //     Le placement vient de houseAt, partage avec le decor : deux
+            //     formules voisines mettraient la lumiere a cote de la maison.
+            //     Deux rangees et le premier rang seulement — les maisons du
+            //     fond sont trop loin pour que leur lueur compte, et chaque
+            //     evaluation coute trois hachages.
+            vec3 warm = vec3(0.0);
+            for (int k = 0; k < 2; k++) {
+              float zz = townZ(row0 + float(k), uOrigin.xz);
+              for (int sd = 0; sd < 2; sd++) {
+                vec3 hh = houseAt(zz, sd == 0 ? -1.0 : 1.0, 0.0, uTown);
+                float dh = length(vWorld.xz - hh.xy);
+                warm += uLamp * hh.z
+                      * pow(max(1.0 - clamp(dh / 19.0, 0.0, 1.0), 1e-4), 2.8);
+              }
+            }
+            c += warm * uTown * (0.05 + uDayNight * 0.15);
           }
 
           // --- LA GRILLE Y2K.
@@ -824,7 +908,17 @@ ${TOWN_GLSL}
           //     L'ombre des nuages sert d'entree : sous un nuage, c'est le ciel
           //     qui eclaire, donc la couleur de remplissage domine — et c'est ce
           //     basculement qui fait qu'une nuit n'est pas un jour assombri.
-          c = daylight(c, cloudDark * 0.55 + uDayNight * 0.30);
+          c = daylight(c, cloudDark * 0.55 * (1.0 - uOvercast * 0.75) + uDayNight * 0.30
+                        + uOvercast * 0.30);
+          // ET LE PLAFOND REND CE QU'IL DIFFUSE.
+          //
+          // daylight() bascule vers la couleur de REMPLISSAGE, qui decrit ce
+          // que recoit une face a l'ombre : sombre par construction. Un ciel
+          // couvert n'est pas une ombre, c'est une source de mille metres de
+          // large — plus douce que le soleil, pas plus faible. Sans ce gain,
+          // octobre etait une plaine noire ou seuls les lampadaires
+          // existaient, et c'est exactement ce que le joueur voyait.
+          c *= 1.0 + uOvercast * 0.62;
 
           // --- LA LAMPE DU SURFEUR, et elle vient APRES l'eclairage de la
           //     scene, jamais avant.

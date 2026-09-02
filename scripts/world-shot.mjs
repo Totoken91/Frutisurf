@@ -83,8 +83,14 @@ for (let i = 0; i < ids.length; i++) {
     //     finit par barrer le cadre d'une echarpe pale. On a deja pris cet
     //     artefact pour un defaut du monde une fois (c'etait la gerbe, sur
     //     l'ocean) ; il coute une demi-heure a chaque fois qu'on l'oublie.
+    //     Et SILENCER la gerbe ne suffit pas : les particules deja emises
+    //     pendant les six mille pas de reperage restent en l'air et se figent
+    //     avec le surfeur. Empilees, elles font une plaque TURQUOISE a bord
+    //     droit dans un coin du cadre — sur un monde d'octobre, la seule chose
+    //     cyan de l'image. On la masque comme le ruban et l'aura.
     g.spray.emit = () => {};
     g.spray.burst = () => {};
+    g.spray.mesh.visible = false;
     g.trail.mesh.visible = false;
     g.aura.mesh.visible = false;
   }, [i, PHASE]);
