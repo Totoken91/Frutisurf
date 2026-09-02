@@ -946,3 +946,72 @@ mille pas de repérage se figeaient en une plaque **turquoise** à bord droit da
 un coin du cadre — sur un monde d'octobre, la seule chose cyan de l'image. On a
 déjà pris cet artefact pour un défaut du monde une fois (c'était la gerbe, sur
 l'océan) ; il coûte une demi-heure à chaque fois qu'on l'oublie.
+
+
+## 15. Le flou de mouvement, et pourquoi le flou radial ne suffisait pas
+
+Le premier jet étirait l'image depuis le point de fuite, proportionnellement à
+la vitesse affichée. Ça donne le bon effet dans un seul cas — foncer tout
+droit — et **rien du tout** dans tous les autres : un virage serré, une caméra
+qui encaisse une réception, un saut, un demi-tour en l'air ne produisaient pas
+un pixel de flou, alors que ce sont exactement les moments où l'œil en attend.
+
+On calcule donc la vraie vitesse à l'écran de chaque pixel, par **reprojection** :
+
+1. la profondeur donne la position monde du pixel (`uInvVP`, l'inverse de la
+   matrice vue-projection de cette image) ;
+2. on reprojette cette position monde avec la matrice de l'image **précédente**
+   (`uPrevVP`) ;
+3. l'écart des deux positions écran est le vecteur vitesse, et on floute le long
+   de ce vecteur.
+
+C'est la méthode standard. Elle coûte une texture de profondeur — que le
+compositeur crée tout seul dès qu'un effet déclare `EffectAttribute.DEPTH` — et
+six échantillons, et elle rend gratuitement tout ce que le flou radial ne savait
+pas faire : le sol file sous les pieds pendant que l'horizon reste net, le décor
+balaie l'écran dans un virage, et le ciel bouge quand la caméra tourne. (Le ciel
+a une profondeur de 1 : sa position monde tombe sur le plan lointain, ce qui est
+exact — il ne bouge pas quand on avance, il bouge quand on tourne.)
+
+Quatre détails qui ne se devinent pas :
+
+- **La durée d'obturation est fixe, pas la frame.** Flouter exactement le
+  déplacement d'une image donne deux fois plus de flou à trente images par
+  seconde qu'à soixante : le rendu changerait avec la machine. On rapporte donc
+  le déplacement à une pose fixe (1/64 s), et le flou redevient une propriété du
+  **monde** et non du débit. (Même règle que le lissage de l'axe de l'aura, qui
+  a exactement le même défaut si on le fait à taux fixe par image.)
+- **Le vecteur est borné.** Une réception secoue la caméra assez fort pour
+  étirer tout le cadre en une image ; sans borne, l'image devient illisible pile
+  au moment où le joueur doit reprendre le contrôle.
+- **L'échantillonnage est centré** sur le pixel, de −0,5 à +0,5 du vecteur. Tiré
+  d'un seul côté, le flou **déplace** l'image au lieu de l'étaler, et tout le
+  cadre glisse d'un demi-vecteur — ce qui se lit comme un défaut de
+  synchronisation, pas comme de la vitesse.
+- **Le surfeur est épargné.** Un flou par reprojection ne connaît que la caméra :
+  il floute tout ce qui bouge par rapport à elle, donc aussi le personnage, qui
+  pourtant ne bouge pas d'un pixel à l'écran. Sans correction il part en bouillie
+  dès qu'on carve — c'est-à-dire pile quand on a besoin de le voir. On épargne
+  donc un disque autour de sa position écran, ce que fait n'importe quel jeu de
+  course avec sa voiture, et pour une deuxième raison qui vaut à elle seule : le
+  point que l'œil suit doit rester le point net de l'image.
+
+Le coût n'a **pas** pu être mesuré ici : sur le rastériseur logiciel des bancs,
+l'écart entre deux mesures du même code est de l'ordre de trente pour cent, et
+le flou passe dessous. Ce qui est mesurable, c'est qu'il n'introduit ni image
+noire ni NaN (`check:flicker`).
+
+### Un seuil de banc doit être loin de la valeur observée
+
+`check:artifact` vérifiait que le jeu parcourt soixante mètres en trente
+secondes de montre. Il a fini par échouer à **cinquante-neuf**. Le moteur jette
+le retard qu'il ne peut pas rattraper : la distance parcourue en temps de montre
+mesure donc la **machine** et non le jeu, et il a suffi que le flou de mouvement
+coûte dix pour cent de cadence au rastériseur logiciel pour passer dessous.
+
+Le seuil est descendu à vingt-cinq mètres — ça prouve exactement la même chose,
+le jeu tourne, sans être une mesure de performance déguisée. C'est la troisième
+fois que ce piège se referme (`check:input` attendait des durées de montre,
+`check:artifact` avait déjà un seuil d'images par seconde posé sur la valeur
+observée) et la règle vaut d'être écrite : **un banc binaire se règle loin de la
+valeur observée, sinon c'est un banc de performance qui s'ignore.**

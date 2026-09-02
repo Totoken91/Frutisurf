@@ -97,6 +97,8 @@ export class Game {
   private hits: BoosterHit[] = [];
   private probe = new Vector3();
   private cast = new Vector3();
+  /** Position ecran du surfeur, reutilisee a chaque image. */
+  private focus = new Vector3();
   /** x, z du surfeur et force du sillage, envoyes au shader d'eau. */
   private wake = new Vector3();
   /** Force du sillage lissee : il enfle et se resorbe, il ne clignote pas. */
@@ -602,7 +604,21 @@ export class Game {
     this.aura.update(this.time, kmh, look.lamp, dt);
 
     const a = this.aura.power;
-    this.aura.place(this.surfer.rig.position);
+    // LA DIRECTION DE COURSE, PAS L'ASSIETTE DU PERSONNAGE.
+    //
+    // Le panache part vers l'arriere du DEPLACEMENT reel : quand on carve, il
+    // balaie de l'autre cote, ce qui est exactement ce qu'on attend d'une
+    // trainee. La composante laterale est amplifiee parce qu'elle est petite
+    // devant l'avance (deux metres par seconde contre trente-quatre) et que
+    // sans ce gain le panache resterait rigoureusement dans l'axe.
+    {
+      const dx = (c.x - this.prevX) * 3.2;
+      const dz = c.z - this.prevZ;
+      const l = Math.hypot(dx, dz);
+      // Au repos on retombe sur l'axe de la course : le monde defile toujours
+      // vers les z negatifs.
+      this.aura.place(this.surfer.rig.position, l > 1e-4 ? dx / l : 0, l > 1e-4 ? dz / l : -1);
+    }
 
     // La lampe monte avec la vitesse, puis explose avec l'aura — mais elle est
     // BORNEE.
@@ -679,6 +695,13 @@ export class Game {
       this.vanish.y * 0.5 + 0.5,
     );
     this.post.setCombo(c.combo);
+    this.post.setMotion(c.speedNorm, c.boosting ? 1 : this.aura.power * 0.7);
+    // Ou se trouve le surfeur a l'ecran : le flou de mouvement l'epargne, et
+    // avec lui la seule chose que le joueur doit lire a tout instant.
+    this.focus.copy(this.surfer.rig.position);
+    this.focus.y += 1.0;
+    this.focus.project(this.engine.camera);
+    this.post.surf.focus(this.focus.x * 0.5 + 0.5, this.focus.y * 0.5 + 0.5);
     // L'aura pousse aussi le POST-TRAITEMENT : au-dela de 200 km/h le flou
     // radial et l'aberration doivent depasser ce que la vitesse seule donne,
     // sinon l'aura est un objet pose devant une image calme.

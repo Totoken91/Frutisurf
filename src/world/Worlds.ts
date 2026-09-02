@@ -455,7 +455,12 @@ export const WORLDS: WorldDef[] = [
     // relevee. On saute beaucoup, on lit peu — c'est le monde nerveux.
     amp: [4.2, 5.0, 1.4, 1.6, 0.10],
     water: -3.0,
-    shore: [0.9, 1.6],
+    // PAS DE PLAGE DANS UN MONDE DE NEON. A 0,9 + 1,6, la greve barrait le
+    // milieu du cadre d'une bande claire a bord dentele, et c'etait la seule
+    // chose organique de tout le monde : la grille s'arretait dessus au lieu
+    // de courir jusqu'a la flaque de mercure. Un ourlet suffit — le sujet est
+    // que le neon touche le liquide.
+    shore: [0.30, 0.55],
     // Le mercure a une houle courte et lente : c'est un liquide LOURD, il
     // n'ondule pas comme de l'eau.
     swell: [0.55, 34, 0.6],

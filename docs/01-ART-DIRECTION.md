@@ -1061,6 +1061,86 @@ dépasser qu'un croissant. **Six montures soigneusement distinctes dont on ne vo
 qu'un croissant sont six montures identiques.**
 
 
+## 16 bis. Ce que trois mesures ont trouvé dans les cinq mondes
+
+Trois défauts partagés par **tous** les mondes, invisibles tant qu'on regarde
+une capture sans la mesurer, évidents dès qu'on la mesure.
+
+### Le premier plan était un aplat, et il manquait de la VALEUR, pas du détail
+
+Mesure sur la plaine, colonne de pixels du bas du cadre (six mètres) au tiers
+supérieur du sol (quarante mètres) : la luminance allait de **184 à 192**.
+Trois pour cent. Le bas de l'image était une dalle de couleur posée devant un
+paysage, dans les cinq mondes.
+
+Le réflexe est d'ajouter du détail — plus de brins, plus de grain. C'est le
+mauvais diagnostic : le grain de brin était déjà là. Ce qui manquait était la
+**valeur**, et elle était bridée à trois endroits :
+
+- **le gain de la strie.** Les deux champs de bruit qui la portent ont une
+  moyenne de 0,48 et un écart-type d'un dixième ; les moyenner le réduit encore.
+  À un gain de 1,32, la strie ne parcourait qu'un **quart** de la plage
+  disponible — alors que les deux couleurs qu'elle mélange, l'ombre et la
+  strie, sont séparées de cent niveaux. Même diagnostic que le tapis de
+  feuilles d'octobre, même remède : caler le gain sur la statistique du champ,
+  pas à vue.
+- **l'occlusion de la canopée.** Les creux entre les touffes n'étaient que 7 %
+  plus sombres que les touffes. Une herbe dont les creux ne sont pas plus
+  sombres que les pointes est une moquette.
+- **l'assombrissement de proximité.** L'herbe sous les pieds n'est pas vue de
+  dessus mais **de biais** : on regarde dans la canopée, entre les brins. Elle
+  est donc plus sombre que la même herbe à cinquante mètres. Ancré sur la
+  distance, donc il défile avec le sol — une vignette d'écran ferait la même
+  tache, mais collée à l'œil, et l'œil la lit comme un filtre.
+
+### Le surfeur effaçait sa propre ombre
+
+Le jeu projette depuis toujours une ombre de contact au sol : une ellipse molle
+centrée sur la projection du disque le long des rayons du soleil. Elle n'a
+jamais existé à l'écran, pour **deux** raisons cumulées, et il a fallu la
+peindre en rouge vif pour les voir :
+
+1. **Elle était plus petite que ce qu'elle projette.** Un mètre quinze de
+   rayon, contre un disque plus large : au sol, où le décalage solaire est nul,
+   elle passait entièrement dessous. Le projeteur n'est pas le disque seul,
+   c'est le buddy entier.
+2. **Elle était posée avant la lampe du personnage.** La lampe, ajoutée cent
+   lignes plus bas, rallumait exactement la zone assombrie. Une ombre n'est pas
+   une couleur, c'est une **occlusion** : elle s'applique après tout ce qui
+   éclaire, sources comprises.
+
+Corrigée, elle donne mieux que ce qu'on visait — une flaque de lumière cyan
+avec un cœur sombre juste sous le disque, ce qui pose le personnage bien mieux
+qu'une tache grise. Mesure de contrôle : une ligne de pixels traversant le
+point de contact ne variait pas d'un niveau avant, elle en perd cinquante
+maintenant.
+
+### L'aura montait alors qu'on va vers l'avant
+
+Le premier jet était une flamme **verticale** — l'aura de transformation d'un
+personnage qui prend racine. Sauf qu'ici personne ne prend racine : on file à
+deux cent vingt à l'heure vers l'avant, et une flamme verticale sur un corps
+horizontal ne dit pas la puissance, elle dit que l'effet a été pensé sans la
+course.
+
+La correction évidente — la coucher vers l'arrière — **ne marche pas**, et
+c'est la leçon intéressante. Une caméra de poursuite regarde dans l'axe de la
+course : tout ce qui fuit droit vers l'arrière lui arrive **par le bout**, donc
+ne mesure plus que sa propre largeur. On peut la coucher de dix ou de quarante
+degrés, elle continuera de se lire comme une tache autour du personnage. C'est
+un problème de **point de vue**, pas de rotation, et aucune correction d'angle
+ne le résout. (Deuxième piège du même ordre : couchée, elle part vers la
+caméra, qui n'est qu'à neuf mètres — étirée comme une flamme, elle la
+traversait, et tout ce qu'on en voyait était deux langues qui montaient hors du
+cadre.)
+
+Ce qui le résout est l'**évasement**. Les langues divergent en s'éloignant au
+lieu de converger, le corps devient court le long de l'axe et large en travers,
+et l'axe suit le **déplacement réel** — jamais l'assiette du personnage. Vu de
+derrière, ce n'est plus une flamme qui monte, c'est une couronne qui s'ouvre
+vers l'écran, et qui balaie franchement de côté dès qu'on carve. La lecture
+exacte de « ça arrache ».
+
 ## 17. OCTOBRE, le monde couvert
 
 Le cinquième monde ne cherche pas à être beau au sens des quatre autres. Ceux-là

@@ -256,7 +256,21 @@ ${TOWN_GLSL}
           float m1 = fbm3(vec2(p.x * 0.062, p.y * 0.062));
           float m2 = fbm2(vec2(p.x * 0.021, p.y * 0.021));
           float streak = m1 * 0.55 + m2 * 0.45;
-          streak = mix(0.5, streak, 1.32 + uSpeed * 0.45);
+          // --- LE GAIN, ET C'EST LUI QUI DECIDE DE TOUT.
+          //
+          //     Ces deux champs ont une moyenne de 0,48 et un ecart-type de
+          //     l'ordre du dixieme ; les moyenner le reduit encore. A 1,32 la
+          //     strie ne parcourait donc qu'un QUART de la plage disponible,
+          //     alors que les deux couleurs qu'elle melange (l'ombre et la
+          //     strie) sont separees de cent niveaux. Mesure sur capture : du
+          //     bas du cadre au tiers superieur du sol, la luminance de la
+          //     plaine variait de 184 a 192 — trois pour cent. Un aplat.
+          //
+          //     Ce qui manquait au premier plan n'etait pas du DETAIL — le
+          //     grain de brin y est deja — c'etait de la VALEUR. Le meme
+          //     diagnostic que le tapis de feuilles d'octobre, et le meme
+          //     remede : caler le gain sur la statistique du champ, pas a vue.
+          streak = mix(0.5, streak, 2.9 + uSpeed * 0.7);
           streak = clamp(streak, 0.0, 1.0);
 
           // --- Gradient de valeur : CLAIR au loin, SOMBRE au premier plan.
@@ -288,12 +302,31 @@ ${TOWN_GLSL}
 
           //     Albedo : les touffes exposees sont plus claires, les creux
           //     entre elles plus sombres et plus satures.
-          c = mix(c * 0.93, mix(c, uStreak, 0.26) * 1.05, tuft);
-          c *= 0.96 + 0.09 * blade;
+          //     Amplitude ROUVERTE (0,84 au lieu de 0,93) : c'est l'occlusion
+          //     de la canopee, et c'est elle qui donne sa matiere au premier
+          //     plan. Une herbe dont les creux ne sont pas plus sombres que
+          //     les touffes est une moquette.
+          c = mix(c * 0.84, mix(c, uStreak, 0.26) * 1.07, tuft);
+          c *= 0.94 + 0.13 * blade;
 
           // --- Bandes de defilement : la lecture de vitesse
           float band = sin(p.y * 0.201) * 0.5 + 0.5;
           c = mix(c, c * 1.16, band * (0.030 + uSpeed * 0.045) * (1.0 - f * 0.55));
+
+          // --- L'ASSOMBRISSEMENT DE PROXIMITE.
+          //
+          //     L'herbe sous les pieds n'est pas vue de DESSUS mais de BIAIS :
+          //     on regarde DANS la canopee, entre les brins, et non sur leurs
+          //     pointes. Elle est donc plus sombre que la meme herbe a
+          //     cinquante metres, et c'est un indice de profondeur qu'aucune
+          //     texture ne remplace — sans lui, le bas du cadre est une dalle
+          //     de couleur posee devant un paysage.
+          //
+          //     Ancre sur la DISTANCE, donc il defile avec le sol : une
+          //     vignette d'ecran ferait la meme tache mais collee a l'oeil, et
+          //     l'oeil la lit immediatement comme un filtre.
+          float closeUp = 1.0 - smoothstep(0.02, 0.26, f);
+          c *= mix(1.0, 0.80, closeUp);
 
           // --- Relief. Sans ces deux termes on ne voit pas ou est le sommet,
           //     donc on ne peut pas le timer : c'est de la lisibilite de jeu,
@@ -440,9 +473,25 @@ ${TOWN_GLSL}
           //     joueur a quelle hauteur il vole.
           //     Nom : PAS "cast", qui est un mot reserve en GLSL ES. Le
           //     projet s'est deja fait avoir avec "patch".
-          float sr = length(vWorld.xz - uCast.xz) / (1.15 + uCast.y * 0.42);
-          float drop = (1.0 - smoothstep(0.45, 1.0, sr)) * exp(-uCast.y * 0.26);
-          c = mix(c, c * 0.52 + uSkyLight * 0.05, drop * 0.9);
+          //
+          //     ET ELLE DOIT ETRE PLUS LARGE QUE CE QU'ELLE PROJETTE. A 1,15 m
+          //     de rayon, elle etait plus PETITE que le disque : au sol, ou le
+          //     decalage solaire est nul, elle passait entierement dessous et
+          //     n'existait pour personne. Verifie en la peignant en rouge vif :
+          //     la tache tombait pile sous le CD et le CD la couvrait. Mesure sur capture : une ligne de
+          //     pixels traversant le point de contact ne variait pas d'un
+          //     niveau. Le personnage flottait au-dessus de la plaine dans les
+          //     cinq mondes, et c'est le premier defaut qu'on voit sans savoir
+          //     le nommer.
+          //
+          //     Le projeteur n'est pas le disque seul : c'est le buddy entier,
+          //     un volume d'un metre soixante de large et de deux metres de
+          //     haut. Deux metres de rayon, une penombre longue, et le contact
+          //     se lit enfin.
+          float sr = length(vWorld.xz - uCast.xz) / (3.2 + uCast.y * 0.55);
+          float drop = (1.0 - smoothstep(0.10, 1.0, sr)) * exp(-uCast.y * 0.15);
+          // Elle n'est PAS appliquee ici : voir la fin du shader. Une ombre
+          // posee avant la lampe du personnage est effacee par elle.
 
           // --- Rafale : le passage de la vague eclaircit brievement l'herbe,
           //     les brins se couchant montrent leur face lisse au soleil.
@@ -938,6 +987,22 @@ ${TOWN_GLSL}
           //     personnage. Une lueur doit REVELER la matiere du sol, pas la
           //     remplacer par un aplat de sa propre couleur.
           c += riderLight(vWorld) * (0.24 + uDayNight * 0.58);
+
+          // --- L'OMBRE DE CONTACT, ET ELLE VIENT EN DERNIER.
+          //
+          //     Elle etait posee cent lignes plus haut, avec le reste de
+          //     l'albedo, et elle n'a jamais existe a l'ecran : la LAMPE DU
+          //     PERSONNAGE, ajoutee tout en bas, rallume exactement la zone
+          //     qu'elle vient d'assombrir. Le surfeur effacait sa propre
+          //     ombre. Mesure : une ligne de pixels traversant le point de
+          //     contact ne variait pas d'un niveau, dans les cinq mondes.
+          //
+          //     Une ombre n'est pas une couleur, c'est une OCCLUSION : elle
+          //     s'applique apres tout ce qui eclaire, sources comprises. Et le
+          //     resultat est meilleur que ce qu'on visait — une flaque de
+          //     lumiere cyan avec un coeur sombre juste sous le disque, ce qui
+          //     pose le personnage bien mieux qu'une tache grise.
+          c = mix(c, c * 0.44 + uSkyLight * 0.05, drop * 0.92);
 
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>

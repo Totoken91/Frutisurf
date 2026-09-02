@@ -92,6 +92,15 @@ if (state) {
   // et le regler pour passer ici le rendrait aveugle sur une vraie machine.
   // La question est binaire — le jeu avance-t-il, oui ou non — donc on lui
   // laisse le temps qu'il faut et on echoue seulement s'il n'avance jamais.
+  //
+  // ET LE SEUIL DOIT ETRE LOIN DE LA VALEUR OBSERVEE, pas juste en dessous.
+  // A soixante metres il a fini par echouer a cinquante-neuf : le moteur jette
+  // le retard qu'il ne peut pas rattraper, donc la distance parcourue en trente
+  // secondes de montre mesure la MACHINE et non le jeu. Il a suffi que le flou
+  // de mouvement coute dix pour cent de cadence au rasteriseur logiciel pour
+  // passer dessous. Vingt-cinq metres prouvent exactement la meme chose — le
+  // jeu tourne — sans etre une mesure de performance deguisee. Meme lecon que
+  // check:input, qui attendait des durees de montre pour les memes raisons.
   const z1 = await page.evaluate(() => window.__game.controller.z);
   const t1 = await page.evaluate(() => window.__game.run.timeLeft);
   const budget = 30000;
@@ -104,9 +113,9 @@ if (state) {
       fps: window.__game.state.fps,
       temps: window.__game.run.timeLeft,
     }));
-    if (after.z < z1 - 60 && after.temps < t1 - 2) break;
+    if (after.z < z1 - 25 && after.temps < t1 - 2) break;
   }
-  check('la simulation avance', after.z < z1 - 60, `${(z1 - after.z).toFixed(0)} m parcourus`);
+  check('la simulation avance', after.z < z1 - 25, `${(z1 - after.z).toFixed(0)} m parcourus`);
   check('le chrono tourne', after.temps < t1 - 2, `${after.temps.toFixed(1)} s restantes`);
   // Et le MEME raisonnement s'applique a la cadence, ce que le premier jet
   // avait oublie : le seuil etait a 0,5 image par seconde, c'est-a-dire pile

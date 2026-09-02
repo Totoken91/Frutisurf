@@ -1,13 +1,45 @@
-import { BlendFunction, Effect } from 'postprocessing';
-import { Uniform, Vector2 } from 'three';
+import { BlendFunction, Effect, EffectAttribute } from 'postprocessing';
+import { Matrix4, Uniform, Vector2 } from 'three';
 
 /**
  * Tous les effets pilotes par la glisse, fusionnes en un seul passage :
- * flou radial, aberration chromatique, lignes de vitesse, vignette et flash
- * de pop. Les separer couterait quatre lectures de framebuffer pour rien.
+ * flou de mouvement, aberration chromatique, lignes de vitesse, vignette et
+ * flash de pop. Les separer couterait quatre lectures de framebuffer pour rien.
  *
  * Le centre est le point de fuite, pas le centre de l'ecran : quand le
  * surfeur carve, tout l'effet de vitesse pivote avec lui.
+ *
+ * ---
+ *
+ * LE FLOU DE MOUVEMENT EST UNE REPROJECTION, PAS UN FLOU RADIAL.
+ *
+ * Le premier jet etirait l'image depuis le point de fuite, proportionnellement
+ * a la vitesse affichee. Ca donne le bon effet dans un seul cas — foncer tout
+ * droit — et rien du tout dans tous les autres : un virage serre, une camera
+ * qui encaisse une reception, un saut, un demi-tour en l'air ne produisaient
+ * pas un pixel de flou, alors que ce sont exactement les moments ou l'oeil en
+ * attend.
+ *
+ * On calcule donc la VRAIE vitesse a l'ecran de chaque pixel : on remonte sa
+ * position monde depuis la profondeur, on la reprojette avec la matrice de la
+ * frame PRECEDENTE, et l'ecart des deux positions ecran est son vecteur
+ * vitesse. On floute le long de ce vecteur. C'est la methode standard, elle
+ * coute une texture de profondeur et huit echantillons, et elle rend
+ * gratuitement tout ce que le flou radial ne savait pas faire : le sol file
+ * sous les pieds pendant que l'horizon reste net, le decor balaie l'ecran dans
+ * un virage, et le ciel bouge quand la camera tourne.
+ *
+ * Deux details qui ne se devinent pas :
+ *
+ *   - LA DUREE D'OBTURATION EST FIXE, PAS LA FRAME. Flouter exactement le
+ *     deplacement d'une image donne deux fois plus de flou a trente images par
+ *     seconde qu'a soixante — le rendu changerait avec la machine. On rapporte
+ *     donc le deplacement a une pose fixe (1/64 s), et le flou devient une
+ *     propriete du MONDE et non du debit.
+ *   - LE VECTEUR EST BORNE. Une reception qui secoue la camera produit en une
+ *     image un deplacement ecran enorme ; sans borne, tout le cadre part en
+ *     trainee et l'image devient illisible pile au moment ou le joueur doit
+ *     reprendre le controle.
  */
 const FRAG = /* glsl */ `
 uniform float uSpeed;      // 0..1
@@ -15,6 +47,10 @@ uniform float uBoost;      // 0..1
 uniform float uCharge;     // 0..1
 uniform float uFlash;      // 0..1
 uniform vec2  uCenter;     // point de fuite en UV
+uniform mat4  uInvVP;      // ecran -> monde, cette image
+uniform mat4  uPrevVP;     // monde -> ecran, image precedente
+uniform float uMotion;     // force du flou, deja rapportee a la pose
+uniform vec2  uFocus;      // le surfeur a l'ecran : le flou l'epargne
 
 float hash12(vec2 p){
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -22,24 +58,64 @@ float hash12(vec2 p){
   return fract((p3.x + p3.y) * p3.z);
 }
 
-void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor){
+void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor){
   vec2 dir = uv - uCenter;
   float dist = length(dir);
-
-  // --- Flou radial : 6 echantillons suffisent, la traine fait le reste.
-  float blur = (uSpeed * 0.016 + uBoost * 0.028) * smoothstep(0.05, 0.75, dist);
   vec3 col = inputColor.rgb;
-  if (blur > 0.0005) {
-    vec3 acc = vec3(0.0);
-    for (int i = 0; i < 6; i++) {
-      float t = float(i) / 5.0;
-      acc += texture2D(inputBuffer, uv - dir * blur * t).rgb;
+
+  // --- LE FLOU DE MOUVEMENT.
+  //
+  //     On remonte la position monde du pixel depuis sa profondeur, on la
+  //     reprojette avec la matrice de l'image precedente, et l'ecart des deux
+  //     positions ecran EST son vecteur vitesse.
+  //
+  //     Le ciel a une profondeur de 1 : sa position monde tombe sur le plan
+  //     lointain, ce qui est exact — il ne bouge pas quand on avance, il bouge
+  //     quand on TOURNE, et c'est precisement ce que la reprojection rend.
+  if (uMotion > 0.001) {
+    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 wp = uInvVP * ndc;
+    if (abs(wp.w) > 1e-6) {
+      wp /= wp.w;
+      vec4 pp = uPrevVP * wp;
+      if (abs(pp.w) > 1e-6) {
+        vec2 vel = (uv - (pp.xy / pp.w * 0.5 + 0.5)) * uMotion;
+        // --- LE SURFEUR RESTE NET, ET CE N'EST PAS UNE FACILITE.
+        //
+        //     Un flou par reprojection ne connait que la camera : il floute
+        //     tout ce qui bouge PAR RAPPORT A ELLE, donc aussi le personnage,
+        //     qui pourtant ne bouge pas d'un pixel a l'ecran. Sans correction
+        //     il part en bouillie des qu'on carve — c'est-a-dire pile quand on
+        //     a besoin de le voir.
+        //
+        //     On epargne donc un disque autour de sa position ecran. C'est
+        //     aussi ce que fait n'importe quel jeu de course avec sa voiture,
+        //     et pour une deuxieme raison qui vaut a elle seule : le point que
+        //     l'oeil suit doit rester le point NET de l'image.
+        vel *= smoothstep(0.06, 0.33, distance(uv, uFocus));
+        // Borne : une reception secoue la camera assez fort pour etirer tout
+        // le cadre en une image, et une image illisible au moment de reprendre
+        // le controle est pire que pas de flou du tout.
+        float m = length(vel);
+        if (m > 0.030) vel *= 0.030 / m;
+        if (m > 0.0004) {
+          // Echantillonnage CENTRE sur le pixel : de -0,5 a +0,5 du vecteur.
+          // Tire d'un seul cote, le flou DEPLACE l'image au lieu de l'etaler,
+          // et tout le cadre glisse d'un demi-vecteur — ce qui se lit comme
+          // un decalage de synchronisation, pas comme de la vitesse.
+          vec3 acc = col;
+          for (int i = 1; i < 6; i++) {
+            float t = float(i) / 5.0 - 0.5;
+            acc += texture2D(inputBuffer, uv + vel * t).rgb;
+          }
+          col = acc / 6.0;
+        }
+      }
     }
-    col = mix(col, acc / 6.0, 0.62);
   }
 
   // --- Aberration chromatique : au repos elle doit etre presque invisible.
-  float ca = (0.0006 + uBoost * 0.0029 + uFlash * 0.0035) * (0.35 + dist);
+  float ca = (0.0006 + uSpeed * 0.0010 + uBoost * 0.0029 + uFlash * 0.0035) * (0.35 + dist);
   if (ca > 0.0008) {
     col.r = texture2D(inputBuffer, uv + dir * ca).r;
     col.b = texture2D(inputBuffer, uv - dir * ca).b;
@@ -104,17 +180,59 @@ function safe(v: number): number {
 }
 
 export class SurfEffect extends Effect {
+  /** Matrice monde -> ecran de l'image precedente. */
+  private prevVP = new Matrix4();
+  /** Reutilisee a chaque image pour ne rien allouer dans la boucle de rendu. */
+  private vp = new Matrix4();
+  /** Vraie des la deuxieme image : avant, prevVP ne veut rien dire. */
+  private primed = false;
+
   constructor() {
     super('SurfEffect', FRAG, {
       blendFunction: BlendFunction.NORMAL,
+      // La profondeur, et c'est elle qui rend le flou de mouvement possible :
+      // sans position monde par pixel, on ne peut que deviner un flou radial.
+      // Le compositeur cree la texture tout seul des qu'un effet la demande.
+      attributes: EffectAttribute.DEPTH,
       uniforms: new Map<string, Uniform>([
         ['uSpeed', new Uniform(0)],
         ['uBoost', new Uniform(0)],
         ['uCharge', new Uniform(0)],
         ['uFlash', new Uniform(0)],
         ['uCenter', new Uniform(new Vector2(0.5, 0.5))],
+        ['uFocus', new Uniform(new Vector2(0.5, 0.42))],
+        ['uInvVP', new Uniform(new Matrix4())],
+        ['uPrevVP', new Uniform(new Matrix4())],
+        ['uMotion', new Uniform(0)],
       ]),
     });
+  }
+
+  /**
+   * Enregistre le point de vue de cette image et prepare la reprojection.
+   *
+   * @param dt duree reelle de l'image, en secondes
+   * @param gain 0..1, dose globale du flou
+   */
+  camera(proj: Matrix4, viewInv: Matrix4, dt: number, gain: number): void {
+    const u = this.uniforms;
+    this.vp.multiplyMatrices(proj, viewInv);
+    (u.get('uInvVP')!.value as Matrix4).copy(this.vp).invert();
+    (u.get('uPrevVP')!.value as Matrix4).copy(this.primed ? this.prevVP : this.vp);
+
+    // POSE FIXE, ET PAS LA DUREE DE L'IMAGE.
+    //
+    // Flouter le deplacement d'une image donnerait deux fois plus de flou a
+    // trente images par seconde qu'a soixante : l'image changerait avec la
+    // machine. On rapporte le deplacement a une obturation de 1/64 s, et le
+    // flou redevient une propriete du monde. Borne a 2 pour qu'un a-coup
+    // (onglet en arriere-plan, premiere image) ne parte pas en trainee.
+    const SHUTTER = 1 / 64;
+    const scale = Math.min(2, SHUTTER / Math.max(dt, 1e-4));
+    u.get('uMotion')!.value = this.primed ? gain * scale : 0;
+
+    this.prevVP.copy(this.vp);
+    this.primed = true;
   }
 
   set(speed: number, boost: number, charge: number, flash: number, cx: number, cy: number): void {
@@ -127,6 +245,11 @@ export class SurfEffect extends Effect {
     // la camera, la division perspective rendrait un infini, et tout le shader
     // partirait en NaN. On borne a une plage ou l'effet reste sense.
     (u.get('uCenter')!.value as Vector2).set(safe(cx), safe(cy));
+  }
+
+  /** Ou se trouve le surfeur a l'ecran : le flou de mouvement l'epargne. */
+  focus(x: number, y: number): void {
+    (this.uniforms.get('uFocus')!.value as Vector2).set(safe(x), safe(y));
   }
 
 }

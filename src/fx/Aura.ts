@@ -21,14 +21,29 @@ import { GLSL_NOISE, GLSL_SAFE } from '../core/Noise';
  * on le fait pulser, et le resultat est une tache qui suit — jamais une energie
  * qui monte. Trois choses separent l'une de l'autre :
  *
- *   1. ELLE MONTE. Le bruit qui la deforme DEFILE vers le haut, toujours. Une
- *      aura qui ondule sur place respire ; une aura qui defile brule.
+ *   1. ELLE DEFILE. Le bruit qui la deforme court le long de son axe, toujours
+ *      dans le meme sens. Une aura qui ondule sur place respire ; une aura qui
+ *      defile brule.
  *   2. ELLE A DES POINTES. Une enveloppe lisse est une bulle. Ce sont les
- *      langues qui depassent en haut, plus fines et plus rapides que le corps,
+ *      langues qui depassent au bout, plus fines et plus rapides que le corps,
  *      qui donnent la flamme.
- *   3. ELLE RESTE VERTICALE. Le surfeur pique du nez, se cabre, vrille ; son
- *      aura, elle, monte droit. Une flamme collee a l'assiette du personnage
- *      se lit comme une cape, pas comme de l'energie.
+ *   3. ELLE SUIT LA COURSE, ELLE NE MONTE PAS.
+ *
+ *      C'est la correction la plus tardive et la plus evidente une fois vue.
+ *      Le premier jet etait une flamme VERTICALE — l'aura de transformation
+ *      d'un personnage qui prend racine et pousse son energie vers le ciel.
+ *      Sauf qu'ici personne ne prend racine : on file a deux cent vingt a
+ *      l'heure vers l'avant. Une flamme verticale sur un corps horizontal ne
+ *      dit pas la puissance, elle dit que l'effet a ete pense sans la course.
+ *
+ *      Elle part donc EN ARRIERE, le long du deplacement reel, relevee d'une
+ *      trentaine de degres pour qu'elle se detache du sol et qu'on la voie
+ *      passer par-dessus l'epaule. Ce qu'on lit alors n'est plus « il se
+ *      transforme » mais « il arrache », ce qui est le sujet du jeu.
+ *
+ *      L'axe vient du DEPLACEMENT, pas de l'assiette du personnage : le
+ *      surfeur pique du nez, se cabre et vrille, son panache ne suit rien de
+ *      tout ca. Une flamme collee a l'assiette se lit comme une cape.
  *
  * ---
  *
@@ -142,6 +157,17 @@ export class Aura {
   private col = new Color();
   /** 0..1, lisse. Public : le jeu s'en sert pour la lampe et la camera. */
   power = 0;
+  /** Axe courant du panache, lisse d'une image a l'autre. */
+  private axis = new Vector3(0, 1, 0);
+  /**
+   * Coefficient de lissage de l'axe pour cette image.
+   *
+   * Il vient du DELTA DE TEMPS et non d'une constante par image : un lissage
+   * a taux fixe converge deux fois plus lentement a trente images par seconde
+   * qu'a soixante, et le panache mettrait une seconde a se retourner sur une
+   * machine lente. Meme regle que la pose du flou de mouvement.
+   */
+  private blend = 0.2;
 
   constructor() {
     this.mat = new ShaderMaterial({
@@ -153,12 +179,15 @@ export class Aura {
         uTime: { value: 0 },
         uPower: { value: 0 },
         uColor: { value: new Color(0x86ff2a) },
+        /** Axe du panache, unitaire, en repere MONDE. Vers l'arriere et vers le haut. */
+        uAxis: { value: new Vector3(0, 1, 0) },
       },
       vertexShader: /* glsl */ `
 ${GLSL_SAFE}
 ${GLSL_NOISE}
         attribute float aPart, aV, aAng;
         uniform float uTime, uPower;
+        uniform vec3 uAxis;
         varying float vV, vPart, vEdge, vFlick, vLick;
 
         void main(){
@@ -191,7 +220,7 @@ ${GLSL_NOISE}
           // L'aura GRANDIT avec la puissance et depasse franchement le
           // personnage : une flamme a la taille du corps se lit comme un
           // contour, pas comme une energie.
-          float grow = 0.62 + 0.62 * uPower;
+          float grow = 0.78 + 0.80 * uPower;
           p.xz *= grow * (1.0 + wob * amp);
           p.y *= grow;
           float tw = wob * (aPart > 0.5 ? 0.30 : 0.10) * aV;
@@ -202,12 +231,51 @@ ${GLSL_NOISE}
           // le faire ressortir au fragment, sans normale ni eclairage.
           vEdge = length(p.xz);
 
-          // --- L'AURA RESTE VERTICALE.
+          // --- LE PANACHE SUIT LA COURSE.
           //
-          //     La matrice de modele ne porte que la position : le jeu ne lui transmet
-          //     ni l'assiette ni la vrille du surfeur. Une flamme qui pique du
-          //     nez avec le disque se lit comme une cape.
-          vec4 wp = modelMatrix * vec4(p, 1.0);
+          //     La geometrie est batie autour de l'axe Y ; on la REORIENTE ici
+          //     sur uAxis, qui pointe vers l'arriere du deplacement et vers le
+          //     haut. Le faire dans le shader plutot qu'en tournant l'objet
+          //     preserve la regle : la matrice de modele ne porte QUE la
+          //     position, donc ni l'assiette ni la vrille du surfeur ne
+          //     peuvent s'y glisser par accident.
+          //
+          //     ET IL EST COURT, ce qui est contre-intuitif. Une flamme
+          //     verticale peut mesurer dix metres : elle part vers le ciel, ou
+          //     il n'y a rien. Un panache qui part EN ARRIERE part vers la
+          //     CAMERA, qui n'est qu'a neuf metres — etire a 1,85 il la
+          //     traversait, et tout ce qu'on en voyait etait deux langues qui
+          //     montaient hors du cadre. Ce qui ressemblait a un bug de
+          //     rotation etait un probleme de LONGUEUR.
+          vec3 A = nsafe(uAxis, vec3(0.0, 1.0, 0.0));
+          vec3 R = nsafe(cross(vec3(0.0, 1.0, 0.0), A), vec3(1.0, 0.0, 0.0));
+          vec3 F = cross(A, R);
+          // COURT LE LONG DE L'AXE, LARGE EN TRAVERS. Voir l'evasement juste
+          // en dessous : c'est la meme raison.
+          p.y *= 0.78;
+          p.xz *= 1.05;
+
+          // --- LES LANGUES S'ECARTENT EN FUYANT, et c'est ce qui rend le
+          //     panache visible DEPUIS UNE CAMERA DE POURSUITE.
+          //
+          //     Une camera placee derriere le joueur regarde dans l'axe de la
+          //     course : tout ce qui fuit droit vers l'arriere lui arrive PAR
+          //     LE BOUT, donc ne mesure plus que sa propre largeur. On peut
+          //     coucher le panache autant qu'on veut, il continuera de se lire
+          //     comme une tache autour du personnage — c'est un probleme de
+          //     point de vue, pas de rotation, et aucune correction d'angle ne
+          //     le resout.
+          //
+          //     Ce qui le resout, c'est l'EVASEMENT : les langues divergent en
+          //     s'eloignant au lieu de converger, et on les voit passer de
+          //     part et d'autre du personnage. Vu de derriere, ce n'est plus
+          //     une flamme qui monte, c'est une couronne qui s'ouvre vers
+          //     l'ecran — la lecture exacte de « ca arrache ».
+          float fan = 1.0 + aV * aV * (aPart > 0.5 ? 3.6 : 1.35) * uPower;
+          p.xz *= fan;
+          vec3 o = R * p.x + A * p.y + F * p.z;
+
+          vec4 wp = modelMatrix * vec4(o, 1.0);
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,
@@ -257,7 +325,7 @@ ${GLSL_SAFE}
           // couleur ne pouvait la rattraper. C'est la faute classique de
           // l'additif, et elle se voit d'autant moins qu'elle ne casse rien —
           // elle rend juste tout terne.
-          gl_FragColor = vec4(c * a * 3.4, 1.0);
+          gl_FragColor = vec4(c * a * 4.3, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }
@@ -284,6 +352,7 @@ ${GLSL_SAFE}
     // oscille autour du seuil.
     const rate = target > this.power ? 6.5 : 2.2;
     this.power += (target - this.power) * Math.min(1, dt * rate);
+    this.blend = Math.min(1, dt * 9);
     if (this.power < 0.003) this.power = 0;
 
     this.mesh.visible = this.power > 0;
@@ -293,8 +362,48 @@ ${GLSL_SAFE}
     (this.mat.uniforms.uColor.value as Color).copy(this.col.setHex(lamp));
   }
 
-  /** Pose l'aura sur le surfeur. La ROTATION n'est jamais transmise. */
-  place(p: Vector3): void {
+  /**
+   * Pose l'aura sur le surfeur et oriente son panache.
+   *
+   * La ROTATION du personnage n'est jamais transmise : seul le DEPLACEMENT
+   * decide de l'axe. `dx`/`dz` sont la direction de course, normalisee.
+   */
+  place(p: Vector3, dx: number, dz: number): void {
     this.mesh.position.set(p.x, p.y - 0.15, p.z);
+
+    // Vers l'ARRIERE de la course, releve de trente degres.
+    //
+    // Le relevement n'est pas cosmetique : a plat, le panache rase le sol et
+    // la moitie disparait dedans ; a la verticale on retombe sur la flamme
+    // de transformation. Trente degres le font passer par-dessus l'epaule,
+    // ce qui est exactement l'endroit ou on le voit sans qu'il masque la
+    // route.
+    // QUARANTE DEGRES DE COUCHE, ET C'EST UN COMPROMIS DE CADRAGE.
+    //
+    // Couche a plat, le panache part droit vers la camera : on le voit par le
+    // bout, il ne mesure plus que sa propre largeur et il disparait. Dresse a
+    // la verticale, on retombe sur la flamme de transformation qu'on vient de
+    // coucher. Entre les deux, il y a un angle ou on voit toute sa LONGUEUR
+    // en silhouette, au-dessus de l'epaule, sans rien masquer de la route :
+    // quarante degres depuis la verticale.
+    //
+    // C'est la meme lecon que la longueur : ce qui decide de l'effet n'est pas
+    // sa formule mais l'endroit d'ou on le regarde. Une camera de poursuite
+    // rend end-on tout ce qui fuit dans son axe.
+    const LIFT = 1.15;
+    let ax = -dx;
+    let ay = LIFT;
+    let az = -dz;
+    const l = Math.hypot(ax, ay, az) || 1;
+    ax /= l; ay /= l; az /= l;
+    // Lissage : la direction de course sautille au pas de simulation, et un
+    // panache qui tremble lit comme un defaut de rendu.
+    const a = this.axis;
+    const k = this.blend;
+    a.x += (ax - a.x) * k;
+    a.y += (ay - a.y) * k;
+    a.z += (az - a.z) * k;
+    const n = a.length() || 1;
+    (this.mat.uniforms.uAxis.value as Vector3).set(a.x / n, a.y / n, a.z / n);
   }
 }

@@ -113,7 +113,7 @@ niveau d'eau, ses couleurs, son ciel et **ses règles**.
 | **PLAINE** | 17 % | l'équilibre de référence : collines, lacs toutes les neuf secondes, ville de cristal. |
 | **OKINAWA** | 62 % | **la houle.** Un océan turquoise semé d'îles. On y déjauge à 8 m/s : impossible d'y couler, et c'est voulu — le risque déménage dans les vagues. Car la houle n'est pas un décor : elle porte une **pente** et une **courbure**, donc on la lit, on l'anticipe et on saute dessus, exactement comme une colline. Chaque crête franchie paie. |
 | **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
-| **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. |
+| **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. Sa grève est un simple ourlet : le sujet est que le néon touche le mercure, pas qu'il y ait une plage. |
 | **OCTOBRE** | 9 % | **le vent.** Une rue mouillée qui traverse un lotissement, sous une averse torrentielle : maisons alignées le long de la chaussée, rues transversales tous les cent douze mètres, fenêtres allumées, lampadaires qui posent leur reflet sur l'asphalte, feuilles mortes et crépuscule de plomb. Le seul monde **couvert** du jeu : sa lumière ne vient pas d'un point mais de toute la coupole, donc le toit y est plus clair que le mur et rien n'a d'heure. Le sol détrempé fait chasser le disque, et la rafale le **déporte** pour de bon — la même rafale qui couche l'herbe, emporte les feuilles et incline la pluie. On la voit arriver avant de la sentir. |
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un jeu de
@@ -146,9 +146,11 @@ ressemblent tous.
 
 ## L'aura, au-delà de 200 km/h
 
-Passé 200 km/h le surfeur **prend feu** de sa propre couleur : une enveloppe qui
-défile vers le haut, des langues qui la dépassent, et un cœur blanc. À 216 —
-le plafond absolu du jeu — elle atteint son plein régime.
+Passé 200 km/h le surfeur **prend feu** de sa propre couleur. Pas vers le haut :
+le panache suit le **déplacement réel**, s'évase vers l'arrière et balaie
+franchement de côté dès qu'on carve. Une flamme verticale sur un corps qui file
+à deux cent vingt à l'heure dit qu'on a dessiné l'effet sans regarder la course.
+À 216 — le plafond absolu du jeu — il atteint son plein régime.
 
 Elle n'est pas décorative : à pleine puissance elle **double le rayon et la
 force de la lampe**. Ce n'est plus le personnage qui brille, c'est la plaine qui
@@ -254,6 +256,12 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   passé sous 22 m/s, et depuis Octobre le temps passé **collé au bord du
   couloir** : un vent qu'on ne peut pas contrer plaque le pilote contre la paroi
   et la trajectoire cesse d'être un choix.
+- `check:artifact` : la version publiée démarre, l'écran d'équipement s'ouvre et
+  se ferme, et **le jeu avance**. Son seuil de distance est volontairement loin
+  de la valeur observée : le moteur jette le retard qu'il ne peut pas rattraper,
+  donc une distance mesurée en temps de montre mesure la machine et non le jeu.
+  Réglé au ras, il échoue le jour où un effet coûte dix pour cent de cadence —
+  c'est arrivé, à cinquante-neuf mètres sur un seuil de soixante.
 - `check:town` : l'**invariant du décor ancré au monde**. Le quartier d'octobre
   suit le joueur par cellules ; le contenu d'une cellule ne doit dépendre que de
   sa position monde, jamais de son index d'instance — sinon tout le décor change

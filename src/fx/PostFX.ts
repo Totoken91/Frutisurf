@@ -19,6 +19,8 @@ export class PostFX {
   readonly composer: EffectComposer;
   readonly surf = new SurfEffect();
   private bloom: BloomEffect;
+  private camera: PerspectiveCamera;
+  private motion = 0.55;
 
   constructor(
     renderer: WebGLRenderer,
@@ -30,6 +32,7 @@ export class PostFX {
       frameBufferType: HalfFloatType,
       multisampling: 0,
     });
+    this.camera = camera;
     this.composer.addPass(new RenderPass(scene, camera));
 
     // Le bloom EST le gloss du projet, mais un rayon trop large avale ce
@@ -58,11 +61,33 @@ export class PostFX {
     this.bloom.intensity = 0.92 + Math.min(combo, 10) * 0.055;
   }
 
+  /**
+   * Dose du flou de mouvement, 0..1.
+   *
+   * Elle n'est PAS proportionnelle a la vitesse : la reprojection mesure deja
+   * le deplacement reel, donc le flou monte tout seul quand ca va vite. Ce
+   * reglage sert a autre chose — a decider de combien on triche. Un peu de
+   * flou en permanence pose l'image ; beaucoup au boost fait l'evenement.
+   */
+  setMotion(speed: number, boost: number): void {
+    this.motion = 0.40 + speed * 0.30 + boost * 0.65;
+  }
+
   resize(w: number, h: number): void {
     this.composer.setSize(w, h);
   }
 
   render(dt: number): void {
+    // Le point de vue est enregistre AVANT le rendu : la reprojection compare
+    // cette image a la precedente, et il faut donc que la matrice poussee soit
+    // celle avec laquelle la scene va etre dessinee.
+    this.camera.updateMatrixWorld();
+    this.surf.camera(
+      this.camera.projectionMatrix,
+      this.camera.matrixWorldInverse,
+      dt,
+      this.motion,
+    );
     this.composer.render(dt);
   }
 }
