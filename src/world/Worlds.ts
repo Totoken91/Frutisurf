@@ -523,10 +523,26 @@ export const WORLDS: WorldDef[] = [
     // 47 m, couler est une erreur qu'on a eu le temps de voir venir — et un
     // monde melancolique sans aucun risque serait une carte postale.
     amp: [4.6, 3.4, 2.8, 1.35, 0.14],
-    water: -2.5,
-    // Berges ETROITES. Une plage large est une image d'ete ; en octobre la
-    // terre descend dans l'eau sans transition, avec juste un ourlet de boue.
-    shore: [1.1, 2.2],
+    // -6,5 m et non -2,5 : NEUF POUR CENT d'eau au lieu de trente et un.
+    //
+    // A un tiers d'eau, octobre ne lisait pas comme des champs mouilles, il
+    // lisait comme un MARECAGE — et pas seulement a cause des nappes. Ce sont
+    // leurs BERGES qui faisaient le mal : chaque mare traine un ourlet de boue
+    // pale, et avec une mare tous les cent metres le paysage entier se
+    // couvrait de trainees beiges. On voyait un delta, pas une campagne.
+    //
+    // A 9 % il reste une mare tous les deux cent quatre-vingts metres, de
+    // vingt-six metres de large : de l'eau qu'on remarque et qu'on traverse,
+    // jamais de l'eau qui definit le monde. C'est MOINS que la plaine, qui en
+    // a dix-sept — et c'est voulu : ici l'humidite se dit par le sol mouille,
+    // les flaques et l'averse, pas par des etendues.
+    water: -6.5,
+    // Berges ETROITES, et encore resserrees depuis. Une plage large est une
+    // image d'ete ; en octobre la terre descend dans l'eau sans transition,
+    // avec juste un ourlet de boue. A 1,1 + 2,2 l'ourlet faisait encore des
+    // bancs clairs de plusieurs metres autour de chaque mare, et c'est de la
+    // que venait l'essentiel de l'effet marecage.
+    shore: [0.7, 1.3],
     // Un clapot, pas une houle : 34 m de long, rapide, faible. C'est ce que
     // le vent fait a une mare — une eau nerveuse et sans rythme, l'inverse
     // exact des longues vagues lisibles d'Okinawa.
@@ -536,20 +552,28 @@ export const WORLDS: WorldDef[] = [
       // trouver les bruns, c'est de garder un ECART DE VALEUR du premier plan
       // a l'horizon : sans lui un paysage brun devient une soupe, et c'est le
       // defaut classique des palettes d'automne.
-      grassNear: 0x4e4f42,
-      grassMid: 0x63614f,
-      grassFar: 0x7b7962,
-      grassHorizon: 0x9a9580,
+      // La rampe reste SOMBRE jusqu'au fond. Sous un plafond de nuages, le
+      // lointain ne s'eclaircit pas parce qu'il est loin — il s'eclaircit
+      // parce que la brume s'interpose, et c'est le voile d'averse qui s'en
+      // charge. Une rampe qui pale d'elle-meme donnait, une fois multipliee
+      // par la lumiere du couchant, une immense etendue TAN entre la route et
+      // les maisons : un desert, pas une campagne trempee.
+      grassNear: 0x4a4b3f,
+      grassMid: 0x5b5a49,
+      grassFar: 0x676552,
+      grassHorizon: 0x807b68,
       grassShadow: 0x2b2b22,
       // La strie est franchement ROUILLE et non ocre : c'est elle qui porte
       // les nappes de lumiere et les touffes, donc c'est elle qui met de
       // l'orange dans le champ. Une strie assortie au sol n'aurait rien dit.
       grassStreak: 0xa5732f,
       // Plus de sable : de la BOUE. Meme mecanique de greve, autre matiere.
-      sandDry: 0x6e5a3c,
-      sandPale: 0x8d7852,
-      sandWet: 0x3e3423,
-      sandShell: 0xb0a288,
+      // De la BOUE, et sombre. Tiree claire elle lit comme du sable, et du
+      // sable au bord d'une mare sous un ciel de plomb, c'est une vasiere.
+      sandDry: 0x574833,
+      sandPale: 0x6d5f45,
+      sandWet: 0x2e281c,
+      sandShell: 0x8a8270,
       // L'eau d'un champ inonde ne renvoie rien : elle est vert-de-gris en
       // surface et noire au fond. Aucun cyan nulle part — c'est le seul monde
       // du jeu qui n'en contient pas une trace, et c'est ce qui le rend

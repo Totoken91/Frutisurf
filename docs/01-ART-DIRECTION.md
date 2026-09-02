@@ -1196,6 +1196,36 @@ et fassent un quartier — et des maisons volontairement **plus grandes que
 nature**, exactement comme les tours de la ville de cristal font cent mètres de
 haut.
 
+#### Trop d'eau ne fait pas un automne, ça fait un marécage
+
+Octobre est parti avec **31 %** d'eau, et ça ne lisait pas comme des champs
+mouillés : ça lisait comme un delta. Le coupable n'était pas tant les nappes
+que **leurs berges**. Chaque mare traîne un ourlet de boue pâle ; avec une mare
+tous les cent mètres, le paysage entier se couvrait de traînées beiges.
+
+Trois corrections, dans cet ordre d'importance :
+
+1. le niveau descend à −6,5 m — **9 %** d'eau, une mare tous les deux cent
+   quatre-vingts mètres et vingt-six mètres de large. C'est *moins* que la
+   plaine, qui en a dix-sept, et c'est voulu : ici l'humidité se dit par le sol
+   mouillé, les flaques et l'averse, pas par des étendues ;
+2. les berges se resserrent (0,7 + 1,3 au lieu de 1,1 + 2,2) ;
+3. la boue **s'assombrit**. Tirée claire elle lit comme du sable, et du sable au
+   bord d'une mare sous un ciel de plomb, c'est une vasière.
+
+Le prix est réel et il faut le dire : la houle et les traversées payaient à
+elles seules les deux tiers du score d'octobre. Mesuré à l'autopilote, il passe
+de 8,2 M à 2,7 M — le monde reste jouable (600 s, 296 anneaux, 0 % du temps
+enlisé) mais il vit désormais sur les anneaux et les vols, comme Bliss.
+
+Corollaire moins évident, appris en même temps : **la rampe de sol doit rester
+sombre jusqu'au fond**. Sous un plafond de nuages, le lointain ne s'éclaircit
+pas parce qu'il est loin — il s'éclaircit parce que la brume s'interpose, et
+c'est le voile d'averse qui s'en charge. Une rampe qui pâlit d'elle-même
+donnait, une fois multipliée par la lumière du couchant, une immense étendue
+**tan** entre la route et les maisons. On avait remplacé un marécage par un
+désert.
+
 #### Ce qui fait qu'une route n'est plus « une bande sombre »
 
 Le premier jet en avait la forme et rien d'autre : un ruban gris uniforme qui

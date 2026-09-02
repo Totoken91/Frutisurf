@@ -613,9 +613,14 @@ ${TOWN_GLSL}
             //   Une plage serree AUTOUR de la moyenne est ce qui donne une
             //   couverture d'a peu pres la moitie, avec de vrais tas et de
             //   vraies trouees.
-            float mat = smoothstep(0.39, 0.60, drift * 0.70 + speck * 0.30);
+            float mat = smoothstep(0.35, 0.57, drift * 0.70 + speck * 0.30);
             //   Plus dense en bas qu'en haut : c'est la que le vent les laisse.
-            mat *= mix(0.50, 1.30, 1.0 - smoothstep(-3.0, 5.0, vWorld.y));
+            mat *= mix(0.55, 1.30, 1.0 - smoothstep(-3.0, 5.0, vWorld.y));
+            //   ET CONTRE LA ROUTE. Le vent et les voitures les chassent de
+            //   l'asphalte, mais elles ne vont pas loin : elles s'entassent
+            //   sur le bas-cote. Sans ce terme, la bande entre la chaussee et
+            //   les maisons reste nue, et c'est justement celle qu'on regarde.
+            mat *= 1.0 + (1.0 - smoothstep(9.0, 26.0, abs(vWorld.x))) * uTown * 0.55;
             //   Ni sur le sable, ni dans l'eau.
             //   Et il s'ECLAIRCIT sur la route : le vent et les voitures
             //   poussent les feuilles vers les bas-cotes. Sans ce terme, le
@@ -637,7 +642,7 @@ ${TOWN_GLSL}
               //   Le grain, au premier plan seulement : sans lui c'est une
               //   tache de couleur, avec lui c'est un tas de feuilles.
               litter *= 0.84 + fbm3(vWorld.xz * 5.5) * 0.34 * detail;
-              c = mix(c, litter, mat * 0.82);
+              c = mix(c, litter, mat * 0.88);
             }
           }
 
