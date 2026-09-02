@@ -13,10 +13,11 @@ lit par la hauteur et non par la pente, ligne d'arbres et skyline de cristal sur
 l'horizon. Le détail de chaque décision est dans
 [docs/01-ART-DIRECTION.md](docs/01-ART-DIRECTION.md) §6.
 
-**Une partie dure 30 secondes.** Chaque anneau de verre franchi t'en rend
-trois, chaque colonne de vitesse une, chaque tour complet en l'air presque une.
-Le sablier accélère : à toi de tenir. Le record est gardé, la relance est
-instantanée.
+**Une partie dure 30 secondes.** Il n'y a qu'**une porte** à l'écran, loin
+devant. La franchir rend du temps — et **pose la suivante le long de ton vecteur
+de sortie** : plus tu vas vite, plus elle part loin ; plus tu passes haut dans
+l'anneau, plus elle monte. Tu écris la difficulté de ton propre run. Le record
+est gardé, la relance est instantanée.
 
 Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 
@@ -50,21 +51,34 @@ npm run dev     # http://localhost:5173
 | Boost | `Maj` | deux doigts | `RT` |
 | Rejouer | n'importe quelle touche | tap | `A` |
 
-**Les anneaux de verre** sont l'objectif. Les **cyans** sont plantés dans
-l'herbe : on les enfile en glissant, ils rendent 3 s. Les **violets** flottent à
-9 m : il faut un saut armé et bien timé, ils rendent 4 s et paient le double. La
-couleur te dit s'il faut sauter avant que tu aies jugé la hauteur.
+**LE RICOCHET.** Une seule porte, marquée par une colonne de lumière qui se voit
+par-dessus les collines. Au moment exact où tu la franchis, la suivante est posée
+le long de ton vecteur de sortie :
+
+| | suit | ce que ça donne |
+|---|---|---|
+| distance | ta vitesse | 130 m à l'arrêt, 340 m à fond |
+| hauteur | **par où tu passes dans l'anneau** | au centre : 3,4 m. Par le quart supérieur : jusqu'à 11 m |
+| direction | ton cap | carver au passage envoie la porte de côté |
+
+Une porte haute s'ancre juste **après une crête** — c'est elle qui te donne le
+saut. Une porte plate rembourse à peine le trajet qu'elle coûte : **seule la
+hauteur fait un bénéfice**. Le jeu te force donc à monter en difficulté pour
+survivre, et c'est toi qui décides de combien.
+
+**Vise le haut de la porte.** C'est tout le geste. Passer trop haut sort de
+l'anneau : la chaîne retombe à zéro, la suivante revient au plus court, et tu
+repars. Rater ne coûte **aucun temps** — tu ne perds pas la partie, tu perds ton
+escalade. Le seul chiffre à l'écran est **PORTE 7**, et la note de
+franchissement monte d'une octave tous les cinq maillons : tu entends que tu es
+loin avant de le voir.
 
 **Les vrilles** : tiens la direction à fond en l'air, un tour prend 0,65 s. Seuls
 les tours complets comptent, et ils paient en carré — deux tours valent quatre
 fois un tour. Mais vriller **étouffe le contrôle latéral** : le disque présente
 sa tranche, il ne mord plus l'air. Tourner, c'est renoncer à corriger sa
-trajectoire. Astuce : vrille **du côté** de l'anneau suivant, la figure et la
+trajectoire. Astuce : vrille **du côté** de la porte suivante, la figure et la
 visée vont alors dans le même sens.
-
-**Les colonnes ambre** plantées dans la plaine donnent une poussée immédiate et
-rechargent la jauge. Elles sont semées en slalom : les enchaîner demande de
-tourner.
 
 > **Sur mobile, un seul doigt fait tout.** Il reste posé : le glisser
 > latéralement dirige, sa durée d'appui arme le saut, et le lever déclenche.

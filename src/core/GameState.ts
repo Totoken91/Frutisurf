@@ -23,6 +23,8 @@ export interface GameState {
   spinTurns: number;
   /** Multiplicateur de score courant. */
   mult: number;
+  /** Longueur de la chaine de portes en cours. Le seul chiffre qui compte. */
+  chain: number;
   /** Au-dessus d'une etendue d'eau. */
   onWater: boolean;
   /** File sur la surface. */
@@ -51,6 +53,7 @@ export const createState = (): GameState => ({
   lipFactor: 0,
   spinTurns: 0,
   mult: 1,
+  chain: 0,
   onWater: false,
   planing: false,
   sunk: false,

@@ -93,22 +93,22 @@ await page.evaluate(() => {
     };
     const p = { x: 0, y: 0, z: 0 };
 
-    // Anneaux : le voile est un disque de rayon RING_R - TUBE, double face.
-    const rings = w.rings.group;
-    for (let i = 0; i < rings.count; i++) {
-      readPos(rings, i, p);
+    // La porte : le voile est un disque de rayon GATE_R - TUBE, double face.
+    const gate = w.gate.group;
+    for (let i = 0; i < gate.count; i++) {
+      readPos(gate, i, p);
       const dx = p.x - cam.x, dy = p.y - cam.y, dz = p.z - cam.z;
-      note('anneau', Math.sqrt(dx * dx + dy * dy + dz * dz) - 5.4);
+      note('porte', Math.sqrt(dx * dx + dy * dy + dz * dz) - 7.0);
     }
-    // Colonnes de boost : cylindre rayon 3.2, hauteur 19 depuis le sol.
-    const pads = w.boosters.mesh;
-    for (let i = 0; i < pads.count; i++) {
-      readPos(pads, i, p);
-      const dx = p.x - cam.x, dz = p.z - cam.z;
-      const dy = cam.y - p.y;
-      const radial = Math.sqrt(dx * dx + dz * dz) - 3.2;
-      const vertical = dy < 0 ? -dy : dy > 19 ? dy - 19 : -0.01;
-      note('colonne', Math.max(radial, vertical));
+    // Sa balise : cylindre de rayon 3,4 plante au sol, hauteur variable.
+    {
+      const b = w.gate.beacon;
+      const dx = b.position.x - cam.x, dz = b.position.z - cam.z;
+      const dy = cam.y - b.position.y;
+      const radial = Math.sqrt(dx * dx + dz * dz) - 3.4;
+      const h = b.scale.y;
+      const vertical = dy < 0 ? -dy : dy > h ? dy - h : -0.01;
+      note('balise', Math.max(radial, vertical));
     }
   };
 });
@@ -131,7 +131,7 @@ const waitFrames = async (n) => {
 const measure = async (hide, frames) => {
   await page.evaluate((names) => {
     const g = window.__game;
-    const all = ['ground', 'blades', 'water', 'clouds', 'city', 'motes', 'boosters', 'rings',
+    const all = ['ground', 'blades', 'water', 'clouds', 'city', 'motes', 'gate',
                  'leaves', 'rain'];
     for (const n of all) {
       const m = g.world[n];
@@ -139,6 +139,7 @@ const measure = async (hide, frames) => {
       if (m?.mesh) m.mesh.visible = on;
       if (m?.group) m.group.visible = on;
       if (m?.veil) m.veil.visible = on;
+      if (m?.beacon) m.beacon.visible = on;
     }
     if (names.includes('post')) {
       g.post.bypass = true;
@@ -168,7 +169,7 @@ const cases = [
   ['sans nuages', ['clouds']],
   ['sans ville', ['city']],
   ['sans pollen', ['motes']],
-  ['sans plots+anneaux', ['boosters', 'rings']],
+  ['sans porte', ['gate']],
   // Ces deux-la ne coutent rien hors d'OCTOBRE — leur shader de sommet rejette
   // l'instance des la premiere ligne quand la densite est nulle. Les mesurer
   // demande donc WORLD=octobre, sinon on ne mesure que le bruit.

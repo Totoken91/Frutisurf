@@ -23,7 +23,7 @@
 import { Vector3 } from 'three';
 import { Controller, type SurfInput } from '../src/player/Controller';
 import { Run } from '../src/core/Run';
-import { Rings } from '../src/world/Rings';
+import { Gate } from '../src/world/Gate';
 import { combine, MOUNTS, RIDERS } from '../src/core/Loadout';
 import { setTerrain, terrainHeight, waterLevel } from '../src/world/Terrain';
 import { setWind } from '../src/world/Weather';
@@ -72,7 +72,7 @@ function geometry(): { widest: number; land: number; wet: number } {
   return { widest, land, wet: (wet / total) * 100 };
 }
 
-/** Le pilote de `check:run`, reduit a l'essentiel : il vise l'anneau suivant. */
+/** Le pilote de `check:run`, reduit a l'essentiel : il vise LA porte. */
 function play(worldIdx: number, maxSeconds = 600) {
   const def = WORLDS[worldIdx];
   setTerrain(def.amp, def.water, def.shore[0], def.shore[1], def.swell);
@@ -83,7 +83,7 @@ function play(worldIdx: number, maxSeconds = 600) {
   setWind(def.wind);
 
   const run = new Run();
-  const rings = new Rings(8, 20240607);
+  const gate = new Gate();
   const pad = new Pad();
   let sinks = 0;
   let skims = 0;
@@ -114,17 +114,34 @@ function play(worldIdx: number, maxSeconds = 600) {
     onTrick: (t) => run.addTime(0.9 * t),
   });
   c.loadout = combine(RIDERS[0], MOUNTS[0], def.mods);
-  rings.reseedAll(0);
+  gate.reset();
+  // La premiere porte se pose depuis l'arret, donc au plus court.
+  gate.place(0, 0, 0, 0, -1, 0, 1);
 
   const origin = new Vector3();
   let t = 0;
   let stalled = 0;
   while (run.phase === 'running' && t < maxSeconds) {
-    const next = rings.nextAhead(c.z);
+    const next = gate.current;
     if (next) {
       const dz = c.z - next.pos.z;
       pad.steer = Math.max(-1, Math.min(1, (next.pos.x - c.x) / 5));
-      pad.jumpHeld = next.high && dz < 60 && dz > 26;
+      // IL ARME DEVANT CHAQUE PORTE, PAS SEULEMENT DEVANT LES HAUTES.
+      //
+      // C'est le comportement d'un joueur qui a compris le ricochet : franchir
+      // en montant fabrique une porte plus haute, donc plus chere. Un pilote
+      // qui ne sautait que devant les portes deja hautes ne pouvait JAMAIS en
+      // creer une — il restait a plat toute la partie et le banc mesurait un
+      // jeu sans escalade, c'est-a-dire pas celui qu'on livre.
+      // ET IL NE POUSSE QUE QUAND IL PEUT SE LE PERMETTRE.
+      //
+      // C'est la strategie humaine evidente, et c'est justement celle que le
+      // systeme doit recompenser : on prend le risque de monter quand le
+      // chrono est confortable, on enfile a plat quand il ne l'est plus. Un
+      // pilote qui pousserait toujours mesurerait un joueur suicidaire, un
+      // pilote qui ne pousserait jamais mesurerait un jeu sans escalade.
+      const push = next.above > 5 || run.timeLeft > 16;
+      pad.jumpHeld = push && dz < 52 && dz > 28;
     } else {
       pad.steer = 0;
       pad.jumpHeld = false;
@@ -136,26 +153,40 @@ function play(worldIdx: number, maxSeconds = 600) {
     windSum += Math.abs(c.wind);
     windSteps++;
     if (Math.abs(c.x) > 30) pinned += STEP;
-    const hit = rings.cross(px, py, pz, c.x, c.y, c.z);
-    if (hit?.pass) {
-      rings.take(hit.index);
-      c.collectRing(hit.high);
-      run.addTime(hit.high ? 4 : 3);
-      run.rings++;
+    const hit = gate.cross(px, py, pz, c.x, c.y, c.z);
+    if (hit) {
+      // LE RICOCHET, cote banc : la porte suivante sort du vecteur de sortie,
+      // exactement comme en jeu. Le reproduire ici est ce qui rend la mesure
+      // honnete — un banc qui garderait un semis fixe ne mesurerait plus le
+      // systeme qu'on livre.
+      const vx = (c.x - px) / STEP;
+      const vz = (c.z - pz) / STEP;
+      if (hit.pass) {
+        run.addTime(hit.state.time);
+        c.passGate(hit.state.value, hit.state.above);
+        run.gates++;
+        gate.take();
+        gate.place(c.x, c.z, vx, c.vy, vz, hit.lift, 0);
+      } else {
+        gate.fail();
+        c.missGate();
+        gate.place(c.x, c.z, vx, c.vy, vz, 0, 1);
+      }
     }
     // Temps passe SOUS la vitesse de relance : c'est la mesure de l'enlisement,
     // et elle vaut mieux que le compte de noyades. Couler une fois et repartir
     // est un incident ; couler et ne jamais retrouver sa vitesse est une panne.
     if (c.speed < RELAUNCH) stalled += STEP;
     origin.set(c.x, 0, c.z);
-    rings.update(origin, t, STEP);
-    run.step(STEP, c.score, c.combo);
+    gate.update(t, STEP);
+    run.step(STEP, c.score, c.combo, c.chain);
     t += STEP;
   }
   return {
     seconds: t,
     score: c.score,
-    rings: run.rings,
+    gates: run.gates,
+    chain: run.bestChain,
     sinks,
     skims,
     waves,
@@ -173,7 +204,7 @@ const fail = (m: string): void => {
   console.log(`  ECHEC  ${m}`);
 };
 
-console.log('monde        eau    nappe max  terre moy   survie   score    anneaux  coules  glisses  vagues   vols  enlise   vent  au bord');
+console.log('monde        eau    nappe max  terre moy   survie   score    portes  chaine  coules  glisses  vagues   vols  enlise   vent  au bord');
 const ref: number[] = [];
 for (let i = 0; i < WORLDS.length; i++) {
   const def = WORLDS[i];
@@ -187,7 +218,7 @@ for (let i = 0; i < WORLDS.length; i++) {
     `${def.id.padEnd(12)} ${g.wet.toFixed(0).padStart(3)}%  ${g.widest.toFixed(0).padStart(8)} m` +
       ` ${(g.land === Infinity ? '  --' : g.land.toFixed(0)).padStart(9)} m` +
       ` ${r.seconds.toFixed(0).padStart(7)} s ${Math.round(r.score).toString().padStart(8)}` +
-      ` ${r.rings.toString().padStart(8)} ${r.sinks.toString().padStart(7)}` +
+      ` ${r.gates.toString().padStart(7)} ${r.chain.toString().padStart(7)} ${r.sinks.toString().padStart(7)}` +
       ` ${r.skims.toString().padStart(8)} ${r.waves.toString().padStart(7)} ${r.flights.toString().padStart(6)} ${r.stalled.toFixed(0).padStart(6)}%` +
       ` ${r.wind.toFixed(1).padStart(6)} ${r.pinned.toFixed(0).padStart(6)}%` +
       `  sortie ${seuil.toFixed(1).padStart(4)} m/s${seuil < 9 ? ' (insubmersible)' : ''}`,

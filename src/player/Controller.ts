@@ -37,7 +37,8 @@ export interface SurfEvents {
   onCarveFull?: () => void;
   /** Entree dans la fenetre de saut : signale UNE fois, pas en continu. */
   onLipEnter?: () => void;
-  onBooster?: (combo: number) => void;
+  onGate?: (chain: number, points: number, above: number) => void;
+  onGateMiss?: (chain: number) => void;
   /** Palier d'elan de saut franchi : 1, 2 ou 3 (arme a fond). */
   onWindStep?: (step: number) => void;
   /** Entree sur l'eau. @param planing vrai si on l'aborde assez vite. */
@@ -60,10 +61,6 @@ export interface SurfEvents {
    * traverse plus l'eau en attendant l'autre rive, on travaille les vagues.
    */
   onWave?: (force: number) => void;
-  /** Anneau franchi. @param high anneau haut, celui qui demande un saut. */
-  onRing?: (high: boolean, combo: number, points: number) => void;
-  /** Anneau manque : sert au retour sonore, aucune penalite. */
-  onRingMiss?: () => void;
   /** Vrille validee a l'atterrissage. */
   onTrick?: (turns: number, points: number) => void;
   /**
@@ -312,39 +309,65 @@ export class Controller {
   }
 
   /**
-   * Plot de vitesse ramasse. Impulsion FRANCHE et immediate : un plot qui se
-   * contenterait de remplir la jauge ne se sentirait pas au moment ou on le
-   * prend, et c'est precisement l'instant qui doit payer.
+   * LA CHAINE DE PORTES. Elle ne s'eteint PAS toute seule.
+   *
+   * C'est ce qui la separe du combo, qui expire en deux secondes et demie. Le
+   * combo recompense une salve de gestes ; la chaine recompense une PARTIE
+   * tenue, et c'est elle qui donne au run une memoire. On ne la perd qu'en
+   * ratant une porte — jamais par inaction, jamais par le temps qui passe.
    */
-  collectBooster(): void {
-    this.bonus.add(11);
-    this.reward(0.24);
-    this.burst = BURST;
-    this.combo += 1;
-    this.comboTimer = 2.6;
-    this.score += 140 * this.mult;
-    this.events.onBooster?.(this.combo);
-  }
+  chain = 0;
+  /** La plus longue chaine du run, pour l'ecran de fin. */
+  bestChain = 0;
 
   /**
-   * Anneau franchi. L'anneau haut paie presque le double : il demande de lire
-   * le relief, d'armer un saut et de viser, la ou l'anneau au sol ne demande
-   * qu'un deplacement lateral.
+   * Porte franchie.
+   *
+   * Le paiement vient de la GEOMETRIE de la porte, calculee au moment ou le
+   * joueur l'a fabriquee (cf. Gate.place) : le Controller ne fait que la
+   * multiplier par la chaine. Il n'y a donc pas deux endroits ou regler ce
+   * qu'une porte vaut.
    */
-  collectRing(high: boolean): number {
-    this.bonus.add(high ? 15 : 9);
-    this.reward(high ? 0.34 : 0.20);
-    this.combo += 1;
-    this.comboTimer = 3.0;
-    const points = Math.round((high ? 400 : 220) * this.mult);
+  passGate(value: number, above: number): number {
+    this.chain += 1;
+    this.bestChain = Math.max(this.bestChain, this.chain);
+    const high = above > 6;
+    this.bonus.add(high ? 16 : 10);
+    this.reward(high ? 0.36 : 0.22);
+    // --- LA POUSSEE SUIT LA DIFFICULTE, ET C'EST UNE BOUCLE.
+    //
+    //     Une porte haute rend plus de vitesse ; plus de vitesse pose la
+    //     suivante plus loin, donc plus chere. Le risque paie donc DEUX fois —
+    //     en points et en elan — et c'est ce qui donne envie de recommencer un
+    //     geste qu'on vient tout juste de reussir.
+    //
+    //     La dose est franche parce que la porte est RARE : elle a remplace un
+    //     plot tous les soixante-dix metres, et garder l'impulsion d'un plot
+    //     aurait fait s'effondrer la vitesse moyenne du jeu.
+    this.burst = BURST * (high ? 2.1 : 1.5);
+    // Le multiplicateur de chaine reste MODESTE, et c'est delibere : la vraie
+    // escalade est deja dans la porte elle-meme, qui devient plus longue et
+    // plus haute. Empiler une progression geometrique par-dessus une autre
+    // ferait exploser le score au bout de dix portes et rendrait les neuf
+    // premieres sans importance.
+    const points = Math.round(value * (1 + this.chain * 0.22));
     this.score += points;
     this.hitstop = Math.max(this.hitstop, high ? 0.05 : 0.03);
-    this.events.onRing?.(high, this.combo, points);
+    this.events.onGate?.(this.chain, points, above);
     return points;
   }
 
-  missRing(): void {
-    this.events.onRingMiss?.();
+  /**
+   * Porte ratee. On ne perd pas la partie, on perd son escalade.
+   *
+   * Aucune penalite de temps : la punition est deja severe, puisque la porte
+   * suivante sera posee au plus court et au plus bas, donc rendra le minimum.
+   * En ajouter une seconde ferait d'un rate une spirale dont on ne sort pas.
+   */
+  missGate(): void {
+    const had = this.chain;
+    this.chain = 0;
+    this.events.onGateMiss?.(had);
   }
 
   /** Les figures rechargent le boost. C'est la seule facon d'en gagner vite. */
@@ -907,6 +930,7 @@ export class Controller {
     s.planing = this.planing;
     s.sunk = this.sunk;
     s.mult = this.mult;
+    s.chain = this.chain;
     // Decroissance exponentielle en TEMPS, pas par image. Le facteur fixe de
     // 0,12 par image liait la duree du flash a la cadence d'affichage : deux
     // fois plus court sur un telephone a 120 Hz, deux fois plus long a 30. Un
@@ -953,6 +977,8 @@ export class Controller {
     this.carveCharge = 0;
     this.combo = 0;
     this.comboTimer = 0;
+    this.chain = 0;
+    this.bestChain = 0;
     this.score = 0;
     this.distance = 0;
     this.hitstop = 0;

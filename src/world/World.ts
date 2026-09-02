@@ -14,8 +14,7 @@ import { setTerrain } from './Terrain';
 import { WORLD_COLOR_KEYS, WORLDS, worldPalette, type WorldColorKey, type WorldDef } from './Worlds';
 import { City } from './City';
 import { Town } from './Town';
-import { Boosters } from './Boosters';
-import { Rings } from './Rings';
+import { Gate } from './Gate';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
@@ -54,8 +53,7 @@ export class World {
   readonly clouds: Clouds;
   readonly city = new City();
   readonly town = new Town();
-  readonly boosters: Boosters;
-  readonly rings: Rings;
+  readonly gate: Gate;
   readonly lights = new Group();
   private sky: Mesh;
 
@@ -101,8 +99,7 @@ export class World {
       quality === 'high' ? 44 : quality === 'medium' ? 34 : 24,
       quality === 'low' ? 512 : 768,
     );
-    this.boosters = new Boosters(dense ? 6 : 5);
-    this.rings = new Rings(dense ? 8 : 6);
+    this.gate = new Gate();
     this.water = new Water(dense);
     this.palms = new Palms();
     this.turbines = new Turbines(dense ? 14 : 9);
@@ -125,8 +122,7 @@ export class World {
     scene.add(this.city.group);
     scene.add(this.town.buildings, this.town.halos);
     scene.add(this.clouds.mesh);
-    scene.add(this.boosters.mesh);
-    scene.add(this.rings.veil, this.rings.group);
+    scene.add(this.gate.beacon, this.gate.veil, this.gate.group);
     scene.add(this.motes.mesh);
     scene.add(this.leaves.mesh, this.rain.mesh);
 
@@ -479,9 +475,8 @@ export class World {
   }
 
   /** Nouvelle partie : le parcours entier est reseme devant le joueur. */
-  reset(originZ: number): void {
-    this.boosters.reseedAll(originZ);
-    this.rings.reseedAll(originZ);
+  reset(): void {
+    this.gate.reset();
   }
 
   update(
@@ -520,8 +515,7 @@ export class World {
     this.clouds.update(origin, time);
     this.city.update(origin);
     this.town.update(origin, camPos);
-    this.boosters.update(origin, time);
-    this.rings.update(origin, time, dt);
+    this.gate.update(time, dt);
     this.motes.update(origin, time);
     this.leaves.update(origin, time);
     // La pluie se replie autour de la CAMERA et non du joueur : c'est elle qui

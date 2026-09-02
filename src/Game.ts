@@ -19,7 +19,6 @@ import { Surfer } from './player/Surfer';
 import { Trail } from './player/Trail';
 import { SUN_DIR } from './world/Sky';
 import { terrainGradient, terrainHeight, waterLevel, waterSurface } from './world/Terrain';
-import type { BoosterHit } from './world/Boosters';
 import { World } from './world/World';
 import { loadWorld } from './world/Worlds';
 
@@ -28,11 +27,6 @@ const STEP = 1 / 120;
 /** Cible de blanchiment de la lampe a pleine aura. */
 const WHITE = new Color(1, 1, 1);
 
-/** Temps rendu par un anneau. Le haut paie plus : il demande un saut. */
-const RING_TIME = 3.0;
-const RING_TIME_HIGH = 4.0;
-/** Temps rendu par une colonne de vitesse. */
-const PAD_TIME = 1.1;
 /** Temps rendu par tour complet de vrille. */
 const TRICK_TIME = 0.9;
 /** Temps rendu par traversee d'eau reussie, par tranche de 10 m glisses. */
@@ -94,8 +88,6 @@ export class Game {
   private grad = { dx: 0, dz: 0 };
   private groundNormal = new Vector3(0, 1, 0);
   private trailPoint = new Vector3();
-  private hits: BoosterHit[] = [];
-  private probe = new Vector3();
   private cast = new Vector3();
   /** Position ecran du surfeur, reutilisee a chaque image. */
   private focus = new Vector3();
@@ -152,24 +144,25 @@ export class Game {
       },
       onLipEnter: () => this.audio.lip(),
       onWindStep: (step) => this.audio.windStep(step),
-      onBooster: (combo) => {
-        this.rig.punch(0.20, 11);
-        this.state.popFlash = Math.max(this.state.popFlash, 0.85);
-        this.spray.burst(this.contactPoint(), 70, 1.3, this.time);
-        this.shock.spawn(this.contactPoint(), 0.9, this.time, this.controller.groundY);
-        this.audio.booster(combo);
-        this.buzz(28);
-      },
-      onRing: (high, combo, points) => {
-        this.rig.punch(high ? 0.24 : 0.14, high ? 13 : 8);
+      onGate: (chain, points, above) => {
+        const high = above > 6;
+        this.rig.punch(high ? 0.26 : 0.15, high ? 14 : 8);
         this.state.popFlash = Math.max(this.state.popFlash, high ? 0.95 : 0.6);
         this.spray.burst(this.contactPoint(), high ? 90 : 50, 1.2, this.time);
         this.shock.spawn(this.contactPoint(), high ? 1.0 : 0.6, this.time, this.controller.groundY);
-        this.audio.ring(high, combo);
+        this.audio.ring(high, chain);
         this.buzz(high ? 26 : 15);
-        if (high) this.hud.banner('ANNEAU HAUT', `+${points}`, 'high');
+        // La banniere annonce la CHAINE, pas la porte : c'est le seul chiffre
+        // qui compte, et c'est lui qu'on veut voir monter.
+        this.hud.banner(`PORTE ${chain}`, `+${points}`, high ? 'high' : 'trick');
       },
-      onRingMiss: () => this.audio.ringMiss(),
+      onGateMiss: (chain) => {
+        this.audio.ringMiss();
+        // On ne signale la rupture que si elle coute quelque chose. Casser une
+        // chaine de zero n'est pas un evenement, et l'annoncer apprendrait au
+        // joueur a ignorer la banniere.
+        if (chain >= 3) this.hud.banner('CHAINE ROMPUE', `${chain} portes`, 'miss');
+      },
       onTrick: (turns, points) => {
         this.run.addTime(TRICK_TIME * turns);
         this.hud.banner(`${turns * 360}°`, `+${points}`, 'trick');
@@ -360,38 +353,56 @@ export class Game {
     this.hud.pop(`+${seconds.toFixed(1)}s`, innerWidth * 0.5, innerHeight * 0.11, 'time');
   }
 
-  private collectBoosters(): void {
+  /**
+   * LE RICOCHET : la porte franchie pose la suivante.
+   *
+   * Tout le systeme tient ici. On teste le PLAN traverse pendant le pas et non
+   * une proximite — a 45 m/s le surfeur avance de 0,4 m par pas, un test de
+   * sphere en laisserait passer une sur deux — puis on repose immediatement une
+   * porte DEPUIS LE VECTEUR DE SORTIE.
+   *
+   * Le vecteur est pris a l'instant du franchissement, pas une image plus tard :
+   * c'est exactement ce que le joueur a fabrique en visant, et le decalage d'un
+   * pas suffirait a lui donner une porte qu'il n'a pas voulue.
+   */
+  private checkGate(): void {
     const c = this.controller;
-    this.probe.set(c.x, c.y, c.z);
-    this.world.boosters.query(this.probe, 1.6, this.hits);
-    for (const h of this.hits) {
-      this.world.boosters.take(h.index, this.time);
-      c.collectBooster();
-      this.run.addTime(PAD_TIME);
-      this.popAt(h.position, `+${Math.round(140 * c.mult)}`);
+    const g = this.world.gate;
+    const hit = g.cross(this.prevX, this.prevY, this.prevZ, c.x, c.y, c.z);
+    if (!hit) return;
+
+    if (!hit.pass) {
+      g.fail();
+      c.missGate();
+      // Apres un rate, la porte suivante est posee AU PLUS COURT : on ne punit
+      // pas deux fois. Le joueur a deja perdu sa chaine.
+      this.placeGate(0, 1);
+      return;
     }
+
+    const st = hit.state;
+    const points = c.passGate(st.value, st.above);
+    this.popAt(hit.point, `+${points}`, st.above > 6 ? 'big' : '');
+    this.run.addTime(st.time);
+    this.timeGain(st.time);
+    this.run.gates += 1;
+    g.take();
+    this.placeGate(hit.lift, 0);
   }
 
   /**
-   * Franchissement d'anneau. Teste sur le PLAN traverse pendant le pas, pas sur
-   * une proximite : a 45 m/s le surfeur avance de 0,4 m par pas et un test de
-   * sphere en laisserait passer un sur deux.
+   * Pose la prochaine porte depuis l'etat courant du surfeur.
+   *
+   * La vitesse horizontale est reconstruite depuis la vitesse de course et le
+   * deplacement lateral du dernier pas : le Controller n'expose pas de vecteur
+   * vitesse, et en fabriquer un ici evite de lui en ajouter un qui ne servirait
+   * qu'a ca.
    */
-  private checkRings(): void {
+  private placeGate(lift: number, slack: number): void {
     const c = this.controller;
-    const hit = this.world.rings.cross(this.prevX, this.prevY, this.prevZ, c.x, c.y, c.z);
-    if (!hit) return;
-    if (!hit.pass) {
-      c.missRing();
-      return;
-    }
-    this.popAt(hit.point, `+${Math.round((hit.high ? 400 : 220) * c.mult)}`, hit.high ? 'big' : '');
-    this.world.rings.take(hit.index);
-    c.collectRing(hit.high);
-    const gain = hit.high ? RING_TIME_HIGH : RING_TIME;
-    this.run.addTime(gain);
-    this.timeGain(gain);
-    this.run.rings += 1;
+    const vx = (c.x - this.prevX) * 120;
+    const vz = (c.z - this.prevZ) * 120;
+    this.world.gate.place(c.x, c.z, vx, c.vy, vz, lift, slack);
   }
 
   /** Normale du terrain sous le surfeur, pour poser tout ce qui touche le sol. */
@@ -405,7 +416,10 @@ export class Game {
   restart(): void {
     this.controller.reset();
     this.run.reset();
-    this.world.reset(this.controller.z);
+    this.world.reset();
+    // La premiere porte du run est posee depuis l'arret : elle sort donc au
+    // plus court et au plus bas, ce qui est exactement l'ouverture qu'on veut.
+    this.placeGate(0, 1);
     this.rig.snap(this.controller);
     this.trail.reset(this.contactPoint());
     this.hud.hideOver();
@@ -502,10 +516,7 @@ export class Game {
           this.controller.idle(STEP);
         } else {
           this.controller.step(STEP, playing ? this.input : IDLE_INPUT);
-          if (playing) {
-            this.collectBoosters();
-            this.checkRings();
-          }
+          if (playing) this.checkGate();
         }
       }
       this.acc -= STEP;
@@ -521,7 +532,7 @@ export class Game {
     // jeu qui attend. Mais faire couler le temps pendant qu'on lit des
     // libelles reviendrait a punir la lecture.
     if (!picking) {
-      if (this.run.step(real, this.controller.score, this.controller.combo)) this.endRun();
+      if (this.run.step(real, this.controller.score, this.controller.combo, this.controller.chain)) this.endRun();
       this.countdown();
     }
 

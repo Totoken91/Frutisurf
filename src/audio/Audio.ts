@@ -415,14 +415,6 @@ export class Audio {
     this.blip(1180, 0.055, 'sine', 0.05);
   }
 
-  /** Plot de vitesse : accord montant, transpose par le combo. */
-  booster(combo: number): void {
-    const semi = PENTA[combo % PENTA.length] + 12;
-    const f = 440 * Math.pow(2, semi / 12);
-    this.blip(f, 0.20, 'triangle', 0.13, f * 1.5);
-    this.blip(f * 2, 0.26, 'sine', 0.07, f * 3);
-  }
-
   jump(timed = 0, wind = 0): void {
     // Un saut bien time sonne plus haut et plus clair : le retour audio doit
     // confirmer le timing avant meme qu'on voie la hauteur atteinte.
@@ -441,9 +433,18 @@ export class Audio {
   }
 
 
-  /** Anneau franchi. L'anneau haut ouvre une octave plus haut : il se felicite. */
-  ring(high: boolean, combo: number): void {
-    const semi = PENTA[combo % PENTA.length] + (high ? 12 : 7);
+  /**
+   * PORTE FRANCHIE, ET LA NOTE MONTE AVEC LA CHAINE.
+   *
+   * C'est le seul retour qui dit l'escalade sans qu'on ait a lire un chiffre :
+   * la gamme pentatonique tourne, mais l'OCTAVE monte tous les cinq maillons.
+   * Une chaine de quinze sonne donc trois octaves au-dessus d'une chaine de un,
+   * et on entend qu'on est loin avant de le voir. C'est aussi ce qui rend la
+   * rupture audible : on retombe d'un coup en bas de la gamme.
+   */
+  ring(high: boolean, chain: number): void {
+    const oct = Math.min(3, Math.floor(chain / 5)) * 12;
+    const semi = PENTA[chain % PENTA.length] + oct + (high ? 12 : 7);
     const f = 392 * Math.pow(2, semi / 12);
     this.blip(f, 0.18, 'triangle', 0.12);
     this.blip(f * 1.5, 0.24, 'sine', 0.08);

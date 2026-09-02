@@ -204,8 +204,8 @@ export class Hud {
           <div class="final">${money(run.finalScore)}</div>
           <div class="stats">
             <span>${money(distance)} m</span>
-            <span>${run.rings} anneaux</span>
-            <span>×${run.bestCombo}</span>
+            <span>${run.gates} portes</span>
+            <span>chaîne ${run.bestChain}</span>
           </div>
           <div class="bestline">record ${money(run.best)}</div>
           <div class="again"><u>rejouer</u></div>
@@ -287,10 +287,28 @@ export class Hud {
     this.scoreEl.classList.toggle('record', run.recordBeaten);
     this.bestEl.textContent = run.best > 0 ? `record ${money(run.best)}` : '';
 
-    // Le multiplicateur n'apparait qu'a partir de x1,4 : affiche a x1 en
-    // permanence, il devient du decor et on cesse de le voir monter.
+    // --- LE SEUL CHIFFRE QUI COMPTE : LA CHAINE.
+    //
+    //     Elle prend la place du multiplicateur de combo des qu'elle existe,
+    //     et c'est delibere : le combo est une salve de deux secondes, la
+    //     chaine est la partie entiere. Deux compteurs cote a cote se
+    //     concurrenceraient et on ne regarderait ni l'un ni l'autre.
+    //
+    //     Elle n'apparait qu'a partir de DEUX. A un, elle serait allumee en
+    //     permanence des la premiere porte, donc du decor — exactement la
+    //     faute deja corrigee sur le multiplicateur, affiche a x1.
     const m = s.mult;
-    if (m >= 1.35) {
+    if (s.chain >= 2) {
+      const label = `${s.chain}`;
+      if (label !== this.multVal.textContent) {
+        this.multVal.textContent = label;
+        this.multEl.classList.remove('bump');
+        void this.multEl.offsetWidth;
+        this.multEl.classList.add('bump');
+      }
+      this.multEl.classList.add('on', 'chain');
+    } else if (m >= 1.35) {
+      this.multEl.classList.remove('chain');
       const label = `×${m.toFixed(1)}`;
       if (label !== this.multVal.textContent) {
         this.multVal.textContent = label;
@@ -300,7 +318,7 @@ export class Hud {
       }
       this.multEl.classList.add('on');
     } else {
-      this.multEl.classList.remove('on');
+      this.multEl.classList.remove('on', 'chain');
     }
 
     // La vrille en cours se lit en l'air : sans compteur, on ne sait pas si le

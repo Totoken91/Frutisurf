@@ -209,26 +209,140 @@ n'a que ça pour viser sa réception ou rattraper une colonne.
 Atterrir dans la pente descendante amortit et relance ; à plat ou en montée, ça
 casse. C'est ce qui pousse à choisir *où* retomber, pas seulement *quand* sauter.
 
-## 4 quater. Les colonnes de vitesse
+## 4 quater. LE RICOCHET — la porte qui pose la suivante
 
-Semées en **slalom** en travers du couloir, à ~65 m d'écart. Les enchaîner
-demande de tourner : c'est une récompense d'adresse, pas un ramassage passif.
+### Ce qui n'allait pas, chiffré
 
-Elles donnent une impulsion **franche et immédiate** (+11 m/s) en plus de
-recharger la jauge. Un bonus qui se contenterait de remplir la jauge ne se
-sentirait pas au moment où on le prend, et c'est précisément cet instant qui
-doit payer.
+Le jeu semait **huit anneaux et seize colonnes** en permanence dans le couloir,
+visibles jusqu'à 620 m, tous identiques, tirés au sort sur une bande de ±18 à
+±24 m autour de l'axe. Leur seul lien au monde était `terrainHeight`, pour se
+poser dessus. Quatre défauts en découlaient — le joueur les a résumés d'un mot :
+*du bruit qui se répète jusqu'à l'horizon.*
 
-> Deux erreurs de conception corrigées en cours de route, toutes deux
-> invisibles à la lecture du code et évidentes à l'écran :
->
-> - **semées au hasard dans une fenêtre**, elles laissaient des trous de plus de
->   100 m. Elles s'accrochent maintenant en **chaîne** à écart contrôlé, ce qui
->   garantit toujours une colonne à portée de vue.
-> - **posées à plat sur le relief**, elles n'offraient presque aucune surface
->   depuis une caméra rasante, et celles dans un creux disparaissaient derrière
->   la colline suivante. On ne peut pas viser ce qu'on ne voit pas. Ce sont
->   maintenant des colonnes verticales, visibles par-dessus le terrain.
+- **Aucune décision.** Un anneau valait 220 ou 400, une colonne 140, toujours.
+  On ne choisissait jamais entre deux choses, on prenait le plus proche.
+- **Aucune escalade.** Le champ à la première seconde et à la deux-centième
+  était rigoureusement identique. La seule progression était le sablier qui
+  accélérait : de la **pression**, pas du **changement**.
+- **Aucune mémoire.** Le combo expirait en 2,6 s. Rien de ce qu'on faisait ne
+  changeait ce qui arrivait ensuite.
+- **Vingt-quatre objets à l'écran.** C'est la définition du bruit.
+
+### La règle, en trois lignes
+
+Il n'y a plus qu'**une porte**. Au moment exact où on la franchit, la suivante
+est posée le long du **vecteur de sortie** :
+
+| | suit | effet |
+|---|---|---|
+| distance | la vitesse horizontale | 130 m à l'arrêt, 340 m au maximum |
+| hauteur | **par où l'on est passé dans l'anneau** | 3,4 m au centre, 11 m par le haut |
+| direction | le cap au franchissement | carver au passage envoie la porte de côté |
+
+Puis le terrain finit le travail : une porte haute s'ancre juste **après** une
+crête — c'est elle qui donne le saut — et aucune porte ne se pose au-dessus de
+l'eau. *Le vecteur choisit le problème, le monde choisit l'endroit.*
+
+Ce que ça change : **le joueur écrit la difficulté de son propre run.** La
+prendre à plat et lentement donne une porte proche et basse, qui paie une
+misère. La franchir par son quart supérieur, à pleine vitesse, envoie la
+suivante loin et haut — on vient de se fabriquer un problème qu'on ne sait pas
+encore résoudre.
+
+### La faute qui a failli tuer le système
+
+Le premier jet lisait la **vitesse verticale** au franchissement. Le journal du
+pilote l'a démenti en dix lignes : sur vingt-six portes d'affilée, elle valait
+−11,7 puis −9,9 puis −6,0… **toujours négative**. C'est mécanique — la porte est
+à deux cents mètres, un saut dure une seconde et demie, on a donc toujours
+repassé le sommet quand on y arrive. La hauteur restait bloquée à son minimum et
+l'escalade ne démarrait **jamais**.
+
+Ce qu'on mesure maintenant, c'est **par où** l'on est passé dans l'anneau. Le
+tore fait 7 m de rayon : entrer par son quart supérieur demande d'être en l'air
+à l'instant précis du franchissement, et c'est une décision prise dans la
+dernière seconde, pas un état subi. Le geste devient limpide — **vise le haut de
+la porte** — et il est continu : passer au centre reconduit la même difficulté,
+passer bas la fait redescendre, passer trop haut sort de l'anneau et casse la
+chaîne.
+
+> C'est aussi la réponse à une objection juste : récompenser un **état** (être
+> dans le vent, être en l'air, être sur l'eau), c'est récompenser la météo, pas
+> le joueur. Tout ce qui paie ici est une **décision** — où viser dans l'anneau,
+> et quand sauter.
+
+### Ce qu'elle paie, et pourquoi il n'y a pas de table de valeurs
+
+La valeur et le temps rendus sont des fonctions de la **géométrie** de la porte,
+donc de la difficulté que le joueur s'est lui-même donnée :
+
+```
+points = (80 + portée × 1,1 + hauteur × 46) × (1 + chaîne × 0,22)
+temps  = portée / 44 + hauteur × 0,55
+```
+
+On ne peut pas fabriquer une porte chère sans avoir fait le geste qui la rend
+chère. Et le temps est calé pour qu'une porte **plate rembourse à peine le
+trajet qu'elle coûte** : seule la hauteur fait un bénéfice. Le jeu force donc à
+monter en difficulté pour survivre — et c'est le joueur qui décide de combien,
+tout l'inverse d'un sablier qui accélère tout seul.
+
+> **Le diviseur est une vitesse, et c'est la vraie, pas l'idéale.** Calé à
+> 34 m/s — la vitesse dont on parle quand on parle du jeu — l'économie était
+> intenable : mesuré sans aucune prise, le monde ne donne de lui-même que
+> **23 à 32 m/s** selon le monde, 26 en moyenne. Le pilote du banc mourait en
+> cinquante-trois secondes sur la plaine. Une économie se cale sur ce que le
+> joueur a vraiment, pas sur son meilleur moment.
+
+On survit donc de **deux** façons et pas d'une : la portée grandit avec la
+vitesse, donc à 40 m/s une porte plate redevient rentable alors qu'elle coule à
+26. Monter en hauteur ou monter en vitesse — deux compétences, toutes deux
+payées.
+
+### La perte n'est pas la mort
+
+Rater une porte ne coûte **aucun temps** : la chaîne retombe à zéro, et la
+suivante est posée au plus court et au plus bas. On ne perd pas la partie, on
+perd son escalade — et la punition est déjà sévère, puisque cette porte-là ne
+rendra que le minimum. En ajouter une seconde ferait d'un raté une spirale dont
+on ne sort pas.
+
+Le HUD se réduit donc à un chiffre : **PORTE 7**. C'est le multiplicateur, la
+difficulté et l'état du run en une seule pastille. L'audio le double : la note
+de franchissement monte d'une octave tous les cinq maillons, et on **entend**
+qu'on est loin avant de le voir.
+
+### La balise
+
+C'est la seule chose que l'ancien système faisait bien, et on la garde : une
+**colonne de lumière** plantée au sol se voit par-dessus une colline, là où un
+anneau posé dans un creux disparaît derrière elle. La différence, c'est qu'elle
+a maintenant un sens — elle ne marque plus un ramassage anonyme.
+
+> Calée sur la hauteur de la porte (une dizaine de mètres), elle était **cachée
+> par le relief exactement dans le cas où elle sert** : une porte derrière une
+> crête. On ne la voyait que quand on n'en avait pas besoin. Elle fait
+> maintenant 34 m, comme les anciennes colonnes en faisaient 19, et pour la
+> même raison.
+
+### Ce que ça donne, mesuré
+
+`check:worlds`, pilote automatique qui vise la porte et **ne pousse que quand le
+chrono le permet** — la stratégie humaine évidente, et celle que le système doit
+récompenser :
+
+| monde | survie | score | portes | plus longue chaîne |
+|---|---|---|---|---|
+| plaine | 600 s | 212 k | 84 | 11 |
+| okinawa | 600 s | 322 k | 62 | 18 |
+| bliss | 600 s | 186 k | 93 | 16 |
+| chrome | 600 s | 377 k | 91 | 25 |
+| octobre | 600 s | 232 k | 92 | 12 |
+
+Le pilote monte, se fabrique une porte qu'il ne sait pas reprendre, la rate,
+repart. C'est exactement la boucle qu'on visait, et elle est visible dans le
+journal : porte 12 franchie par le haut → porte 13 à 11 m → ratée → retour à
+une porte de 130 m.
 
 ## 4 ter. L'économie du boost
 

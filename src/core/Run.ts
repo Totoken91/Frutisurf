@@ -28,7 +28,18 @@ export const MAX_TIME = 45;
  * pas eternel. Le pilote parfait du test meurt maintenant vers 250 s.
  */
 const RAMP_SECONDS = 140;
-const RAMP_MAX = 1.4;
+/**
+ * ET IL A BEAUCOUP BAISSE AVEC LE RICOCHET.
+ *
+ * A 1,4 le sablier doublait presque de vitesse en deux minutes et demie, et
+ * c'etait la SEULE escalade du jeu : le semis d'anneaux, lui, ne changeait
+ * jamais. Depuis que le joueur fabrique lui-meme des portes de plus en plus
+ * longues et de plus en plus hautes, l'escalade vient de lui — empiler la
+ * seconde par-dessus la premiere ne rendait pas le jeu plus tendu, elle
+ * rendait la fin inevitable quoi qu'on fasse, ce qui est exactement ce qu'une
+ * escalade ne doit pas faire.
+ */
+const RAMP_MAX = 0.30;
 
 /**
  * UN RECORD PAR MONDE.
@@ -74,7 +85,9 @@ export class Run {
   finalScore = 0;
   finalDistance = 0;
   bestCombo = 0;
-  rings = 0;
+  /** La plus longue chaine de portes du run. */
+  bestChain = 0;
+  gates = 0;
   /** Temps gagne a la derniere prise, pour l'animation du chrono. */
   gainFlash = 0;
   /** Delai avant que la relance soit acceptee : evite de relancer par inertie. */
@@ -99,7 +112,7 @@ export class Run {
   }
 
   /** @returns vrai a la frame exacte ou le run se termine. */
-  step(dt: number, score: number, combo: number): boolean {
+  step(dt: number, score: number, combo: number, chain = 0): boolean {
     this.gainFlash = Math.max(0, this.gainFlash - dt * 2.6);
     if (this.phase === 'over') {
       this.lockout = Math.max(0, this.lockout - dt);
@@ -107,6 +120,7 @@ export class Run {
     }
     this.elapsed += dt;
     this.bestCombo = Math.max(this.bestCombo, combo);
+    this.bestChain = Math.max(this.bestChain, chain);
     if (score > this.best && this.best > 0) this.recordBeaten = true;
     this.timeLeft -= dt * this.drain;
     if (this.timeLeft > 0) return false;
@@ -138,7 +152,8 @@ export class Run {
     this.finalScore = 0;
     this.finalDistance = 0;
     this.bestCombo = 0;
-    this.rings = 0;
+    this.bestChain = 0;
+    this.gates = 0;
     this.gainFlash = 0;
     this.lockout = 0;
   }

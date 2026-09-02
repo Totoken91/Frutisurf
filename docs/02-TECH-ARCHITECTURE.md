@@ -1066,3 +1066,36 @@ paroi), mais il ne peut pas répondre à « est-ce agréable ». Aucun seuil ne 
 pourra ; ce n'est pas un défaut du seuil, c'est la limite de la méthode. Ce que
 le banc a bien fait, en revanche, c'est **chiffrer la correction** : score à
 l'autopilote de 2,7 M à 4,4 M, vent moyen de 4,9 à 1,7 m/s.
+
+
+## 17. Un banc qui ne mesurait plus le jeu qu'on livre
+
+Le pilote automatique de `check:worlds` visait « l'anneau suivant » dans un semis
+fixe. Avec le ricochet, ce semis n'existe plus : le banc a donc dû reproduire la
+**règle de placement elle-même** — franchir, lire le vecteur de sortie, poser la
+porte suivante. Un banc qui aurait gardé un parcours figé aurait continué à
+passer au vert en mesurant un jeu qui n'est plus livré.
+
+Deux réglages du pilote décident de ce que la mesure veut dire, et ils sont plus
+importants que le reste du script :
+
+- **Il arme devant *chaque* porte, pas seulement devant les hautes.** C'est le
+  comportement d'un joueur qui a compris le système : franchir en montant
+  fabrique une porte plus chère. Le premier jet ne sautait que devant les portes
+  déjà hautes — il ne pouvait donc **jamais en créer une**, restait à plat toute
+  la partie, et le banc mesurait un jeu sans escalade.
+- **Il ne pousse que quand le chrono le permet** (`above > 5 || timeLeft > 16`).
+  Un pilote qui pousserait toujours mesurerait un joueur suicidaire ; un pilote
+  qui ne pousserait jamais mesurerait un jeu sans risque. Celui-là mesure la
+  stratégie que le système est censé récompenser.
+
+### Le journal, qui a trouvé ce qu'aucun agrégat ne montrait
+
+Les totaux disaient « bliss meurt en 68 s » et rien de plus. Un **journal ligne
+par ligne** — une ligne par porte, avec la vitesse, la vitesse verticale, le
+point de passage et la porte engendrée — a donné la cause en dix lignes : la
+vitesse verticale au franchissement était *toujours* négative, donc la hauteur
+restait bloquée à son minimum, donc le système entier ne pouvait pas démarrer.
+
+C'est un outil à trois lignes de code et il vaut mieux qu'une colonne de plus
+dans le tableau : **un agrégat dit qu'il y a un problème, une trace dit lequel.**
