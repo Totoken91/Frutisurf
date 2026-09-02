@@ -203,7 +203,10 @@ ${TOWN_GLSL}
           // la meme lecon que le masque de plage : la premiere version de la
           // route ne vivait que dans le shader du sol, et l'herbe a continue de
           // pousser au milieu de l'asphalte.
-          float tar = townRoad(wp, above, uTown);
+          // La chaussee ET son accotement : rien ne pousse ni sur l'enrobe ni
+          // dans le gravier.
+          float tar = max(townRoad(wp, above, uTown),
+                          townShoulder(wp, above, uTown) * 0.85);
           float hgt = (0.11 + r1 * 0.11 + step(0.87, r2) * 0.15)
                     * fade * dry * uDensity * (1.0 - tar * 0.96);
           float v = uv.y;

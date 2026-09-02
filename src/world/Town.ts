@@ -163,11 +163,38 @@ float townRowAt(float worldZ, vec2 org){
 // C'est la meme lecon que le masque de plage : la premiere version ne vivait
 // que dans le shader du sol, et l'herbe a continue de pousser au milieu de
 // l'asphalte. Une route sous un champ de brins n'est plus une route.
+
+// La demi-largeur de la chaussee. Exposee parce que le sol doit peindre sa
+// RIVE exactement dessus : une ligne de rive posee a peu pres au bon endroit
+// serait pire que pas de ligne du tout.
+float townEdge(vec2 wp){
+  // Six metres et demi de demi-chaussee, pas huit et demi : a la distance ou
+  // vit la camera, une route de vingt metres de large remplit tout le bas du
+  // cadre et le paysage se reduit a un aplat sombre. Une rue de lotissement
+  // fait treize metres, bas-cotes compris — et il faut que l'herbe et les
+  // feuilles ENCADRENT l'asphalte pour qu'on le lise comme une route.
+  return 6.6 + (fbm2(vec2(wp.y * 0.035, 3.1)) - 0.5) * 2.2;
+}
+
+// L'enrobe s'arrete NET, en un peu plus d'un metre. Le premier reglage
+// l'etalait sur quatre metres et demi : la route se diluait dans l'herbe, on ne
+// savait plus ou elle finissait, et une route sans bord n'est pas une route,
+// c'est une tache sombre. Ce qui adoucit la transition, c'est l'accotement.
 float townRoad(vec2 wp, float above, float town){
   if (town <= 0.004) return 0.0;
-  // Le bord n'est pas droit : un bas-cote ronge et un peu d'enrobe qui deborde.
-  float edge = 8.5 + (fbm2(vec2(wp.y * 0.035, 3.1)) - 0.5) * 3.0;
-  return (1.0 - smoothstep(edge, edge + 4.5, abs(wp.x))) * town
+  float e = townEdge(wp);
+  return (1.0 - smoothstep(e, e + 1.3, abs(wp.x))) * town
+       * smoothstep(-0.3, 0.5, above);
+}
+
+// L'ACCOTEMENT : gravier et terre battue, juste au-dela de l'enrobe. C'est lui
+// qui fait le passage entre le noir de la chaussee et le champ, et il n'est pas
+// decoratif — sans lui l'herbe pousse contre le bitume, ce qui n'arrive nulle
+// part sur une route entretenue.
+float townShoulder(vec2 wp, float above, float town){
+  if (town <= 0.004) return 0.0;
+  float d = abs(wp.x) - townEdge(wp);
+  return smoothstep(-0.7, 0.4, d) * (1.0 - smoothstep(1.0, 3.2, d)) * town
        * smoothstep(-0.3, 0.5, above);
 }
 #endif
@@ -249,6 +276,29 @@ function buildingGeometry(): BufferGeometry {
   quad([0, 1, RZ], [0, 1, -RZ], [-RO, 0, -RZ], [-RO, 0, RZ], 1);
   tri([-RO, 0, RZ], [RO, 0, RZ], [0, 1, RZ], 1);
   tri([RO, 0, -RZ], [-RO, 0, -RZ], [0, 1, -RZ], 1);
+
+  // --- 1.2 : LA CHEMINEE.
+  //
+  //     Un indice non entier, et ce n'est pas un bricolage : toutes les
+  //     comparaisons de partie sont des seuils (aPart < 1.5 = maison,
+  //     aPart < 0.5 = murs). Une cheminee a 1.2 est donc AUTOMATIQUEMENT mise a
+  //     l'echelle du toit et coloree comme lui, sans toucher a une seule des
+  //     conditions existantes. Elle garde quand meme son identite propre, ce
+  //     qui permet de la replier maison par maison — une cheminee sur toutes
+  //     les maisons ferait un lotissement de catalogue.
+  //
+  //     Elle vaut son cout a elle seule : c'est la seule chose qui casse la
+  //     symetrie d'un pignon, et une silhouette de maison sans rien qui
+  //     depasse lit comme une icone.
+  const cx = 0.19;
+  const cw = 0.075;
+  const cz = 0.11;
+  const CT = 1.55;
+  quad([cx + cw, 0.30, cz], [cx + cw, 0.30, -cz], [cx + cw, CT, -cz], [cx + cw, CT, cz], 1.2);
+  quad([cx - cw, 0.30, -cz], [cx - cw, 0.30, cz], [cx - cw, CT, cz], [cx - cw, CT, -cz], 1.2);
+  quad([cx - cw, 0.30, cz], [cx + cw, 0.30, cz], [cx + cw, CT, cz], [cx - cw, CT, cz], 1.2);
+  quad([cx + cw, 0.30, -cz], [cx - cw, 0.30, -cz], [cx - cw, CT, -cz], [cx + cw, CT, -cz], 1.2);
+  quad([cx - cw, CT, -cz], [cx - cw, CT, cz], [cx + cw, CT, cz], [cx + cw, CT, -cz], 1.2);
 
   // --- 2 : LE MAT, en metres. Un poteau, une potence, une lanterne.
   const PH = 5.6;
@@ -340,8 +390,14 @@ ${TOWN_GLSL}
           bool isLampPart = aPart > 1.5 && aPart < 3.5;
           bool isTreePart = aPart > 3.5;
           bool isHousePart = aPart < 1.5;
+          // Une maison sur deux a une cheminee. Le tirage se lit dans le z,
+          // comme tout le reste (cf. l'invariant en tete de TOWN_GLSL).
+          bool chimney = aPart > 1.1 && aPart < 1.3;
           bool keepPart = wantLamp ? isLampPart : wantTree ? isTreePart : isHousePart;
           if (!keepPart) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          if (chimney && hash21(vec2(z * 0.071, side * 12.7 + rank)) < 0.45) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return;
+          }
 
           vec2 wp;
           vec3 p = position;
@@ -530,12 +586,17 @@ ${RIDER_GLSL}
                 : uWall * 0.26;
               glow = lit;
             } else if (band) {
-              // LE DEBORDEMENT. C'est lui qui fait la lumiere : une fenetre
-              // allumee qui s'arrete net au bord de son cadre lit comme un
-              // autocollant colle sur un mur.
-              float b = smoothstep(0.50, 0.28, max(d2.x, d2.y));
-              c += uWindow * b * lit * 0.62;
-              glow = b * lit * 0.6;
+              // LE DEBORDEMENT, et il doit rester PRES de sa fenetre.
+              //
+              // C'est lui qui fait la lumiere — une fenetre allumee qui s'arrete
+              // net au bord de son cadre lit comme un autocollant — mais dose
+              // trop large il couvre la cellule entiere. Toutes les cellules
+              // d'une rangee s'allument alors ensemble, et la facade devient un
+              // RECTANGLE lumineux a bords francs : la bande de fenetres a
+              // exactement la forme d'une enseigne.
+              float b = smoothstep(0.40, 0.23, max(d2.x, d2.y));
+              c += uWindow * b * lit * 0.34;
+              glow = b * lit * 0.34;
             }
           } else if (vPart < 1.5) {
             // --- LE TOIT. Plus sombre que les murs, et MOUILLE : c'est la
@@ -641,11 +702,18 @@ ${TOWN_GLSL}
           vec3 right = nsafe(cross(vec3(0.0, 1.0, 0.0), fwd), vec3(1.0, 0.0, 0.0));
           vec3 up = cross(fwd, right);
 
-          // Le halo ENFLE sous la pluie : c'est l'eau en suspension qui diffuse
-          // la lumiere, et c'est le detail qui fait qu'un lampadaire sous
-          // l'averse ne ressemble pas a un lampadaire par temps sec.
-          float s = 2.6 + uWet * 2.4;
-          vec3 world = p + right * position.x * s + up * position.y * s;
+          // Le quad n'est plus centre sur la lanterne : il PEND sous elle.
+          //
+          // C'est ce qui permet d'y loger le FAISCEAU en plus du halo. Un
+          // lampadaire sous l'averse ne fait pas une pastille lumineuse, il
+          // plante un cone de lumiere dans la pluie — et ce cone est la moitie
+          // de ce qu'on vient chercher dans une rue mouillee le soir.
+          //
+          // Sa base passe SOUS le sol : le test de profondeur la coupe donc
+          // pile a la chaussee, gratuitement, et le faisceau semble s'y poser.
+          float W = 5.0 + uWet * 2.4;
+          float H = 7.4;
+          vec3 world = p + right * position.x * W + up * (position.y - 0.42) * H;
 
           vFade = uDensity * smoothstep(230.0, 90.0, dist) * smoothstep(2.0, 6.0, dist);
           vUv = uv;
@@ -659,13 +727,37 @@ ${TOWN_GLSL}
         varying float vFade;
         void main(){
           if (vFade < 0.004) discard;
-          float r = length(vUv - 0.5) * 2.0;
-          if (r > 1.0) discard;
-          // Coeur dur, halo long. Un seul lobe donne une pastille ; c'est
-          // l'ECART entre les deux exposants qui fait une lampe.
-          float a = pow(max(1.0 - r, 1e-4), 5.0) * 0.9
-                  + pow(max(1.0 - r, 1e-4), 1.6) * (0.16 + uWet * 0.22);
-          a *= vFade;
+          float u = (vUv.x - 0.5) * 2.0;
+          float v = vUv.y;
+
+          // --- LE BULBE. Coeur dur, halo long : un seul lobe donne une
+          //     pastille, c'est l'ECART entre les deux exposants qui fait une
+          //     lampe. Il est centre sur la lanterne, aux neuf dixiemes du quad.
+          float r = length(vec2(u * 1.25, (v - 0.92) * 3.4));
+          float bulb = pow(max(1.0 - clamp(r, 0.0, 1.0), 1e-4), 5.0) * 0.95
+                     + pow(max(1.0 - clamp(r * 0.52, 0.0, 1.0), 1e-4), 1.7)
+                       * (0.15 + uWet * 0.20);
+
+          // --- LE FAISCEAU, et il n'existe QUE parce qu'il pleut.
+          //
+          //     Ce qu'on voit d'un cone de lumiere, ce n'est jamais la lumiere :
+          //     c'est ce qu'elle TRAVERSE. Par temps sec il n'y a rien dans
+          //     l'air et le faisceau est invisible ; sous l'averse il se dessine
+          //     en entier. Il est donc multiplie par la pluie, sans exception.
+          float halfW = mix(0.92, 0.07, v);
+          float cone = 1.0 - smoothstep(halfW * 0.42, halfW, abs(u));
+          cone *= smoothstep(0.0, 0.26, v);          // il meurt en bas
+          cone *= 1.0 - smoothstep(0.85, 0.94, v);   // et s'arrete sous la lanterne
+          cone *= mix(0.28, 1.0, v);                 // plus dense pres de la source
+
+          // Le quad ne doit JAMAIS se voir. En additif, une valeur infime mais
+          // non nulle sur toute sa surface eclaircit uniformement le ciel
+          // derriere lui, et on lit un RECTANGLE clair autour de la lampe. Deux
+          // precautions : le faisceau s'eteint franchement sur les bords, et
+          // tout ce qui reste sous le seuil est rejete.
+          cone *= 1.0 - smoothstep(0.78, 1.0, abs(u));
+          float a = (bulb + cone * uWet * 0.34) * vFade;
+          if (a < 0.004) discard;
           // Additif : l'alpha de sortie vaut 1 et toute la modulation vit dans
           // le RVB, sinon elle est comptee deux fois et la lueur sort terne.
           gl_FragColor = vec4(uWindow * a * 2.6, 1.0);

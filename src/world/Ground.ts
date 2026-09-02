@@ -521,21 +521,71 @@ ${TOWN_GLSL}
           //     l'herbe une tache de lumiere chaude se noie, sur du noir mouille
           //     elle brule.
           float road = townRoad(vWorld.xz, above, uTown);
+          // Les passages de roues sont releves ICI parce que les flaques en ont
+          // besoin plus bas : l'eau ne stagne pas la ou les pneus passent.
+          float wheel = 0.0;
           {
+            // --- L'ACCOTEMENT, avant la chaussee : gravier, terre battue, et le
+            //     gravillon qui deborde. Il occupe la bande ou l'herbe ne
+            //     pousse plus mais ou l'enrobe n'a pas encore commence.
+            float berm = townShoulder(vWorld.xz, above, uTown);
+            if (berm > 0.003) {
+              // Du gravier MOUILLE, donc sombre et gris. Tire trop clair, il
+              // lit comme du sable et l'oeil voit une plage le long de la
+              // route — on l'a eu, et c'etait la premiere chose qu'on
+              // remarquait dans le cadre.
+              vec3 dirt = mix(uSandWet, uSandDry, 0.30) * 0.40;
+              dirt *= 0.66 + fbm3(vWorld.xz * 3.4) * 0.66 + fbm2(vWorld.xz * 0.5) * 0.22;
+              c = mix(c, dirt, berm * 0.88);
+            }
+
             if (road > 0.003) {
-              vec3 tar = vec3(0.055, 0.052, 0.058);
-              // Le grain de l'enrobe : sans lui c'est du velours noir.
-              tar *= 0.72 + fbm3(vWorld.xz * 2.6) * 0.55 + fbm2(vWorld.xz * 0.35) * 0.22;
-              // La bande blanche au milieu, usee et discontinue.
-              // La bande blanche : ETROITE, DISCONTINUE et USEE. Trop large
-              // ou trop propre, elle passe au premier plan comme une barre
-              // grise posee sous le personnage — elle attire l'oeil au centre
-              // du cadre, exactement la ou il ne doit pas rester.
+              // --- L'ENROBE, sur trois echelles.
+              //
+              //     Le gravillon (fin), la reprise d'enrobe (large), et le
+              //     LISSAGE DES PASSAGES DE ROUES. Ce dernier est le detail qui
+              //     dit « route utilisee » plutot que « ruban gris » : le
+              //     caoutchouc polit le bitume et le noircit sur deux bandes,
+              //     a un metre et demi de l'axe. Il ne coute qu'une gaussienne.
+              vec3 tar = vec3(0.052, 0.049, 0.056);
+              tar *= 0.66 + fbm3(vWorld.xz * 2.6) * 0.55 + fbm2(vWorld.xz * 0.28) * 0.30;
+              wheel = exp(-pow((abs(vWorld.x) - 1.7) * 1.45, 2.0));
+              tar *= 1.0 - wheel * 0.24;
+
+              // --- LES FISSURES. Un RESEAU, pas des rayures : on prend la
+              //     crete d'un bruit — la vallee de |fbm - 0.5| — ce qui donne
+              //     des lignes qui se rejoignent et se ferment, comme une
+              //     faience. Des traits paralleles auraient lu comme un motif.
+              //     Par plaques, et seulement au premier plan : au loin le
+              //     reseau passe sous le pixel et ne produit que du bruit.
+              float crack = 1.0 - smoothstep(0.0, 0.05, abs(fbm2(vWorld.xz * 0.55) - 0.5));
+              crack *= smoothstep(0.38, 0.72, fbm2(vWorld.xz * 0.085)) * detail;
+              tar *= 1.0 - crack * 0.55;
+
+              // --- LES GRAVILLONS DU BORD. Le balayage rejette le gravier
+              //     contre la rive : une bande de points clairs, uniquement la
+              //     ou la chaussee touche l'accotement. C'est le detail qui
+              //     empeche le bord de lire comme une decoupe.
+              float kerbBand = smoothstep(0.45, 0.95, abs(vWorld.x) / max(townEdge(vWorld.xz), 0.001));
+              float grit = smoothstep(0.86, 0.99, fbm2(vWorld.xz * 7.0)) * kerbBand * detail;
+              tar = mix(tar, vec3(0.17, 0.16, 0.14), grit * 0.7);
+
+              // --- LA BANDE AXIALE : ETROITE, DISCONTINUE et USEE. Trop large
+              //     ou trop propre, elle passe au premier plan comme une barre
+              //     grise posee sous le personnage — elle attire l'oeil au
+              //     centre du cadre, exactement la ou il ne doit pas rester.
               float lane = (1.0 - smoothstep(0.07, 0.15, abs(vWorld.x)))
                          * step(0.62, fract(vWorld.z * 0.14))
                          * smoothstep(0.30, 0.62, fbm2(vWorld.xz * 0.7));
-              tar = mix(tar, vec3(0.20, 0.19, 0.17), lane * 0.80);
-              c = mix(c, tar, road * 0.94);
+              // --- ET LA RIVE, continue, posee EXACTEMENT sur le bord que
+              //     townRoad utilise. C'est elle qui donne sa largeur a la
+              //     route : sans elle, l'oeil ne sait pas ou la chaussee finit.
+              float ex = townEdge(vWorld.xz) - 0.55;
+              float rive = (1.0 - smoothstep(0.09, 0.19, abs(abs(vWorld.x) - ex)))
+                         * smoothstep(0.32, 0.68, fbm2(vWorld.xz * 0.9));
+              tar = mix(tar, vec3(0.26, 0.25, 0.22), max(lane, rive) * 0.78);
+
+              c = mix(c, tar, road * 0.96);
             }
           }
 
@@ -572,7 +622,7 @@ ${TOWN_GLSL}
             //   tapis recouvrait l'asphalte et la route disparaissait sous les
             //   feuilles — on avait fait une route pour ne pas la voir.
             mat = clamp(mat, 0.0, 1.0) * uLitter * (1.0 - sand * 0.6)
-                * smoothstep(-0.2, 0.8, above) * (1.0 - road * 0.70);
+                * smoothstep(-0.2, 0.8, above) * (1.0 - road * 0.55);
 
             if (mat > 0.003) {
               //   Un tapis pietine n'a pas la couleur d'une feuille en vol : il
@@ -580,6 +630,10 @@ ${TOWN_GLSL}
               //   couleurs, assombries — c'est ce qui fait qu'on reconnait la
               //   feuille qui vient de tomber dans celle qui est au sol.
               vec3 litter = mix(uLeafB, uLeafA, smoothstep(0.38, 0.80, speck)) * 0.70;
+              //   Une feuille plaquee sur du bitume mouille est plus SOMBRE et
+              //   plus collee qu'une feuille dans l'herbe : elle a perdu son
+              //   relief. Sans ce terme, le tapis flotte au-dessus de la route.
+              litter *= 1.0 - road * 0.42;
               //   Le grain, au premier plan seulement : sans lui c'est une
               //   tache de couleur, avec lui c'est un tas de feuilles.
               litter *= 0.84 + fbm3(vWorld.xz * 5.5) * 0.34 * detail;
@@ -625,8 +679,17 @@ ${TOWN_GLSL}
             // infiltre pas. C'est la que les flaques doivent etre, et c'est la
             // qu'elles servent — une flaque sur du noir renvoie le halo des
             // lampadaires, une flaque dans un pre ne renvoie que du gris.
-            pool = max(pool, road * uWet
-                    * smoothstep(0.42, 0.72, fbm2(vWorld.xz * 0.12 + 3.3)));
+            //   Sur la route, elles sont ETIREES DANS SON AXE : l'eau suit le
+            //   devers et les ornieres, elle ne fait pas des ronds. Un bruit
+            //   ecrase quatre fois en z suffit a le dire.
+            //   Sur la route, elles sont ETIREES DANS SON AXE : l'eau suit le
+            //   devers et les ornieres, elle ne fait pas des ronds. Un bruit
+            //   ecrase quatre fois en z suffit a le dire.
+            //   Et elle ne stagne PAS dans les passages de roues : c'est
+            //   justement la que les pneus la chassent, et ce vide entre deux
+            //   flaques est ce qui fait lire des ornieres plutot que des taches.
+            pool = max(pool, road * uWet * (1.0 - wheel * 0.75)
+                    * smoothstep(0.40, 0.70, fbm2(vec2(vWorld.x * 0.30, vWorld.z * 0.075) + 3.3)));
 
             if (pool > 0.003) {
               //   Une flaque n'est pas une tache sombre, c'est un MIROIR : elle
@@ -635,7 +698,12 @@ ${TOWN_GLSL}
               //   la fait lire comme de l'eau et non comme de la boue.
               vec3 mirror = mix(uDayFill, uHorizon, 0.35);
               float pf = pow(max(1.0 - clamp(dot(N, V), 0.0, 1.0), 1e-4), 3.2);
-              vec3 pc = mix(c * 0.30, mirror, clamp(0.16 + pf * 1.25, 0.0, 0.92));
+              //   Sur l'asphalte la flaque est un VRAI miroir : le sol qu'elle
+              //   recouvre est presque noir, donc tout ce qu'on y voit vient du
+              //   ciel. Dans l'herbe elle reste plus discrete — il y a de la
+              //   matiere claire dessous qui transparait.
+              vec3 pc = mix(c * 0.30, mirror,
+                            clamp(0.16 + pf * (1.25 + road * 0.9), 0.0, 0.95));
 
               //   LES IMPACTS. Ce sont eux qui disent que l'averse est EN COURS :
               //   une flaque lisse est une flaque d'apres la pluie. Ils
@@ -742,7 +810,7 @@ ${TOWN_GLSL}
           //     Il prend la couleur du remplissage du ciel, comme la goutte
           //     elle-meme : un voile gris fixe sous un ciel de braise serait
           //     la meme faute que le reflet de l'eau teinte deux fois.
-          c = mix(c, uDayFill * 1.06, smoothstep(0.06, 0.80, f) * uWet * 0.34);
+          c = mix(c, uDayFill * 1.06, smoothstep(0.06, 0.80, f) * uWet * 0.40);
 
           // Contact net avec le ciel.
           c = mix(c, uHorizon, smoothstep(0.94, 1.0, f));

@@ -1196,6 +1196,55 @@ et fassent un quartier — et des maisons volontairement **plus grandes que
 nature**, exactement comme les tours de la ville de cristal font cent mètres de
 haut.
 
+#### Ce qui fait qu'une route n'est plus « une bande sombre »
+
+Le premier jet en avait la forme et rien d'autre : un ruban gris uniforme qui
+occupait la moitié du cadre. Six termes l'ont sortie de là, et aucun ne coûte
+plus de trois lignes :
+
+- **Les passages de roues.** Deux bandes plus sombres et plus lisses à un mètre
+  soixante-dix de l'axe — le caoutchouc polit le bitume et le noircit. C'est
+  *le* détail qui dit « route utilisée » plutôt que « ruban gris », et il ne
+  coûte qu'une gaussienne. Les flaques les évitent, ce qui fait lire des
+  ornières plutôt que des taches.
+- **Les fissures.** Un **réseau**, pas des rayures : on prend la crête d'un
+  bruit — la vallée de `|fbm − 0.5|` — ce qui donne des lignes qui se rejoignent
+  et se ferment, comme une faïence. Des traits parallèles auraient lu comme un
+  motif.
+- **La rive**, posée exactement sur le bord que le masque de route utilise.
+  Sans elle, l'œil ne sait pas où la chaussée s'arrête.
+- **Les gravillons** rejetés contre ce bord par le balayage.
+- **L'accotement** : une bande de gravier mouillé entre l'enrobe et l'herbe.
+  Tiré trop clair il lit comme du **sable**, et on voit une plage le long de la
+  route — c'est arrivé, et c'était la première chose qu'on remarquait.
+- **Les feuilles plaquées** : sur le bitume elles sont plus sombres et collées,
+  elles ont perdu leur relief. Sans ce terme le tapis flotte au-dessus de la
+  route.
+
+Et la route a **rétréci**, de vingt mètres à treize. À la distance où vit la
+caméra, une chaussée de vingt mètres remplit tout le bas du cadre et le paysage
+se réduit à un aplat sombre. Il faut que l'herbe et les feuilles **encadrent**
+l'asphalte pour qu'on le lise comme une route.
+
+#### Le faisceau du lampadaire n'existe que parce qu'il pleut
+
+Ce qu'on voit d'un cône de lumière, ce n'est jamais la lumière : c'est ce
+qu'elle **traverse**. Par temps sec il n'y a rien dans l'air et le faisceau est
+invisible ; sous l'averse il se dessine en entier. Il est donc multiplié par la
+pluie, sans exception.
+
+Le quad qui le porte ne pend plus centré sur la lanterne mais **sous** elle, et
+sa base passe sous le sol : le test de profondeur la coupe pile à la chaussée,
+gratuitement, et le faisceau semble s'y poser.
+
+Deux pièges d'additif au passage, tous deux vus à l'image. Le quad ne doit
+**jamais** se voir : une valeur infime mais non nulle sur toute sa surface
+éclaircit uniformément le ciel derrière lui et on lit un rectangle clair autour
+de la lampe — d'où un seuil de rejet explicite. Et le **débordement des
+fenêtres** doit rester près de sa fenêtre : dosé trop large il couvre la cellule
+entière, toutes les cellules d'une rangée s'allument ensemble, et la façade
+devient un rectangle lumineux à bords francs — une enseigne, pas une maison.
+
 #### La route, et les deux leçons qu'elle a coûtées
 
 Des maisons plantées dans un pré ne sont pas un lotissement, ce sont des maisons
