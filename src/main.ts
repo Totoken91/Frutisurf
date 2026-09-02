@@ -1,4 +1,5 @@
 import { Game } from './Game';
+import { TOWN_STEP } from './world/Town';
 import { WORLDS } from './world/Worlds';
 import { MOUNTS, RIDERS, combine } from './core/Loadout';
 import { terrainHeight, waterDepth } from './world/Terrain';
@@ -14,6 +15,7 @@ game.start();
 // montre le monde plutot qu'un bout de prairie au hasard.
 (window as unknown as Record<string, unknown>).__depth = waterDepth;
 (window as unknown as Record<string, unknown>).__height = terrainHeight;
+(window as unknown as Record<string, unknown>).__townStep = TOWN_STEP;
 // Les bancs de galerie composent des equipements a la volee.
 (window as unknown as Record<string, unknown>).__loadout = { RIDERS, MOUNTS, combine };
 

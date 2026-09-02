@@ -58,8 +58,16 @@ import { terrainGLSL, terrainUniforms } from './Terrain';
  * nommer.
  */
 
-/** Espacement des rangees, en metres. */
-const STEP = 20;
+/**
+ * Espacement des rangees, en metres.
+ *
+ * Exporte parce que le banc de stabilite (scripts/town-check.mjs) doit savoir
+ * OU tomberont les franchissements de grille : c'est la, et nulle part
+ * ailleurs, que le decor peut sauter. Un banc qui chercherait le defaut au
+ * hasard le manquerait neuf fois sur dix.
+ */
+export const TOWN_STEP = 20;
+const STEP = TOWN_STEP;
 /** Nombre de rangees suivies autour du joueur. */
 const ROWS = 24;
 /** Decalage de la premiere rangee : une rangee et demie derriere le joueur. */
@@ -91,14 +99,41 @@ ${GLSL_NOISE}
 #define TOWN_AHEAD ${AHEAD.toFixed(1)}
 #define TOWN_LAMP_H 5.6
 
-// xz d'un lampadaire pour une rangee donnee. org est la position du joueur.
+// LE Z D'UNE RANGEE. C'est la SEULE chose que l'index d'instance a le droit
+// de decider. org est la position du joueur.
 // (Et pas d'accent grave dans ces commentaires : ils vivent dans un gabarit
 //  JS, un seul backtick termine la chaine.)
+float townZ(float row, vec2 org){
+  return floor(org.y / TOWN_STEP) * TOWN_STEP + TOWN_AHEAD - row * TOWN_STEP;
+}
+
+// ---------------------------------------------------------------------------
+// L'INVARIANT DU DECOR ANCRE AU MONDE, et il n'a rien d'evident.
+//
+// LE CONTENU D'UNE RANGEE NE DEPEND QUE DE SON Z, JAMAIS DE SON INDEX.
+//
+// Quand le joueur franchit un pas de grille, l'ancre recule d'un cran et CHAQUE
+// instance herite du z de sa voisine. C'est voulu : c'est ce qui fait defiler
+// le decor sans jamais en allouer un seul. Mais si le contenu d'une instance
+// depend de son INDEX, il ne suit pas le z — et tout le quartier change de
+// place a la fois.
+//
+// C'est exactement ce qui est arrive, et le joueur l'a decrit comme un niveau
+// qui se teleporte : le cote du lampadaire se lisait sur mod(row, 2). Tous les
+// mats sautaient d'un bord a l'autre de la route tous les vingt metres, soit
+// une fois par demi-seconde en croisiere, avec leurs halos et leurs flaques.
+// Les maisons de second rang et les arbres faisaient de meme.
+//
+// La correction n'est pas un reglage, c'est une SIGNATURE : ces fonctions ne
+// prennent plus que le z. Il devient structurellement impossible d'y faire
+// entrer un index. Le banc check:town mesure l'invariant sur l'image rendue.
+// ---------------------------------------------------------------------------
+
 // Un mat par rangee, EN ALTERNANCE d'un cote et de l'autre : deux rangees de
 // mats en vis-a-vis font une avenue, et une avenue n'est pas un lotissement.
-vec2 lampXZ(float row, vec2 org){
-  float z = floor(org.y / TOWN_STEP) * TOWN_STEP + TOWN_AHEAD - row * TOWN_STEP;
-  float side = mod(row, 2.0) < 0.5 ? 1.0 : -1.0;
+// L'alternance se lit sur le rang de la grille MONDE, pas sur l'instance.
+vec2 lampAt(float z){
+  float side = mod(floor(z / TOWN_STEP), 2.0) < 0.5 ? 1.0 : -1.0;
   float h = hash21(vec2(z * 0.041, side * 9.13));
   // AU BORD DE L'ASPHALTE, et c'est tout le sujet. Le premier jet plantait les
   // mats a trente-sept metres, avec les maisons : ils etaient trop loin pour
@@ -107,6 +142,14 @@ vec2 lampXZ(float row, vec2 org){
   // est un poteau, quelle que soit la beaute de son halo.
   return vec2(side * (15.0 + h * 2.5), z);
 }
+
+// De quel cote de la route se trouve l'element d'une rangee. Tire du Z, donc
+// stable quand la grille glisse.
+float townSide(float z, float slot){
+  return hash21(vec2(z * 0.013 + slot * 4.71, 21.3)) < 0.5 ? -1.0 : 1.0;
+}
+
+vec2 lampXZ(float row, vec2 org){ return lampAt(townZ(row, org)); }
 
 // Le numero de rangee le plus proche d'un point du monde. Sert au sol, qui
 // part du pixel et doit retrouver les mats, alors que le decor part du mat.
@@ -256,51 +299,15 @@ function buildingGeometry(): BufferGeometry {
   return g;
 }
 
-export class Town {
-  readonly buildings: InstancedMesh;
-  readonly halos: Mesh;
-  /** Les deux materiaux, pour que le monde y pousse ses couleurs. */
-  readonly mats: ShaderMaterial[] = [];
-  private mat: ShaderMaterial;
-  private haloMat: ShaderMaterial;
-
-  constructor() {
-    const count = ROWS * SLOTS;
-    const spec = new Float32Array(count * 4);
-    for (let i = 0; i < count; i++) {
-      const row = Math.floor(i / SLOTS);
-      const slot = i % SLOTS;
-      // slot 0/1 : les deux maisons de front, une de chaque cote.
-      // slot 2   : une maison de second rang, alternee.
-      // slot 3   : le lampadaire.
-      const side = slot === 0 ? -1 : slot === 1 ? 1 : row % 2 === 0 ? 1 : -1;
-      spec[i * 4] = row;
-      spec[i * 4 + 1] = side;
-      spec[i * 4 + 2] = slot === 2 ? 1 : slot === 3 ? 2 : 0;
-      // kind : 0 maison, 1 lampadaire, 2 arbre.
-      spec[i * 4 + 3] = slot === 4 ? 1 : slot === 5 ? 2 : 0;
-    }
-
-    this.mat = new ShaderMaterial({
-      transparent: true,
-      depthWrite: true,
-      uniforms: {
-        ...riderUniforms(),
-        ...terrainUniforms(),
-        ...dayUniforms(),
-        uOrigin: { value: new Vector3() },
-        uCam: { value: new Vector3() },
-        /** Presence du quartier, 0..1. Zero partout sauf en octobre. */
-        uDensity: { value: 0 },
-        /** Averse : elle voile les maisons comme elle voile le sol. */
-        uWet: { value: 0 },
-        uWall: { value: vec3('townWall') },
-        uTree: { value: vec3('treeLine') },
-        uRoof: { value: vec3('townRoof') },
-        uWindow: { value: vec3('townWindow') },
-        uHaze: { value: vec3('skyHorizon') },
-      },
-      vertexShader: /* glsl */ `
+/**
+ * LE SHADER DE SOMMET DU QUARTIER, sorti de la classe.
+ *
+ * Il vit ici pour que le banc d invariant (scripts/town-check.ts) puisse le
+ * lire. Verifier une regle sur du code enferme dans un constructeur voudrait
+ * dire le relire au disque et le decouper au hasard ; expose, il se verifie
+ * pour ce qu il est — une chaine.
+ */
+export const TOWN_VERTEX = /* glsl */ `
 ${GLSL_SAFE}
         attribute float aPart;
         attribute vec4 iSpec;
@@ -316,9 +323,14 @@ ${TOWN_GLSL}
           if (uDensity < 0.004) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
           float row = iSpec.x;
-          float side = iSpec.y;
-          float rank = iSpec.z;
-          float lamp = iSpec.w;
+          float slot = iSpec.y;
+          // Le Z de la rangee : la seule chose que l'index decide.
+          float z = townZ(row, uOrigin.xz);
+          // Le ROLE est constant pour une instance donnee ; le COTE se lit
+          // dans le z (cf. l'invariant en tete de TOWN_GLSL).
+          float rank = slot < 1.5 ? 0.0 : slot < 2.5 ? 1.0 : 2.0;
+          float side = slot < 0.5 ? -1.0 : slot < 1.5 ? 1.0 : townSide(z, slot);
+          float lamp = slot > 4.5 ? 2.0 : slot > 3.5 ? 1.0 : 0.0;
 
           // Chaque instance replie les parties qui ne la concernent pas. Le
           // triangle degenere ne produit aucun fragment : c'est le moyen le
@@ -336,7 +348,6 @@ ${TOWN_GLSL}
           float seed;
 
           if (wantTree) {
-            float z = floor(uOrigin.z / TOWN_STEP) * TOWN_STEP + TOWN_AHEAD - row * TOWN_STEP;
             float t1 = hash21(vec2(z * 0.029 + 9.1, side * 5.7));
             float t2 = hash21(vec2(z * 0.061 + 2.3, side * 8.9));
             float t3 = hash21(vec2(z * 0.017 + 6.6, side * 1.9));
@@ -348,13 +359,12 @@ ${TOWN_GLSL}
             vDim = vec3(rr, th, rr);
             p = vec3(position.x * rr, position.y * th, position.z * rr);
           } else if (wantLamp) {
-            wp = lampXZ(row, uOrigin.xz);
+            wp = lampAt(z);
             // La potence regarde la route : on retourne le mat selon le cote.
             p.x *= (wp.x > 0.0 ? 1.0 : -1.0);
-            seed = fract(row * 0.317 + 0.21);
+            seed = fract(z * 0.017 + 0.21);
             vDim = vec3(1.0, TOWN_LAMP_H, 1.0);
           } else {
-            float z = floor(uOrigin.z / TOWN_STEP) * TOWN_STEP + TOWN_AHEAD - row * TOWN_STEP;
             float h1 = hash21(vec2(z * 0.037, side * 3.11 + rank * 11.7));
             float h2 = hash21(vec2(z * 0.019 + 5.3, side * 7.71 + rank * 2.31));
             float h3 = hash21(vec2(z * 0.053 + 1.7, side * 4.33 + rank * 6.11));
@@ -372,7 +382,7 @@ ${TOWN_GLSL}
             // restaient rangees comme des dominos, et vingt dominos font une
             // bande. A un pas et demi elles se chevauchent en profondeur, et
             // c'est ce chevauchement qui fait un quartier.
-            wp = vec2(side * bx, z + (h2 - 0.5) * TOWN_STEP * 1.5);
+            wp = vec2(side * bx, z + (h2 - 0.5) * TOWN_STEP * 0.9);
 
             // La densite DECIME le semis, elle ne le rend pas transparent :
             // meme regle que les palmiers.
@@ -422,7 +432,56 @@ ${TOWN_GLSL}
           vWorld = world;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }
-      `,
+`;
+
+export class Town {
+  readonly buildings: InstancedMesh;
+  readonly halos: Mesh;
+  /** Les deux materiaux, pour que le monde y pousse ses couleurs. */
+  readonly mats: ShaderMaterial[] = [];
+  private mat: ShaderMaterial;
+  private haloMat: ShaderMaterial;
+
+  constructor() {
+    const count = ROWS * SLOTS;
+    const spec = new Float32Array(count * 4);
+    for (let i = 0; i < count; i++) {
+      const row = Math.floor(i / SLOTS);
+      const slot = i % SLOTS;
+      // slot 0/1 : les deux maisons de front, une de chaque cote.
+      // slot 2   : une maison de second rang, alternee.
+      // slot 3   : le lampadaire.
+      // L'instance ne porte que sa RANGEE et son ROLE. Tout le reste — le
+      // cote de la route, la taille, l'orientation, jusqu'a l'existence de
+      // l'element — se lit dans le shader depuis le Z de la rangee. Une
+      // instance qui porterait son cote le garderait en heritant du z de sa
+      // voisine, et le quartier changerait de place a chaque pas de grille.
+      spec[i * 4] = row;
+      spec[i * 4 + 1] = slot;
+      spec[i * 4 + 2] = 0;
+      spec[i * 4 + 3] = 0;
+    }
+
+    this.mat = new ShaderMaterial({
+      transparent: true,
+      depthWrite: true,
+      uniforms: {
+        ...riderUniforms(),
+        ...terrainUniforms(),
+        ...dayUniforms(),
+        uOrigin: { value: new Vector3() },
+        uCam: { value: new Vector3() },
+        /** Presence du quartier, 0..1. Zero partout sauf en octobre. */
+        uDensity: { value: 0 },
+        /** Averse : elle voile les maisons comme elle voile le sol. */
+        uWet: { value: 0 },
+        uWall: { value: vec3('townWall') },
+        uTree: { value: vec3('treeLine') },
+        uRoof: { value: vec3('townRoof') },
+        uWindow: { value: vec3('townWindow') },
+        uHaze: { value: vec3('skyHorizon') },
+      },
+      vertexShader: TOWN_VERTEX,
       fragmentShader: /* glsl */ `
 ${GLSL_SAFE}
         uniform vec3 uWall, uRoof, uWindow, uHaze, uCam, uTree;

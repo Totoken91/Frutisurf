@@ -863,3 +863,58 @@ plomb.
 D'où un uniforme séparé, et la règle générale dont il est le troisième exemple
 après la brume de la ville et le reflet de l'eau : **ce qui décrit une propriété
 du ciel ne peut pas se dériver d'un réglage de lumière.**
+
+
+## 14. Le décor ancré au monde, et l'invariant qu'il impose
+
+Le quartier d'octobre (comme les palmiers, les touffes et le pollen avant lui)
+est un semis de cellules qui **suit le joueur**. Quand celui-ci franchit un pas
+de grille, l'ancre recule d'un cran et chaque instance hérite du z de sa
+voisine. C'est ce qui fait défiler un décor infini sans jamais en allouer un
+seul.
+
+Le prix à payer tient en une ligne, et il n'a rien d'évident :
+
+> **Le contenu d'une cellule ne doit dépendre que de sa position monde, jamais
+> de son index d'instance.**
+
+Sinon le contenu ne suit pas le z, et **tout le décor change de place à la
+fois**. C'est arrivé : le côté du lampadaire se lisait sur `mod(row, 2)`. Tous
+les mâts, leurs halos et leurs flaques sautaient d'un bord à l'autre de la route
+tous les vingt mètres — soit deux fois par seconde en croisière. Les maisons de
+second rang et les arbres faisaient de même.
+
+La correction n'est pas un réglage, c'est une **signature** : les fonctions de
+contenu (`lampAt`, `townSide`) ne reçoivent plus que le z. Une seule fonction,
+`townZ`, a le droit de convertir un index de rangée en position monde. Ce dont
+une fonction ne peut pas parler, elle ne peut pas en dépendre.
+
+### Pourquoi `check:town` est statique et non visuel
+
+Le premier banc mesurait l'image : on avançait le joueur par pas de deux mètres
+et on comparait l'écart image à image **aux franchissements de grille** et
+ailleurs. Ça ne marche pas, et l'échec est instructif — un lampadaire à
+l'horizon fait trois pixels. Même en faisant sauter *tous* les mâts d'un bord à
+l'autre, l'écart aux franchissements sortait à **1,08 fois** celui des autres
+pas : parfaitement noyé dans les huit pour cent de parallaxe que deux mètres
+d'avance produisent de toute façon.
+
+(Le tout premier jet était encore pire : il calculait l'écart *image à image*
+dans la boucle de rendu, et lisait donc l'écart entre les deux dernières images
+— toutes deux postérieures au pas. Sur une scène gelée, deux images consécutives
+sont identiques : le banc mesurait zéro et déclarait tout normal, sur la version
+qui sautait comme sur celle qui ne sautait pas.)
+
+L'invariant, lui, est **structurel** : il porte sur ce dont une fonction a le
+droit de dépendre. On le vérifie donc là où il vit — dans la signature et le
+corps des fonctions de placement. C'est exact, instantané, ça ne flotte pas avec
+la charge de la machine, et c'est vérifié : réintroduire le bug fait tomber
+trois assertions sur huit.
+
+### Ce qu'aucun autre banc ne pouvait voir
+
+`check:shaders` compile, `check:worlds` mesure une physique que le décor ne
+touche pas, et les captures sont des **arrêts sur image** — or un décor qui se
+téléporte est parfaitement correct sur chaque image prise séparément. **Le
+défaut n'existe qu'entre deux images.** C'est une classe entière de bugs que la
+suite ne couvrait pas, et le joueur l'a trouvée en trois secondes de jeu.

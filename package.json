@@ -25,6 +25,7 @@
     "check:shake": "esbuild scripts/shake-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/shake.mjs --log-level=error && node node_modules/.cache/shake.mjs",
     "check:water": "esbuild scripts/water-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/water.mjs --log-level=error && node node_modules/.cache/water.mjs",
     "check:pick": "node scripts/pick-check.mjs",
+    "check:town": "esbuild scripts/town-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/town.mjs --log-level=error && node node_modules/.cache/town.mjs",
     "check:worlds": "esbuild scripts/worlds-check.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/worlds.mjs --log-level=error && node node_modules/.cache/worlds.mjs",
     "check:artifact": "npm run build:single && node scripts/artifact-check.mjs"
   },

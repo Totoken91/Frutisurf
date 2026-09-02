@@ -254,6 +254,14 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   passé sous 22 m/s, et depuis Octobre le temps passé **collé au bord du
   couloir** : un vent qu'on ne peut pas contrer plaque le pilote contre la paroi
   et la trajectoire cesse d'être un choix.
+- `check:town` : l'**invariant du décor ancré au monde**. Le quartier d'octobre
+  suit le joueur par cellules ; le contenu d'une cellule ne doit dépendre que de
+  sa position monde, jamais de son index d'instance — sinon tout le décor change
+  de place quand la grille glisse, ce qui est arrivé et se voyait deux fois par
+  seconde. Le banc est **statique** : mesurer l'image ne marchait pas (un
+  lampadaire à l'horizon fait trois pixels, et le saut sortait à 1,08 fois le
+  bruit de parallaxe), alors que l'invariant, lui, porte sur ce dont une
+  fonction a le droit de dépendre.
 - `check:artifact` : **le fichier réellement publié** démarre-t-il. Tout le reste
   de la suite tourne sur `index.html` servi par Vite ; l'artefact mono-fichier
   n'était chargé par rien, et il a été livré mort deux fois — un `<div>` ajouté à
