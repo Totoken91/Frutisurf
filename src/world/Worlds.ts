@@ -625,10 +625,25 @@ export const WORLDS: WorldDef[] = [
     leaves: 1,
     rain: 1,
     // 6,2 m/s au pic, contre 13 m/s d'autorite laterale a vitesse de croisiere :
-    // la rafale vaut donc environ la moitie d'un appui a fond. Assez pour qu'on
-    // ne puisse jamais lacher la direction, pas assez pour qu'on ne puisse pas
-    // la corriger — mesure a l'autopilote, cf. check:worlds.
-    wind: 6.2,
+    // la rafale valait donc environ la moitie d'un appui a fond. Le banc le
+    // trouvait corrigeable (zero pour cent du temps colle au bord) et le
+    // joueur le trouvait INJOUABLE — les deux sont vrais, et l'ecart dit ce
+    // que le banc ne mesurait pas.
+    //
+    // Un autopilote qui corrige en permanence ne se plaint pas ; un humain qui
+    // vise un anneau, si. Ce qui compte n'est pas de pouvoir compenser, c'est
+    // d'avoir des instants ou l'on n'a PAS a compenser. Deux corrections, et
+    // la seconde compte plus que la premiere :
+    //
+    //   - la force descend a 2,4 m/s (un septieme d'un appui a fond) ;
+    //   - la poussee reprend une forme sinusoidale (cf. Weather.windAt) au
+    //     lieu du creneau sature qui sert aux visuels, ce qui rend au monde
+    //     ses accalmies.
+    //
+    // La bourrasque reste franchement visible — l'herbe, les feuilles et la
+    // pluie lisent toujours le signal sature — mais elle ne tient plus le
+    // volant a la place du joueur.
+    wind: 2.4,
     tech: 0,
     // Le plafond. C'est lui qui eteint le soleil du dome : sans ca, un ciel de
     // plomb avec une etoile de cinema plantee dedans.

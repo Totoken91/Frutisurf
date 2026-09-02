@@ -1389,6 +1389,121 @@ n'a pas tenu, et il fallait trois corrections et pas une.
    œuf. Retranché (`a = max(a − s, 0)`), la lueur atteint zéro d'elle-même et il
    n'y a plus de bord du tout.
 
+#### Le relief doit connaître la route
+
+La route était **peinte** sur le terrain sans que le terrain en sache rien.
+Trois défauts en découlaient, tous les trois signalés par le joueur, et aucun
+n'était rattrapable dans un shader. Mesure sur douze kilomètres d'axe :
+
+| | avant | après |
+| --- | --- | --- |
+| route sous l'eau | **9 %** (une mare tous les 100 m) | **0 %** |
+| pente moyenne | 12,0° | 2,7° |
+| pente maximale | 30,9° | 5,5° |
+| dénivelé par 60 m | **15,6 m** | 5,1 m |
+
+Quinze mètres et demi de dénivelé tous les soixante mètres, ce n'est pas la
+mesure d'une rue de lotissement, c'est celle d'une piste de bosses — et des
+maisons posées là-dessus se retrouvaient décalées de dix mètres en hauteur
+entre deux voisines.
+
+D'où un **couloir** : dans la bande de la rue, le relief oublie ses trois
+couches courtes et ne garde que les deux longues (480 m et 190 m), à moitié
+amplitude. Deux détails qui décident du résultat :
+
+- **Il sort de l'eau tout seul, sans remblai.** Les deux couches longues ne
+  descendent jamais aussi bas que la somme des cinq : lisser suffit à passer
+  au-dessus du niveau de l'eau. Pas de constante à régler, pas de route qui
+  flotterait au-dessus du paysage.
+- **Il est LARGE — quarante-six mètres — et ce n'est pas pour la chaussée**,
+  c'est pour les maisons, qui vivent entre vingt-deux et quarante-huit mètres
+  de l'axe. Un couloir serré sur le bitume aurait donné une rue plate bordée de
+  façades en escalier.
+
+Ce qui reste, et c'est voulu : la route **monte et descend** encore, sur
+plusieurs centaines de mètres. Elle traverse le paysage en remblai au-dessus
+des creux et en tranchée dans les bosses — exactement ce que fait une vraie
+route, et ce qui la fait lire comme un ouvrage plutôt que comme une bande
+peinte. Hors du couloir, à quarante mètres, le relief est intact : 30° de pente
+et 7,7 % d'eau. Les sauts sont toujours là, il faut aller les chercher.
+
+#### Le vent : un banc qui dit oui et un joueur qui dit non
+
+Le vent d'octobre valait 6,2 m/s, soit la moitié d'un appui à fond. Le banc le
+trouvait corrigeable — **zéro pour cent** du temps collé au bord du couloir — et
+le joueur le trouvait injouable. Les deux sont vrais, et l'écart dit exactement
+ce que le banc ne mesurait pas : **un autopilote qui corrige en permanence ne
+se plaint pas.** Ce qui compte n'est pas de *pouvoir* compenser, c'est d'avoir
+des instants où l'on n'a **pas** à compenser.
+
+Deux corrections, et la seconde compte plus que la première :
+
+- la force descend à 2,4 m/s (un septième d'un appui à fond) ;
+- la poussée reprend une forme **sinusoïdale**. `gustAt` est un smoothstep
+  serré : il passe l'essentiel de son temps à saturation, ce qui est parfait
+  pour coucher l'herbe et emporter les feuilles — une bourrasque visuelle doit
+  être franche — mais poussé tel quel dans la physique, ça ne donne pas un vent,
+  ça donne un **créneau**. Le disque était déporté à pleine force en permanence,
+  alternant d'un bord à l'autre. Même phase, même direction au même instant, mais
+  de vraies accalmies au passage par zéro.
+
+La bourrasque reste franchement visible — l'herbe, les feuilles et la pluie
+lisent toujours le signal saturé — elle ne tient simplement plus le volant à la
+place du joueur. Le score d'octobre à l'autopilote est passé de 2,7 M à 4,4 M
+au passage : ce n'est pas un monde plus facile, c'est un monde où la
+trajectoire redevient un choix.
+
+#### Un ciel couvert n'est pas un ciel bleu qu'on a baissé
+
+Le plafond d'octobre était fait des mêmes cumulus que la plaine, repeints en
+gris. Ça ne marche pas, et pour une raison de **forme** avant d'être une
+raison de valeur : un cumulus de beau temps est une masse **verticale**, haute,
+isolée, avec du ciel entre les nuages ; un ciel d'averse est une **couche** —
+basse, écrasée, étirée, sans intervalle.
+
+Les mêmes sprites servent donc aux deux, mais sous couverture ils sont écrasés
+(deux fois moins hauts, presque deux fois plus larges), descendus, et ils
+**défilent** — un plafond immobile est un décor peint. Trois autres termes
+suivent la couverture :
+
+- **Le déchirement.** Le contour d'un cumulus est *fermé* : on en fait le tour
+  de l'œil, et c'est ce qui le rend beau. Sous l'averse c'est exactement ce
+  qu'il ne faut pas — un ciel bas n'a pas de contour, il a des lambeaux. On
+  ronge donc l'alpha avec un bruit qui défile, et **seulement là où le nuage est
+  mince** : le cœur reste opaque, les bords partent en charpie. Ronger partout
+  donnerait un nuage troué, ce qui est une autre chose et une chose laide.
+- **Le contraste interne s'effondre.** Plus de source pour sculpter le volume,
+  donc plus de faces claires et sombres. Un nuage d'averse est une valeur, pas
+  un relief.
+- **Le liseré argenté meurt.** C'est un contre-jour, et il n'y a plus rien
+  derrière. Le garder est la faute qui trahit un ciel couvert repeint par-dessus
+  un ciel de beau temps.
+
+#### L'étalonnage sale, et ce n'est pas « plus sombre »
+
+Un monde couvert étalonné comme un monde ensoleillé reste une image de beau
+temps qu'on a baissée. Quatre termes font le grungecore, et aucun n'est un
+assombrissement :
+
+1. **La saturation tombe, sauf sur les sources.** Sous un plafond il n'y a plus
+   de lumière colorée ; la seule couleur qui reste est celle des choses qui
+   *brillent* — les fenêtres, les lampadaires, le personnage. On désature donc
+   en préservant ce qui est déjà clair.
+2. **Les noirs se lèvent et se refroidissent.** Le noir profond est une image de
+   nuit claire ; sous la pluie l'air diffuse et les ombres remontent, en
+   bleu-vert. C'est le *lifted black* de la photo argentique poussée, et c'est
+   **le** marqueur du genre. Il se dose au millième : à 0,030 il ne relevait pas
+   les ombres, il effaçait la route — l'asphalte mouillé, qui est le sujet du
+   monde, remontait au gris moyen et l'image entière devenait laiteuse.
+3. **Le haut du cadre est plus lourd que le bas.** Un plafond pèse. Une vignette
+   symétrique donne un vieux film, pas un ciel bas.
+4. **Le grain**, lié à la luminance : plus présent dans les demi-tons que dans
+   les hautes lumières, comme une pellicule sous-exposée poussée au
+   développement.
+
+Le tout est branché sur la **couverture courante**, fondu compris : l'étalonnage
+arrive au rythme du ciel qui se ferme, comme la pluie qu'on entend.
+
 #### Une seule route ne fait pas un quartier, elle fait un couloir
 
 Il n'y avait rien **à mi-distance** : le regard sautait du bitume sous les pieds

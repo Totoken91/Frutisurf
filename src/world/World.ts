@@ -184,7 +184,18 @@ export class World {
     return this.rainMix;
   }
 
+  /**
+   * Couverture nuageuse COURANTE, fondu compris. Lue par le post-traitement.
+   *
+   * Meme raison que la pluie : l'etalonnage sale doit arriver au rythme du
+   * ciel qui se ferme, pas d'un coup au moment ou l'on valide le monde.
+   */
+  get overcastAmount(): number {
+    return this.overcastMix;
+  }
+
   private rainMix = 0;
+  private overcastMix = 0;
 
   /**
    * Demande un monde. Le fondu part de l'etat COURANT et non du monde
@@ -224,7 +235,17 @@ export class World {
 
     for (let i = 0; i < 5; i++) this.amp[i] = L(a.amp[i], b.amp[i]);
     for (let i = 0; i < 3; i++) this.swell[i] = L(a.swell[i], b.swell[i]);
-    setTerrain(this.amp, L(a.water, b.water), L(a.shore[0], b.shore[0]), L(a.shore[1], b.shore[1]), this.swell);
+    setTerrain(
+      this.amp,
+      L(a.water, b.water),
+      L(a.shore[0], b.shore[0]),
+      L(a.shore[1], b.shore[1]),
+      this.swell,
+      // LE COULOIR SUIT LA PRESENCE DU QUARTIER. Il n'a de sens que la ou il y
+      // a une rue, et il se fond avec elle : pendant une transition de monde,
+      // le relief se lisse au meme rythme que l'asphalte apparait.
+      L(a.town, b.town),
+    );
 
     const pa = worldPalette(a);
     const pb = worldPalette(b);
@@ -336,6 +357,7 @@ export class World {
     const rn = this.rain.mat.uniforms;
     rn.uAmount.value = d.rain;
     this.rainMix = d.rain;
+    this.overcastMix = d.overcast;
     rn.uWind.value = d.wind;
 
     if (this.blades) {
@@ -401,6 +423,7 @@ export class World {
     rgb(cl.uCore, 'cloudCore');
     rgb(cl.uShadow, 'cloudShadow');
     rgb(cl.uRim, 'cloudRim');
+    cl.uOvercast.value = d.overcast;
 
     if (!this.painted) {
       this.painted = true;

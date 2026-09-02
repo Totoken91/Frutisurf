@@ -9,7 +9,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
-import { Rng, valueNoise2D } from '../core/Noise';
+import { GLSL_NOISE, Rng, valueNoise2D } from '../core/Noise';
 import { vec3 } from '../core/Palette';
 import { SUN_DIR } from './Sky';
 
@@ -284,6 +284,11 @@ export class Clouds {
         uTime: { value: 0 },
         uOrigin: { value: new Vector3() },
         uSpan: { value: this.span },
+        /**
+         * Couverture, 0..1. Elle ne fait pas que noircir : elle change la
+         * FORME du ciel. Voir le shader.
+         */
+        uOvercast: { value: 0 },
         uHorizon: { value: vec3('skyHorizon') },
         uCore: { value: vec3('cloudCore') },
         uShadow: { value: vec3('cloudShadow') },
@@ -294,7 +299,7 @@ export class Clouds {
         attribute vec3 iOffset;
         attribute vec2 iScale;
         attribute vec3 iMisc;
-        uniform float uTime, uSpan;
+        uniform float uTime, uSpan, uOvercast;
         uniform vec3 uOrigin;
         varying vec2 vUv;
         varying float vOpacity;
@@ -316,7 +321,22 @@ export class Clouds {
           vec3 axis = cross(vec3(0.0, 1.0, 0.0), toCam);
           float axisLen = length(axis);
           vec3 right = axisLen > 1e-4 ? axis / axisLen : vec3(1.0, 0.0, 0.0);
-          vec3 pos = o + right * position.x * iScale.x + vec3(0.0, 1.0, 0.0) * position.y * iScale.y;
+          // --- LE PLAFOND, ET C'EST UNE AUTRE FORME DE CIEL.
+          //
+          //     Un monde couvert n'est pas un monde ensoleille avec des nuages
+          //     gris. Les cumulus de beau temps sont des MASSES VERTICALES,
+          //     hautes, isolees, avec du ciel entre elles ; un ciel d'averse
+          //     est une COUCHE — basse, ecrasee, etiree, sans intervalle. On
+          //     ecrase donc les memes sprites et on les etale : deux fois plus
+          //     larges, deux fois moins hauts, et descendus de moitie. Le ciel
+          //     se referme sur le joueur au lieu de s'ouvrir au-dessus de lui.
+          o.y = mix(o.y, o.y * 0.58 + 40.0, uOvercast);
+          // Et ils DEFILENT : un plafond immobile est un decor peint. La
+          // derive est franche parce qu'il y a du vent dans ce monde-la, et
+          // qu'on le voit deja dans l'herbe et dans la pluie.
+          o.x += uOvercast * uTime * 9.0;
+          vec2 sc = iScale * vec2(1.0 + uOvercast * 0.72, 1.0 - uOvercast * 0.46);
+          vec3 pos = o + right * position.x * sc.x + vec3(0.0, 1.0, 0.0) * position.y * sc.y;
 
           // Quadrant de l'atlas
           float q = iMisc.x;
@@ -331,8 +351,10 @@ export class Clouds {
         }
       `,
       fragmentShader: /* glsl */ `
+${GLSL_NOISE}
         uniform sampler2D uMap;
         uniform vec3 uHorizon, uCore, uShadow, uRim, uSun;
+        uniform float uOvercast, uTime;
         varying vec2 vUv;
         varying float vOpacity;
         varying float vDepth;
@@ -342,10 +364,32 @@ export class Clouds {
           vec4 t = texture2D(uMap, vUv);
           if (t.a < 0.01) discard;
 
+          // --- LE DECHIREMENT.
+          //
+          //     Le contour d'un cumulus est FERME : c'est une masse, on en
+          //     fait le tour de l'oeil, et c'est ce qui la rend belle par beau
+          //     temps. Sous l'averse, c'est exactement ce qu'il ne faut pas —
+          //     un ciel bas n'a pas de contour, il a des lambeaux. On ronge
+          //     donc l'alpha avec un bruit qui defile, et SEULEMENT la ou le
+          //     nuage est mince : le coeur reste opaque, les bords partent en
+          //     charpie. Ronger partout donnerait un nuage troue, ce qui est
+          //     une autre chose et une chose laide.
+          if (uOvercast > 0.004) {
+            float shred = fbm2(vUv * 11.0 + vec2(uTime * 0.013, uTime * 0.004)) * 0.65
+                        + fbm2(vUv * 26.0 - vec2(uTime * 0.021, 0.0)) * 0.35;
+            float edge = 1.0 - smoothstep(0.42, 0.90, t.a);
+            t.a = clamp(t.a - uOvercast * edge * (0.16 + shred * 0.58), 0.0, 1.0);
+            if (t.a < 0.01) discard;
+          }
+
           // Ombrage volumetrique precalcule dans le canal rouge, mais durci
           // ici : la courbe compte autant que le calcul. Un melange lineaire
           // entre ombre et lumiere donne un nuage laiteux.
+          // Sous un plafond, le CONTRASTE INTERNE s'effondre : il n'y a plus
+          // de source pour sculpter le volume, donc plus de faces claires et
+          // sombres. Un nuage d'averse est une valeur, pas un relief.
           float lit = smoothstep(0.10, 0.96, t.r);
+          lit = mix(lit, 0.18 + lit * 0.52, uOvercast);
           vec3 c = mix(uShadow, uCore, lit);
 
           // --- Lisere argente. La ou le nuage est MINCE (canal vert bas mais
@@ -359,7 +403,10 @@ export class Clouds {
           // Plus fort du cote du soleil : un contre-jour ne s'allume pas
           // uniformement sur tout le pourtour.
           float back = max(dot(normalize(vDir), normalize(uSun)), 0.0);
-          c += uRim * thin * (0.10 + back * 0.85);
+          // Et le lisere argente MEURT : c'est un contre-jour, et il n'y a
+          // plus rien derriere. Le garder est la faute qui trahit un ciel
+          // couvert repeint par-dessus un ciel de beau temps.
+          c += uRim * thin * (0.10 + back * 0.85) * (1.0 - uOvercast * 0.88);
 
           // Les nuages lointains se dissolvent dans la brume d'horizon. A 50 %
           // le banc du fond devenait invisible : il n'a plus de blanc a lui.

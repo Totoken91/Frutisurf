@@ -1015,3 +1015,54 @@ fois que ce piège se referme (`check:input` attendait des durées de montre,
 `check:artifact` avait déjà un seuil d'images par seconde posé sur la valeur
 observée) et la règle vaut d'être écrite : **un banc binaire se règle loin de la
 valeur observée, sinon c'est un banc de performance qui s'ignore.**
+
+
+## 16. Le couloir de route, ou comment ajouter un terme au relief
+
+Le relief est une somme de cinq sinus, écrite **deux fois** : en TypeScript pour
+la physique, en GLSL généré depuis les mêmes constantes pour le rendu. Y ajouter
+un terme — ici l'aplanissement de la rue — demande trois choses, et en oublier
+une se voit tout de suite.
+
+**1. Le terme lui-même, des deux côtés.** Le chunk GLSL est *généré* depuis la
+liste des couches, donc le marquage « cette couche compte dans la version
+lissée » se fait une fois, dans la génération. Les quatre constantes de
+géométrie du couloir voyagent dans un `Vector4` partagé, muté en place comme
+`AMP` : une seule copie, et changer de monde ne recompile rien.
+
+**2. La dérivée, y compris celle du masque.** Le relief est
+`h = base + m(x) · (cible − base)`. La dérivée en x porte donc **aussi sur le
+masque** :
+
+```
+∂h/∂x = base'ₓ + m'(x)·(cible − base) + m·(cible'ₓ − base'ₓ)
+∂h/∂z =  base'_z                      + m·(cible'_z − base'_z)
+```
+
+Oublier `m'(x)·(cible − base)` donne une normale fausse sur les deux bords du
+couloir — c'est-à-dire exactement là où la pente change le plus. Ça ne se voit
+pas sur une capture et ça se sent immédiatement à la manette : le disque décolle
+sur une bosse qui n'existe pas. C'est la raison pour laquelle le couloir dépend
+de **x seulement** et pas des rues transversales : une dépendance en z aurait
+demandé la même rigueur sur un terme périodique, pour un gain visuel nul (on
+traverse une rue latérale en une demi-seconde).
+
+**3. Rien qui casse la continuité.** Le masque est un `smoothstep`, donc C¹. Un
+`max()` pour garantir la sortie de l'eau aurait été C⁰ et se serait senti comme
+une arête. Il n'y en a pas besoin : les deux couches longues ne descendent
+jamais aussi bas que la somme des cinq, donc lisser suffit à passer au-dessus du
+niveau de l'eau — mesuré, 0 % de route immergée contre 9 % avant.
+
+### Un banc à l'autopilote ne mesure pas la jouabilité
+
+`check:worlds` déclarait le vent d'octobre corrigeable : **zéro pour cent** du
+temps collé au bord du couloir. Le joueur le déclarait injouable. Les deux
+mesures sont exactes, et l'écart est la leçon : **un autopilote qui corrige en
+permanence ne se plaint pas.** Il n'a pas de but secondaire — il ne vise pas un
+anneau, il ne prépare pas un saut, il ne fait rien pendant qu'il compense.
+
+Le banc reste utile (il attrape le cas où le vent plaque le pilote contre la
+paroi), mais il ne peut pas répondre à « est-ce agréable ». Aucun seuil ne le
+pourra ; ce n'est pas un défaut du seuil, c'est la limite de la méthode. Ce que
+le banc a bien fait, en revanche, c'est **chiffrer la correction** : score à
+l'autopilote de 2,7 M à 4,4 M, vent moyen de 4,9 à 1,7 m/s.

@@ -51,6 +51,8 @@ uniform mat4  uInvVP;      // ecran -> monde, cette image
 uniform mat4  uPrevVP;     // monde -> ecran, image precedente
 uniform float uMotion;     // force du flou, deja rapportee a la pose
 uniform vec2  uFocus;      // le surfeur a l'ecran : le flou l'epargne
+uniform float uGrit;       // 0..1 : l'etalonnage sale des mondes couverts
+uniform float uTime;       // secondes, pour le grain
 
 float hash12(vec2 p){
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -139,7 +141,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   col += vec3(0.55, 0.85, 1.0) * uCharge * smoothstep(0.45, 1.0, dist) * 0.08;
 
   // --- Vignette douce.
-  col *= 1.0 - smoothstep(0.42, 1.05, dist) * 0.28;
+  col *= 1.0 - smoothstep(0.42, 1.05, dist) * (0.28 + uGrit * 0.30);
 
   // --- Etalonnage a la vitesse. L'image se contraste et se sature quand ca
   //     file : c'est ce qui fait que le boost se voit AVANT qu'on lise la
@@ -157,6 +159,41 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   float hi = smoothstep(0.55, 1.0, lum);
   col = mix(col, col * vec3(0.93, 0.99, 1.10), sh * 0.35);
   col = mix(col, col * vec3(1.06, 1.01, 0.94), hi * 0.30);
+
+  // --- L'ETALONNAGE SALE, ET IL NE SUFFIT PAS D'ASSOMBRIR.
+  //
+  //     Un monde couvert etalonne comme un monde ensoleille reste une image de
+  //     beau temps qu'on a baissee. Ce qui fait le grungecore, ce sont quatre
+  //     choses precises, et aucune n'est « plus sombre » :
+  //
+  //       1. LA SATURATION TOMBE, sauf sur les sources. Sous un plafond il n'y
+  //          a plus de lumiere coloree ; la seule couleur qui reste est celle
+  //          des choses qui BRILLENT — les fenetres, les lampadaires, le
+  //          personnage. On desature donc en preservant ce qui est deja clair.
+  //       2. LES NOIRS SE LEVENT ET SE REFROIDISSENT. Le noir profond est une
+  //          image de nuit claire ; sous la pluie l'air diffuse et les ombres
+  //          remontent, en bleu-vert. C'est le « lifted black » de la
+  //          photo argentique poussee, et c'est LE marqueur du genre.
+  //       3. LE HAUT DU CADRE EST PLUS LOURD QUE LE BAS. Un plafond pese. Une
+  //          vignette symetrique donne un vieux film, pas un ciel bas.
+  //       4. LE GRAIN. Pas du bruit propre : un grain lie a la LUMINANCE, plus
+  //          present dans les demi-tons que dans les hautes lumieres, comme
+  //          une pellicule sous-exposee qu'on a poussee au developpement.
+  if (uGrit > 0.002) {
+    float l2 = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    float keep = smoothstep(0.35, 0.95, l2);
+    col = mix(mix(vec3(l2), col, 0.54 + keep * 0.42), col, 1.0 - uGrit);
+    // Le relevement des noirs se dose au MILLIEME. A 0,030 il ne relevait pas
+    // les ombres, il effacait la route : l'asphalte mouille, qui est le sujet
+    // du monde, remontait au gris moyen et l'image entiere devenait laiteuse.
+    vec3 lift = mix(col, col * 0.94 + vec3(0.013, 0.019, 0.021),
+                    1.0 - smoothstep(0.0, 0.30, l2));
+    col = mix(col, lift, uGrit);
+    // Le poids du plafond : le haut du cadre s'assombrit, le bas non.
+    col *= 1.0 - uGrit * 0.20 * smoothstep(0.45, 1.0, 1.0 - uv.y);
+    float g = hash12(floor(uv * 620.0) + floor(uTime * 24.0));
+    col += (g - 0.5) * uGrit * 0.055 * (0.35 + (1.0 - abs(l2 * 2.0 - 1.0)));
+  }
 
   // --- Pare-feu NaN, DERNIERE instruction du shader.
   //
@@ -204,6 +241,8 @@ export class SurfEffect extends Effect {
         ['uInvVP', new Uniform(new Matrix4())],
         ['uPrevVP', new Uniform(new Matrix4())],
         ['uMotion', new Uniform(0)],
+        ['uGrit', new Uniform(0)],
+        ['uTime', new Uniform(0)],
       ]),
     });
   }
@@ -250,6 +289,12 @@ export class SurfEffect extends Effect {
   /** Ou se trouve le surfeur a l'ecran : le flou de mouvement l'epargne. */
   focus(x: number, y: number): void {
     (this.uniforms.get('uFocus')!.value as Vector2).set(safe(x), safe(y));
+  }
+
+  /** L'etalonnage sale des mondes couverts, et l'horloge du grain. */
+  grit(amount: number, time: number): void {
+    this.uniforms.get('uGrit')!.value = Math.min(1, Math.max(0, amount));
+    this.uniforms.get('uTime')!.value = time % 1000;
   }
 
 }

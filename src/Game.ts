@@ -696,6 +696,9 @@ export class Game {
     );
     this.post.setCombo(c.combo);
     this.post.setMotion(c.speedNorm, c.boosting ? 1 : this.aura.power * 0.7);
+    // L'ETALONNAGE SALE SUIT LE CIEL, pas le monde choisi. Il arrive donc au
+    // rythme du fondu, comme la pluie qu'on entend.
+    this.post.surf.grit(this.world.overcastAmount, this.time);
     // Ou se trouve le surfeur a l'ecran : le flou de mouvement l'epargne, et
     // avec lui la seule chose que le joueur doit lire a tout instant.
     this.focus.copy(this.surfer.rig.position);

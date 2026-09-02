@@ -71,7 +71,22 @@ export function gustAt(x: number, z: number, t: number): number {
  */
 export function windAt(x: number, z: number, t: number): number {
   if (WIND[0] <= 0) return 0;
-  return (gustAt(x, z, t) * 2 - 1) * WIND[0];
+  // --- LA POUSSEE N'EST PAS LE MEME SIGNAL QUE CE QU'ON VOIT.
+  //
+  // `gustAt` est un smoothstep serre : il passe l'essentiel de son temps a
+  // saturation, ce qui est exactement ce qu'il faut pour COUCHER l'herbe et
+  // emporter les feuilles — une bourrasque visuelle doit etre franche. Mais
+  // pousse tel quel dans la physique, ca ne donne pas un vent, ca donne un
+  // CRENEAU : le disque est deporte a pleine force en permanence, alternant
+  // d'un bord a l'autre, et il n'y a plus de moment ou l'on trace la
+  // trajectoire qu'on veut. Le joueur l'a dit sans detour — injouable.
+  //
+  // La poussee garde donc la meme phase, mais reprend une forme SINUSOIDALE :
+  // meme rafale, meme direction au meme instant, avec de vraies accalmies au
+  // passage par zero. On voit toujours la bourrasque arriver, elle ne colle
+  // simplement plus le disque contre la paroi tout le temps.
+  const g = gustAt(x, z, t) * 2 - 1;
+  return g * Math.abs(g) * WIND[0];
 }
 
 /**

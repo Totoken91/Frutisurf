@@ -1,3 +1,4 @@
+import { Vector4 } from 'three';
 import { GLSL_NOISE } from '../core/Noise';
 /**
  * Le relief.
@@ -88,6 +89,83 @@ export const AMP: number[] = [6.0, 3.6, 2.3, 1.05, 0.16];
 export const SHORE: number[] = [1.55, 3.2];
 
 /**
+ * LE COULOIR DE ROUTE. Presence, 0..1. Partage, mute en place comme AMP.
+ *
+ * ---
+ *
+ * POURQUOI LE RELIEF DOIT CONNAITRE LA ROUTE.
+ *
+ * La route d'octobre etait peinte sur le terrain sans que le terrain en sache
+ * rien. Trois defauts en decoulaient, tous les trois signales par le joueur, et
+ * aucun n'etait rattrapable dans un shader :
+ *
+ *   - DES LACS AU MILIEU DE LA CHAUSSEE. Mesure sur douze kilometres d'axe :
+ *     NEUF POUR CENT de la route passait sous le niveau de l'eau, soit une
+ *     mare tous les cent metres. Une route qui plonge dans un etang n'est pas
+ *     une route.
+ *   - UNE MONTAGNE RUSSE. Toujours sur l'axe : quinze metres et demi de
+ *     denivele par soixante metres, pentes jusqu'a trente et un degres. C'est
+ *     la mesure d'une piste de bosses, pas d'une rue de lotissement.
+ *   - DES MAISONS PLANTEES DANS LA PENTE. Elles se posent a la hauteur du sol ;
+ *     sur un relief pareil, deux voisines pouvaient etre decalees de dix
+ *     metres en hauteur.
+ *
+ * D'ou un COULOIR : dans la bande de la rue, le relief oublie ses trois
+ * couches courtes et ne garde que les deux longues, a moitie amplitude. Il
+ * devient une ondulation douce qui passe AU-DESSUS des mares — sans remblai
+ * artificiel : les deux couches longues ne descendent jamais aussi bas que la
+ * somme des cinq, donc lisser suffit a sortir de l'eau.
+ *
+ * Ce qui reste, et c'est voulu : la route MONTE ET DESCEND encore, sur
+ * plusieurs centaines de metres. Elle traverse le paysage en remblai au-dessus
+ * des creux et en tranchee dans les bosses, ce qui est exactement ce que fait
+ * une vraie route — et ce qui la rend lisible comme un ouvrage plutot que
+ * comme une bande peinte.
+ */
+export const ROAD: number[] = [0];
+/** Demi-largeur ou le lissage est total, en metres. */
+const ROAD_FLAT = 12;
+/**
+ * Demi-largeur ou le relief est intact.
+ *
+ * Large — quarante-six metres — et ce n'est pas pour la chaussee : c'est pour
+ * les MAISONS, qui vivent entre vingt-deux et quarante-huit metres de l'axe.
+ * Un couloir serre sur le bitume aurait donne une rue plate bordee de facades
+ * en escalier.
+ */
+const ROAD_FADE = 46;
+/** Part des deux couches longues conservee dans le couloir. */
+const ROAD_KEEP = 0.55;
+/** Nombre de couches longues gardees (les deux premieres : 480 m et 190 m). */
+const ROAD_LAYERS = 2;
+
+/**
+ * Le meme couloir, sous la forme que les shaders attendent.
+ *
+ * Mute en place, comme AMP : les quatre valeurs sont branchees telles quelles
+ * dans l'uniforme `uRoad` de chaque materiau. Le premier canal seul varie.
+ */
+const ROAD_VEC = new Vector4(0, ROAD_FLAT, ROAD_FADE, ROAD_KEEP);
+
+/** Le masque du couloir en un point, et sa derivee en x. */
+function roadMask(x: number): number {
+  if (ROAD[0] <= 0) return 0;
+  const a = Math.abs(x);
+  if (a >= ROAD_FADE) return 0;
+  if (a <= ROAD_FLAT) return ROAD[0];
+  const t = (a - ROAD_FLAT) / (ROAD_FADE - ROAD_FLAT);
+  return ROAD[0] * (1 - t * t * (3 - 2 * t));
+}
+function roadMaskD(x: number): number {
+  if (ROAD[0] <= 0) return 0;
+  const a = Math.abs(x);
+  if (a >= ROAD_FADE || a <= ROAD_FLAT) return 0;
+  const w = ROAD_FADE - ROAD_FLAT;
+  const t = (a - ROAD_FLAT) / w;
+  return (-ROAD[0] * (6 * t * (1 - t))) / w * Math.sign(x);
+}
+
+/**
  * LA HOULE : [amplitude en metres, longueur d'onde, vitesse].
  *
  * Amplitude nulle = surface plate, et c'est le cas de tous les mondes sauf
@@ -134,8 +212,11 @@ export function setTerrain(
   shoreBase: number,
   shoreVary: number,
   swell: readonly number[] = [0, 60, 1],
+  road = 0,
 ): void {
   for (let i = 0; i < AMP.length; i++) AMP[i] = amp[i] ?? 0;
+  ROAD[0] = road;
+  ROAD_VEC.x = road;
   water = w;
   SHORE[0] = shoreBase;
   SHORE[1] = shoreVary;
@@ -196,11 +277,15 @@ export function terrainMax(): number {
 /** Hauteur du sol. Pleine resolution : c'est la reference physique. */
 export function terrainHeight(x: number, z: number): number {
   let h = 0;
+  let low = 0;
   for (let i = 0; i < LAYERS.length; i++) {
     const l = LAYERS[i];
-    h += AMP[i] * Math.sin(l.fz * z + l.fx * x + l.p);
+    const s = AMP[i] * Math.sin(l.fz * z + l.fx * x + l.p);
+    h += s;
+    if (i < ROAD_LAYERS) low += s;
   }
-  return h;
+  const m = roadMask(x);
+  return m > 0 ? h + m * (low * ROAD_KEEP - h) : h;
 }
 
 /** Vrai si le point est sous le niveau de l'eau. */
@@ -221,11 +306,33 @@ export function waterDepth(x: number, z: number): number {
 export function terrainGradient(x: number, z: number, out: { dx: number; dz: number }): void {
   let dx = 0;
   let dz = 0;
+  let h = 0;
+  let low = 0;
+  let ldx = 0;
+  let ldz = 0;
   for (let i = 0; i < LAYERS.length; i++) {
     const l = LAYERS[i];
-    const c = Math.cos(l.fz * z + l.fx * x + l.p);
+    const ph = l.fz * z + l.fx * x + l.p;
+    const c = Math.cos(ph);
     dx += AMP[i] * l.fx * c;
     dz += AMP[i] * l.fz * c;
+    h += AMP[i] * Math.sin(ph);
+    if (i < ROAD_LAYERS) {
+      low += AMP[i] * Math.sin(ph);
+      ldx += AMP[i] * l.fx * c;
+      ldz += AMP[i] * l.fz * c;
+    }
+  }
+  const m = roadMask(x);
+  if (m > 0) {
+    // h = base + m(x) * (cible - base). La derivee en x porte donc AUSSI sur
+    // le masque : l'oublier donnerait une normale fausse sur les deux bords du
+    // couloir, la ou la pente change le plus. C'est le genre d'erreur qui ne
+    // se voit pas sur une capture et se sent immediatement a la manette — le
+    // disque decolle sur une bosse qui n'existe pas.
+    const target = low * ROAD_KEEP;
+    dx += roadMaskD(x) * (target - h) + m * (ldx * ROAD_KEEP - dx);
+    dz += m * (ldz * ROAD_KEEP - dz);
   }
   out.dx = dx;
   out.dz = dz;
@@ -297,15 +404,24 @@ float shoreMask(vec2 wp, float above){
 export function terrainGLSL(): string {
   const terms = LAYERS.map(
     (l, i) =>
-      `  h += uAmp[${i}] * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
-      ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));`,
+      `  { float s = uAmp[${i}] * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
+      ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));` +
+      ` h += s;${i < ROAD_LAYERS ? ' low += s;' : ''} }`,
   ).join('\n');
 
   const grads = LAYERS.map(
     (l, i) =>
       `  { float c = cos(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
       ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));` +
-      ` g += uAmp[${i}] * vec2(${l.fx.toFixed(8)} * c, ${l.fz.toFixed(8)} * c); }`,
+      ` vec2 t = uAmp[${i}] * vec2(${l.fx.toFixed(8)} * c, ${l.fz.toFixed(8)} * c);` +
+      ` g += t;${i < ROAD_LAYERS ? ' lg += t;' : ''} }`,
+  ).join('\n');
+
+  const sums = LAYERS.map(
+    (l, i) =>
+      `  { float s = uAmp[${i}] * sin(${l.fz.toFixed(6)} * p.y + ${l.fx.toFixed(6)} * p.x + ${l.p.toFixed(4)})` +
+      ` * (1.0 - smoothstep(${l.fade[0].toFixed(1)}, ${l.fade[1].toFixed(1)}, d));` +
+      ` h += s;${i < ROAD_LAYERS ? ' low += s;' : ''} }`,
   ).join('\n');
 
   return /* glsl */ `
@@ -317,14 +433,40 @@ export function terrainGLSL(): string {
 #define FS_TERRAIN
 uniform float uAmp[${LAYERS.length}];
 uniform float WATER_LEVEL;
+// LE COULOIR DE ROUTE (cf. Terrain.ts). uRoad.x = presence, y = demi-largeur
+// plate, z = demi-largeur de fondu, w = part gardee des couches longues. Les
+// quatre valeurs viennent du MEME endroit que la version TypeScript : le
+// relief que la physique calcule et celui que le GPU dessine ne peuvent pas
+// diverger d'un centimetre sans qu'on voie le disque flotter.
+uniform vec4 uRoad;
+float roadMask(float x){
+  if (uRoad.x <= 0.0) return 0.0;
+  return uRoad.x * (1.0 - smoothstep(uRoad.y, uRoad.z, abs(x)));
+}
 float terrainHeightAt(vec2 p, float d){
   float h = 0.0;
+  float low = 0.0;
 ${terms}
-  return h;
+  float m = roadMask(p.x);
+  return h + m * (low * uRoad.w - h);
 }
 vec2 terrainGradAt(vec2 p, float d){
   vec2 g = vec2(0.0);
+  vec2 lg = vec2(0.0);
 ${grads}
+  float m = roadMask(p.x);
+  if (m > 0.0) {
+    // La derivee du MASQUE compte autant que celle du relief : c'est elle qui
+    // dessine les deux talus du couloir. Sans elle, la normale est fausse
+    // exactement la ou la pente change le plus.
+    float h = 0.0;
+    float low = 0.0;
+${sums}
+    float w = max(uRoad.z - uRoad.y, 1e-4);
+    float t = clamp((abs(p.x) - uRoad.y) / w, 0.0, 1.0);
+    float dm = -uRoad.x * (6.0 * t * (1.0 - t)) / w * sign(p.x);
+    g += dm * (low * uRoad.w - h) + m * (lg * uRoad.w - g);
+  }
   return g;
 }
 vec3 terrainNormalAt(vec2 p, float d){
@@ -349,6 +491,10 @@ export function terrainUniforms(): Record<string, { value: unknown }> {
     uAmp: { value: AMP },
     uShore: { value: SHORE },
     uSwell: { value: SWELL },
+    // Un Vector4 partage, mute en place comme AMP : seul son premier canal
+    // change d'un monde a l'autre, les trois autres sont des constantes de
+    // geometrie exportees ici pour qu'il n'y en ait qu'une copie.
+    uRoad: { value: ROAD_VEC },
     WATER_LEVEL: { value: water },
   };
 }
