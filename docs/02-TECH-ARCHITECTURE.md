@@ -996,6 +996,30 @@ Quatre détails qui ne se devinent pas :
   course avec sa voiture, et pour une deuxième raison qui vaut à elle seule : le
   point que l'œil suit doit rester le point net de l'image.
 
+### L'ovale, ou ce que coûte une rampe trop courte
+
+La première version de cette exemption valait `smoothstep(0,06 ; 0,33)` autour
+de la position écran du surfeur. Sur le papier c'est doux. À l'écran, ça donnait
+un **disque net entouré d'une zone floue** — et l'œil lit une *isoligne* bien
+avant de lire un flou. Le joueur l'a décrit exactement pour ce que c'était :
+
+> « pk y'a un ovale semi transparent bizarre autour du perso ? »
+
+Ovale et non rond, d'ailleurs, et c'est un indice de la cause : la distance est
+calculée en **UV**, où x et y valent tous deux 0 à 1 ; sur un cadre en portrait,
+un cercle en UV est une ellipse à l'écran. Une transition de flou ne peut pas
+avoir de bord visible : soit elle couvre presque tout le cadre, soit elle n'a
+rien à faire là. La rampe est donc passée à `[0,03 ; 0,70]`, et elle raconte au
+passage quelque chose de juste — dans une image en mouvement, la périphérie file
+toujours plus vite que le centre.
+
+Le même A/B a montré un second dégât, plus insidieux : à 3 % du cadre, la borne
+laissait le sol proche — le seul endroit où l'herbe a du détail — partir en
+nappe lisse dès cent kilomètres/heure, avec six échantillons pour couvrir vingt
+pixels. On y perdait tout ce que la passe optique venait d'ajouter, en échange
+d'une sensation de vitesse que le panache et les stries rendent déjà. La borne
+est tombée à **1,3 %**, et le gain de dose avec elle.
+
 Le coût n'a **pas** pu être mesuré ici : sur le rastériseur logiciel des bancs,
 l'écart entre deux mesures du même code est de l'ordre de trente pour cent, et
 le flou passe dessous. Ce qui est mesurable, c'est qu'il n'introduit ni image

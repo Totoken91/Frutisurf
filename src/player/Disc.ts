@@ -155,9 +155,14 @@ const MOUNT_LOOK: Record<string, MountLook> = {
   },
   // Le disque de pure lumiere : pas de matiere, juste de l'emission. Le seul
   // qui soit une SOURCE, et donc le seul visible de nuit a lui tout seul.
+  // Le corps est descendu de [0,45 0,85 1,0] a [0,24 0,66 0,92], et l'emission
+  // a suivi : presque blanc, HOLO ne se voyait plus des que l'aura s'allumait —
+  // du blanc pale sur du blanc sature. Il reste la monture la plus claire du
+  // jeu, mais il a maintenant une TEINTE, et une teinte survit a un fond
+  // brulant la ou une valeur ne survit pas.
   holo: {
-    body: [0.45, 0.85, 1.0], label: [0, 0, 0], emit: [0.16, 0.42, 0.62],
-    iri: 0.55, groove: 1400, grain: 0, labelR: 0, shutter: 0, opaque: 0,
+    body: [0.24, 0.66, 0.92], label: [0, 0, 0], emit: [0.10, 0.36, 0.58],
+    iri: 0.72, groove: 1400, grain: 0, labelR: 0, shutter: 0, opaque: 0,
     scale: 1.08, square: false,
   },
 };
@@ -329,6 +334,22 @@ ${GLSL_SAFE}
     });
 
     this.mesh = new Mesh(this.round, this.mat);
+    // --- LA MONTURE PASSE APRES L'AURA, ET C'EST UNE CORRECTION DE BUG.
+    //
+    //     L'aura est additive, blanche a coeur, et son panache est couche de
+    //     quarante degres vers l'arriere : vu d'une camera de poursuite, une
+    //     bonne moitie de ses langues passe DEVANT le disque. Rendue apres lui
+    //     (renderOrder 40 contre 0), elle s'ajoutait par-dessus jusqu'a le
+    //     saturer — au boost, la monture disparaissait, et le joueur l'a
+    //     signale comme tel. La geometrie de l'aura a ete resserree pour ne
+    //     plus border le disque, mais ca ne suffit pas : une langue qui passe
+    //     devant passera toujours devant.
+    //
+    //     Le disque repasse donc en DERNIER. Il ne s'ajoute pas, il recouvre —
+    //     ce qui est la seule lecture juste : une flamme nait autour d'un
+    //     objet solide, elle ne le traverse pas. Le buddy, lui, garde l'ordre
+    //     d'origine : que l'aura le baigne est exactement l'effet voulu.
+    this.mesh.renderOrder = 60;
     this.group.add(this.mesh);
 
     // Halo de contact : la reference n'a AUCUNE ombre portee. Le contact au

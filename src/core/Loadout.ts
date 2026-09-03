@@ -77,6 +77,27 @@ export const RIDERS: Perk[] = [
     blurb: 'précis partout, à sec de boost',
     cruise: 0.94, grip: 1.14, lift: 1.14, plane: 1.02, boost: 0.86,
   },
+  // --- OR, ET C'EST LA SEULE ENTREE QUI NE PAIE RIEN.
+  //
+  //     Elle enfreint la regle posee en tete de fichier, sciemment et sur
+  //     demande : « un golden skin ultra rapide et puissant ». Autant l'ecrire
+  //     ici plutot que de la deguiser en compromis qu'elle n'est pas — une
+  //     option secretement dominante est bien pire qu'une option ouvertement
+  //     dominante, parce qu'on ne peut plus la reequilibrer sans mentir deux
+  //     fois.
+  //
+  //     Ce qu'elle coute, elle le coute AILLEURS que dans les chiffres : la
+  //     course est un contre-la-montre, et une croisiere a +26 % laisse un
+  //     quart de seconde de moins pour lire le relief entre deux portes. Le
+  //     joueur qui la prend va plus vite ET rate plus de portes. C'est le seul
+  //     equilibrage qu'on lui laisse, et il est reel : le ricochet paie la
+  //     precision, pas la vitesse.
+  {
+    id: 'or',
+    name: 'OR',
+    blurb: 'hors barème : plus vite, plus haut, plus fort',
+    cruise: 1.26, grip: 1.16, lift: 1.20, plane: 1.18, boost: 1.35,
+  },
 ];
 
 export const MOUNTS: Perk[] = [

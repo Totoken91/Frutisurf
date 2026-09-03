@@ -71,6 +71,13 @@ const RIDER_TINT: Record<string, RiderLook> = {
   // Le prisme : blanc en haut, cyan en bas, liseré magenta. Il ne tient pas
   // sa couleur de son verre mais de ses ARETES, comme un vrai prisme.
   prisme: { tint: [0xdfe8ff, 0x7ff0ff, 0xff6ae0, 0xfff0b0], lamp: 0xd0a8ff, power: 0.52 },
+  // L'OR. Une puissance de lampe a 1, comme NEON : c'est le seul indice visuel
+  // qu'on donne de sa domination, et il faut qu'il se voie de loin. Le haut est
+  // un AMBRE et non un brun : a 0x8a4a05 le verre lisait cuivre sale sur
+  // l'herbe verte, ce qui est la seule chose qu'un personnage dore ne peut pas
+  // se permettre. Il ne monte pas non plus au jaune pur, qui passerait blanc
+  // dans le bloom — et un dore qui ressort blanc n'est plus dore.
+  or: { tint: [0xd4870a, 0xffd85e, 0xffae12, 0xfff0b0], lamp: 0xffc23a, power: 1.0 },
 };
 
 /** La livree d'un personnage, pour l'interface comme pour la scene. */

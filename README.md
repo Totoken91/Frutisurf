@@ -29,7 +29,7 @@ Le cœur du projet, ce n'est pas la scène. C'est **la glisse**.
 <p align="center">
   <img src="docs/hero.png" width="300" alt="Collines procedurales, eoliennes et surfeur MSN" />
   <img src="docs/hero-couchant.png" width="300" alt="Coucher de soleil sur un lac, avec le chemin du soleil sur l eau" />
-  <img src="docs/equipement.png" width="300" alt="Ecran d equipement : trois buddies, trois montures, cinq jauges" />
+  <img src="docs/equipement.png" width="300" alt="Ecran d equipement : sept buddies, six montures, cinq jauges" />
 </p>
 
 **Le jour tourne.** Un cycle complet fait trois minutes et ne se remet jamais à
@@ -143,10 +143,10 @@ plaine s'inonde derrière le panneau pendant que tu lis la carte suivante.
 Chaque monde tient **son propre record** : ils ne se font pas concurrence, et y
 revenir ne coûte rien.
 
-## Six buddies, six montures
+## Sept buddies, six montures
 
 <p align="center">
-  <img src="docs/buddies.png" width="880" alt="Les six buddies : bleu, neon, givre, braise, amethyste, prisme" />
+  <img src="docs/buddies.png" width="880" alt="Les sept buddies : bleu, neon, givre, braise, amethyste, prisme, or" />
 </p>
 
 <p align="center">
@@ -157,6 +157,13 @@ Chaque buddy **projette sa lumière au sol** — une flaque de sa couleur qui
 voyage avec lui sur l'herbe, le sable et l'eau. NÉON n'est pas peint en vert, il
 **éclaire** en vert. Sans cette flaque, un personnage lumineux n'est qu'un
 autocollant fluorescent.
+
+**OR est hors barème**, et c'est assumé : les six autres livrées paient chacune
+leur avantage par un défaut, lui ne paie rien — plus vite, plus haut, plus fort
+sur les cinq axes. Ce qu'il coûte est ailleurs que dans les chiffres : le
+ricochet paie la **précision**, et une croisière à +26 % laisse un quart de
+seconde de moins pour lire la porte suivante. On va plus vite, et on en rate
+davantage.
 
 Deux montures sont de vraies **cartouches carrées**, et ce n'est pas un caprice :
 ce qui distingue une monture à quarante pixels n'est ni sa couleur ni sa

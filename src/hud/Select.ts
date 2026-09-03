@@ -227,7 +227,11 @@ export class Select {
           </button>`,
       )
       .join('');
-    return `<div class="pickrow six"><h3>${title}</h3><div class="cards">${cards}</div></div>`;
+    // Le nombre de colonnes est une PROPRIETE DE LA LISTE, pas une constante de
+    // feuille de style : le jour ou une septieme livree arrive, la grille doit
+    // suivre sans qu'on y pense — et ce jour est arrive.
+    const n = list.length;
+    return `<div class="pickrow six n${n}" style="--n:${n}"><h3>${title}</h3><div class="cards">${cards}</div></div>`;
   }
 
   /** Les etiquettes derivees, telles qu'elles s'affichent dans le bloc. */

@@ -80,7 +80,7 @@ export class PostFX {
    * flou en permanence pose l'image ; beaucoup au boost fait l'evenement.
    */
   setMotion(speed: number, boost: number): void {
-    this.motion = 0.40 + speed * 0.30 + boost * 0.65;
+    this.motion = 0.26 + speed * 0.26 + boost * 0.55;
   }
 
   resize(w: number, h: number): void {

@@ -164,12 +164,32 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
         //     aussi ce que fait n'importe quel jeu de course avec sa voiture,
         //     et pour une deuxieme raison qui vaut a elle seule : le point que
         //     l'oeil suit doit rester le point NET de l'image.
-        vel *= smoothstep(0.06, 0.33, distance(uv, uFocus));
-        // Borne : une reception secoue la camera assez fort pour etirer tout
-        // le cadre en une image, et une image illisible au moment de reprendre
-        // le controle est pire que pas de flou du tout.
+        //
+        //     LA RAMPE COUVRE TOUT L'ECRAN, ET C'EST UNE CORRECTION DE BUG.
+        //
+        //     A [0,06 ; 0,33] elle etait pourtant douce — mais elle donnait un
+        //     disque net entoure d'une zone floue, et l'oeil lit une ISOLIGNE
+        //     bien avant de lire un flou. Le joueur l'a decrit exactement comme
+        //     ce que c'etait : un ovale semi-transparent autour du personnage.
+        //     (Ovale et non rond : la distance est calculee en UV, ou x et y
+        //     valent tous deux 0 a 1 ; sur un cadre en portrait, un cercle en
+        //     UV est une ellipse a l'ecran.)
+        //
+        //     Etalee sur presque tout le cadre, la meme rampe n'a plus de bord
+        //     a montrer, et elle raconte au passage quelque chose de juste :
+        //     dans une image en mouvement, la peripherie file toujours plus
+        //     vite que le centre.
+        vel *= smoothstep(0.03, 0.70, distance(uv, uFocus));
+        // BORNE A 1,3 % DU CADRE, ET PAS 3 %.
+        //
+        // A 3 % le sol proche — qui est aussi le seul endroit ou l'herbe a du
+        // detail — partait en nappe lisse des cent kilometres/heure, avec six
+        // echantillons pour couvrir vingt pixels. On y perdait tout ce que la
+        // passe optique venait d'ajouter, en echange d'une sensation de
+        // vitesse que le panache et les stries rendent deja. A 1,3 % le flou
+        // se lit encore en mouvement et ne coute plus l'image fixe.
         float m = length(vel);
-        if (m > 0.030) vel *= 0.030 / m;
+        if (m > 0.013) vel *= 0.013 / m;
         if (m > 0.0004) {
           // Echantillonnage CENTRE sur le pixel : de -0,5 a +0,5 du vecteur.
           // Tire d'un seul cote, le flou DEPLACE l'image au lieu de l'etaler,

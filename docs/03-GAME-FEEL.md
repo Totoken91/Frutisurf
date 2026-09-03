@@ -1040,7 +1040,41 @@ force de la lampe** du personnage. Ce n'est plus lui qui brille, c'est la plaine
 qui change de couleur autour de lui — et ça, on ne peut pas le rater sans
 regarder le compteur.
 
-### Six buddies, six montures
+#### « Les montures disparaissent »
+
+Le défaut était réel, et il coûtait la moitié de l'écran d'équipement : au
+boost, **le disque n'existait plus**. Trois causes empilées, toutes dans l'aura :
+
+1. son origine est posée quinze centimètres **sous** le disque, mais la coupe du
+   pied de flamme ne mordait que sur les treize premiers ; le plan du disque
+   tombait donc juste après la coupe ;
+2. le profil de l'enveloppe avait un **plancher** de 42 % — même à sa base, elle
+   faisait tout juste le rayon du disque, qu'elle bordait donc de tous les côtés
+   à la fois, en additif et en blanc ;
+3. le panache est couché de quarante degrés vers l'arrière : vu d'une caméra de
+   poursuite, une bonne moitié de ses langues passe **devant** le disque, et
+   l'aura était rendue après lui.
+
+Les deux premières se corrigent par la forme : la coupe couvre maintenant tout
+le plan du disque et un tiers au-dessus, et le plancher a disparu au profit
+d'une rampe en puissance 1,6 — la base devient une **tige**, le ventre remonte à
+la taille du buddy, là où une flamme de dessin animé a toujours eu son ventre.
+
+La troisième ne se corrige pas par la forme : une langue qui passe devant
+passera toujours devant. Le disque repasse donc en **dernier** (`renderOrder`
+60 contre 40). Il ne s'ajoute plus, il recouvre — ce qui est la seule lecture
+juste : une flamme naît autour d'un objet solide, elle ne le traverse pas. Le
+buddy, lui, garde l'ordre d'origine : que l'aura le baigne est l'effet voulu.
+
+Deux réglages ont suivi la mesure. La somme additive est passée de ×4,3 à ×3,4 :
+à 4,3 elle saturait si largement que l'aura rendait blanc partout sauf sur son
+bord, et la **couleur de la livrée** — tout ce qu'elle a à dire — n'arrivait
+jamais à l'écran. Et HOLO, presque blanc, ne survivait à aucune des deux
+versions : son corps est descendu de `[0,45 0,85 1,0]` à `[0,24 0,66 0,92]`. Il
+reste la monture la plus claire du jeu, mais il a maintenant une **teinte**, et
+une teinte survit à un fond brûlant là où une valeur ne survit pas.
+
+### Sept buddies, six montures
 
 L'écran passe de trois à six options par rangée. Les étiquettes « + » et « − »
 quittent les cartes pour rejoindre le bloc de lecture : à six, chaque carte fait
@@ -1056,6 +1090,14 @@ explique**, et il n'explique que ce qui est sélectionné.
 | **BRAISE** | cruise ×1,14 · lift ×1,08 | plane ×0,80 — il déteste l'eau |
 | **AMÉTHYSTE** | plane ×1,30 · boost ×1,12 | lift ×0,88 |
 | **PRISME** | grip ×1,14 · lift ×1,14 | boost ×0,86 |
+| **OR** | boost ×1,35 · cruise ×1,26 · lift ×1,20 · plane ×1,18 · grip ×1,16 | **aucun** |
+
+**OR enfreint la règle, et il l'enfreint ouvertement.** Une option secrètement
+dominante est bien pire qu'une option ouvertement dominante : on ne peut plus la
+rééquilibrer sans mentir deux fois. Ce qu'il coûte n'est pas dans le tableau —
+le ricochet paie la précision, pas la vitesse, et une croisière à +26 % laisse un
+quart de seconde de moins pour lire la porte suivante. Le joueur qui le prend va
+plus vite **et** rate plus de portes.
 
 | Monture | Avantage | Coût |
 |---|---|---|

@@ -1361,7 +1361,16 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
    vignette et le nom. Les compromis « + » et « − » descendent dans le bloc de
    lecture, ou ils ont la place d'etre lus — et ou ils ne concernent que
    l'option selectionnee, la seule qui compte. */
-.pickrow.six .cards { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+/* Le nombre de colonnes vient du NOMBRE D'OPTIONS, pose en ligne par la vue.
+   Fige a six, la septieme livree passait a la ligne toute seule et la rangee
+   BUDDY prenait le double de hauteur pour une carte. */
+.pickrow.six .cards { grid-template-columns: repeat(var(--n, 6), 1fr); gap: 4px; }
+/* A sept colonnes il reste quarante-quatre pixels par carte sur un telephone :
+   AMETHYSTE n'y tient plus a 0,56em. */
+.pickrow.n7 .cards { gap: 3px; }
+.pickrow.n7 .card { padding: 0.4em 0.05em 0.36em; }
+.pickrow.n7 .card .nm { font-size: 0.48em; letter-spacing: 0; }
+.pickrow.n7 .emb { width: clamp(22px, 6.6vw, 30px); height: clamp(22px, 6.6vw, 30px); }
 .pickrow.six .card { padding: 0.4em 0.1em 0.36em; gap: 0.22em; border-radius: 10px; }
 .pickrow.six .card .nm { font-size: 0.56em; letter-spacing: 0.02em; }
 .pickrow.six .emb { width: clamp(26px, 8vw, 34px); height: clamp(26px, 8vw, 34px); }
@@ -1404,6 +1413,15 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
   background: linear-gradient(165deg, #f0c4ff 0%, #b24bff 42%, #4a12a8 100%);
   box-shadow: inset 0 -2px 3px rgba(255,255,255,0.5), 0 0 9px rgba(170,60,255,0.75);
 }
+/* L'OR. Le seul metal de la galerie : il ne se lit pas a la teinte — BRAISE
+   est deja chaud — mais au REFLET, un liseré clair pris entre deux cuivres.
+   Le halo est le plus fort de la serie, parce que c'est la seule chose qui
+   annonce, avant de cliquer, que cette carte n'est pas comme les autres. */
+.av.or b, .av.or u {
+  background: linear-gradient(165deg, #fff6d0 0%, #ffc23a 34%, #e08a06 62%, #7a3f03 100%);
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.85), 0 0 11px rgba(255,190,60,0.95);
+}
+
 /* Le prisme ne tient pas sa couleur de son verre mais de ses ARETES : corps
    presque blanc, halo magenta. */
 .av.prisme b, .av.prisme u {

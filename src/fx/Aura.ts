@@ -88,9 +88,9 @@ function buildGeometry(): BufferGeometry {
     return pos.length / 3 - 1;
   };
 
-  // --- L'enveloppe. Profil en GOUTTE INVERSEE : large juste au-dessus du
-  //     disque, resserree a la taille, puis effilee vers le haut. Un simple
-  //     cone donnerait un chapeau, une sphere donnerait une bulle.
+  // --- L'enveloppe. Profil en GOUTTE INVERSEE : etroite au ras du disque,
+  //     large a la taille, puis effilee vers le haut. Un simple cone donnerait
+  //     un chapeau, une sphere donnerait une bulle.
   const HEIGHT = 3.0;
   const rows: number[][] = [];
   for (let i = 0; i < RINGS; i++) {
@@ -104,7 +104,18 @@ function buildGeometry(): BufferGeometry {
     // propre aura, et il n'en depassait qu'un lisere qu'on prenait pour du
     // bloom. Une aura doit envelopper LARGEMENT ce qu'elle entoure, sinon elle
     // n'existe que pour le tampon de profondeur.
-    const r = 1.42 * Math.pow(Math.max(0, 1 - v), 0.85) * (0.42 + 0.58 * Math.sin(Math.min(1, v / 0.22) * Math.PI * 0.5));
+    // LE PLANCHER A DISPARU, ET C'EST LUI LE COUPABLE.
+    //
+    // Le profil valait « 0,42 + 0,58 x rampe » : meme a v = 0, l'enveloppe
+    // faisait deja 42 % de sa largeur maximale, c'est-a-dire tout juste le
+    // rayon du disque. Elle passait donc DEVANT lui de tous les cotes a la
+    // fois, en additif et en blanc. Sans plancher, et avec une rampe en
+    // puissance 1,6, la base devient une TIGE — un dixieme du rayon au ras du
+    // disque, moitie moins que lui a son plan — et le ventre remonte a la
+    // taille du buddy, la ou une flamme de dessin anime a toujours eu son
+    // ventre. Le coefficient de tete compense pour que la largeur maximale ne
+    // bouge pas.
+    const r = 2.30 * Math.pow(Math.max(0, 1 - v), 0.85) * Math.pow(Math.sin(Math.min(1, v / 0.55) * Math.PI * 0.5), 1.6);
     const row: number[] = [];
     for (let j = 0; j < SEG; j++) {
       const a = (j / SEG) * Math.PI * 2;
@@ -297,7 +308,10 @@ ${GLSL_SAFE}
           // blanc mangeait toute la moitie basse et une aura verte ressortait
           // blanche — c'est-a-dire la couleur du personnage qu'on avait
           // justement choisi de rendre visible.
-          float heat = pow(max(1.0 - vV, 0.0), 5.0);
+          // Le blanc suit la coupe : cale sur vV = 0 il tombait dans la partie
+          // qu'on vient d'effacer, et il ne restait qu'une aura uniformement
+          // coloree. Il demarre donc la ou la flamme demarre.
+          float heat = pow(clamp(1.0 - (vV - 0.34) / 0.66, 0.0, 1.0), 3.4);
           // 0,26 et non 0,40 : a 0,40 l'aura entiere tirait au blanc et la
           // livree du personnage — la seule chose qu'on voulait montrer — n'y
           // etait plus lisible.
@@ -306,10 +320,24 @@ ${GLSL_SAFE}
           float a = up * (0.30 + vFlick * 0.70) * (0.30 + vLick * 0.85);
           a *= vPart > 0.5 ? 1.35 : 0.62;
           a *= uPower;
-          // Le tout premier centimetre s'efface : sans ca la base de l'aura
-          // recouvrait la monture, c'est-a-dire precisement l'objet qu'on
-          // vient de rendre visible.
-          a *= smoothstep(0.0, 0.13, vV);
+          // --- LA FLAMME NE COMMENCE QU'AU-DESSUS DE LA MONTURE, ET C'EST UNE
+          //     CORRECTION DE BUG.
+          //
+          //     A [0 ; 0,13] la coupe ne mordait QUE sur les treize premiers
+          //     centimetres, alors que l'origine de l'aura est posee quinze
+          //     centimetres SOUS le disque : le plan du disque tombait a
+          //     vV = 0,17, c'est-a-dire juste apres la coupe, et pile la ou
+          //     l'enveloppe est la plus large et le coeur le plus blanc. Au
+          //     boost, la monture disparaissait purement et simplement — le
+          //     joueur l'a signale comme un bug, et c'en etait un : additif,
+          //     x4,3, blanc, exactement sur l'objet qu'on venait de rendre
+          //     lisible.
+          //
+          //     La coupe couvre donc maintenant tout le plan du disque et un
+          //     bon tiers au-dessus. La flamme nait a la TAILLE du buddy, ce
+          //     qui est aussi ce que fait n'importe quelle aura de dessin
+          //     anime : elle enveloppe le corps, pas ses pieds.
+          a *= smoothstep(0.14, 0.42, vV);
 
           // Le liseré. L'enveloppe est vue de l'interieur ET de l'exterieur
           // (DoubleSide) : sans ce renforcement du bord, les deux faces
@@ -325,7 +353,11 @@ ${GLSL_SAFE}
           // couleur ne pouvait la rattraper. C'est la faute classique de
           // l'additif, et elle se voit d'autant moins qu'elle ne casse rien —
           // elle rend juste tout terne.
-          gl_FragColor = vec4(c * a * 4.3, 1.0);
+          // 3,4 et non 4,3 : a 4,3 la somme saturait si largement que l'aura
+          // rendait BLANC partout sauf sur son bord — la couleur de la livree,
+          // qui est tout ce qu'elle a a dire, n'arrivait jamais a l'ecran, et
+          // la plaine autour disparaissait avec elle.
+          gl_FragColor = vec4(c * a * 3.4, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }
