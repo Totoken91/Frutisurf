@@ -1692,3 +1692,118 @@ qu'il forcit, et c'est ce cisaillement qu'on reconnaît sans savoir le nommer.
 Les trois couches — l'herbe, les feuilles, la pluie — obéissent au **même
 nombre** que la physique (voir [`02`](02-TECH-ARCHITECTURE.md) §13). La rafale
 qu'on voit traverser le champ est celle qui déporte le disque.
+
+
+## 18. La passe optique : ce qu'une caméra fait et qu'un moteur ne fait pas
+
+Quatre termes ajoutés d'un coup, tous dans la même passe de post-traitement, et
+ils se répondent : ils décrivent ensemble un **objectif** posé devant la scène,
+là où le rendu précédent décrivait une fenêtre parfaite.
+
+### L'occlusion ambiante, et c'est elle qui pose tout le reste
+
+Le jeu n'avait aucune ombre en dehors de celle du surfeur : chaque objet — une
+maison, une touffe, le pied d'une balise — flottait sur le sol avec exactement
+la même valeur que lui. C'est le défaut le plus coûteux du rendu et le moins
+cher à corriger : là où deux surfaces se rencontrent, la lumière du ciel arrive
+moins bien, donc c'est plus sombre. Rien d'autre.
+
+Deux détails décident du résultat :
+
+- **Le rayon est en mètres, converti en pixels par la profondeur.** Un rayon
+  fixe en UV donnerait une occlusion large au loin et invisible sous les pieds,
+  ce qui est le contraire de ce qu'on veut.
+- **Elle assombrit en TEINTANT vers l'ombre du ciel, pas vers le noir.** Une
+  occlusion grise sur un monde coloré le désature, et c'est ce qui donne
+  l'aspect « sale » des AO posées à la va-vite.
+
+### Les rayons crépusculaires, et l'œuf blanc
+
+On accumule la couleur de l'image le long du rayon qui va du pixel vers le
+soleil, et on ne garde que ce qui vient du **ciel** — les pixels de décor sont
+rejetés par la profondeur. Ce qui reste, ce sont les traînées de lumière qui
+passent *à côté* d'un nuage ou d'une colline : les vrais rayons, pour la vraie
+raison physique.
+
+Le premier jet a donné une **ellipse opaque de trois cents pixels** au milieu du
+cadre. Tout près du soleil, les dix échantillons tombent au même endroit : on
+n'accumule plus une traînée, on recopie dix fois le même pixel brillant. Deux
+masques ont réglé ça, et il faut les deux :
+
+- **le cœur ne rayonne pas** (le halo du soleil est déjà dessiné par le ciel,
+  avec sa couronne et ses branches ; la passe ajoute ce qui se passe *à côté*) ;
+- **les rayons se voient sur ce qu'ils éclairent**, à 30 % seulement sur le ciel,
+  où le faisceau ne ferait que doubler la luminosité d'un aplat déjà clair.
+
+### La profondeur de champ hiérarchise
+
+Une image entièrement nette est une image de logiciel de CAO. Le flou de
+lointain fait basculer le rendu du côté « photographie », et il fait un second
+travail plus important : il **hiérarchise**. Le surfeur et la porte restent
+nets, l'horizon fond.
+
+> **En mètres absolus, pas en multiples du plan de netteté.** Le plan est à une
+> dizaine de mètres — le surfeur — donc un flou démarrant à « une fois et demie
+> le plan » commençait à quinze mètres et noyait tout le paysage dès le premier
+> plan. Ce qu'on veut flouter, c'est l'horizon : 120 m à 620 m.
+
+Et **seulement le lointain**. Un flou d'avant-plan demande de savoir ce qu'il y
+a *derrière* ce qu'on floute ; bricolé en espace écran, il fait immédiatement du
+sale. Le sol qui défile sous les pieds est déjà traité par le flou de mouvement,
+qui est le bon outil pour lui.
+
+### La courbe filmique en sortie
+
+Le tonemap neutre des matériaux fait son travail : ramener une plage dynamique
+dans l'écran sans rien casser. Ce qu'il ne fait pas, c'est ce qu'une pellicule
+fait — un **pied** qui écrase doucement les noirs et une **épaule** qui retient
+les hautes lumières au lieu de les couper net. C'est la différence entre une
+image *exposée* et une image *étalonnée*, et elle se voit surtout aux deux
+extrêmes : le ciel près du soleil cesse d'être un aplat blanc, les ombres du sol
+cessent d'être un aplat sombre.
+
+## 19. L'ombre portée du relief : une bonne idée que la géométrie refuse
+
+Le terrain est **analytique**. On peut donc marcher le rayon solaire dessus et
+obtenir la vraie ombre — pas une carte d'ombres, pas une profondeur d'écran :
+le terrain lui-même, sans biais, sans bord d'écran et sans résolution. Écrit,
+testé, **teint en rouge vif** pour le voir : il ne couvrait pas un pixel.
+
+La cause n'est pas dans le code, elle est dans la géométrie. Chaque couche du
+relief apporte une pente `amplitude × fréquence` de l'ordre de **0,12 à 0,17**,
+et elles ne s'alignent presque jamais : les pentes courantes plafonnent vers
+onze degrés. Le soleil, lui, monte à **trente-trois degrés** au zénith de ce
+cycle. Un rayon plus redressé que le terrain ne rencontre rien, jamais.
+
+Même en plafonnant artificiellement le rayon à seize degrés — la triche
+classique de l'ombre allongée, où la direction reste juste et seule la longueur
+est exagérée — la mesure restait blanche. Il aurait fallu descendre vers six
+degrés, c'est-à-dire un couchant permanent, et assombrir la moitié de la plaine
+pour un effet qu'on n'avait pas demandé.
+
+Six évaluations de terrain par pixel, le poste le plus cher du shader, pour
+rien. **Le terme est retiré**, et la leçon vaut d'être écrite : rien dans le
+code ne dit qu'un effet ne peut pas marcher — seule la mesure le dit.
+
+Ce budget est parti dans trois termes que la géométrie, elle, supporte :
+
+- **L'éclat de l'herbe.** Un sol qui n'a qu'un albédo et un ombrage diffus est
+  une *couleur* posée sur une forme : il ne renvoie rien, donc rien ne dit de
+  quoi il est fait. Le spéculaire est large — un brin n'est pas un miroir — et
+  **corrélé au micro-relief des brins** : ce sont les touffes exposées qui
+  accrochent, jamais les creux. C'est cette corrélation qui le fait lire comme
+  de l'herbe et non comme un vernis.
+- **La diffusion atmosphérique**, et ce n'est pas la brume. La brume fait fondre
+  le lointain vers *une* couleur, la même dans toutes les directions. L'air réel
+  renvoie beaucoup plus de lumière du côté du soleil : c'est pour ça qu'un
+  paysage à contre-jour a un lointain laiteux et un paysage éclairé de dos un
+  lointain net. Sans ce terme, les deux moitiés de l'horizon ont la même valeur
+  et la scène perd sa **direction**.
+- **Une variation de TEINTE, pas seulement de valeur.** La strie ne mélangeait
+  que deux couleurs de la palette : elle faisait varier la luminosité du sol
+  sans jamais en changer la couleur, et un pré entier restait une seule teinte
+  plus ou moins éclairée. La rotation tourne autour du gris de **même
+  luminance** — la teinte bouge, la valeur ne bouge pas — ce qui évite que la
+  variation se lise comme des taches sales. Sur une échelle différente de celle
+  de la strie (soixante mètres contre seize) : superposées à la même fréquence,
+  les deux se confondraient.

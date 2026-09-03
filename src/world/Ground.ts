@@ -213,6 +213,32 @@ ${RIDER_GLSL}
 ${shoreGLSL()}
 ${TOWN_GLSL}
 
+        /**
+         * POURQUOI IL N'Y A PAS D'OMBRE PORTEE DU RELIEF, ET LA MESURE.
+         *
+         * L'idee est bonne et le terrain s'y prete : il est ANALYTIQUE, donc on
+         * peut marcher le rayon solaire dessus et obtenir la vraie ombre, sans
+         * carte d'ombres, sans biais et sans resolution. Ecrit, teste, teint en
+         * rouge vif pour le voir : il ne couvrait PAS UN PIXEL.
+         *
+         * La cause n'est pas dans le code, elle est dans la geometrie. Les
+         * pentes de ce terrain plafonnent vers onze degres en usage courant —
+         * chaque couche apporte une pente amplitude x frequence de l'ordre de
+         * 0,12 a 0,17, et elles ne s'alignent presque jamais. Le soleil, lui,
+         * monte a trente-trois degres au zenith de ce cycle. Un rayon plus
+         * redresse que le terrain ne rencontre rien, jamais.
+         *
+         * Meme en plafonnant artificiellement le rayon a seize degres — la
+         * triche classique de l'ombre allongee — la mesure restait blanche. Il
+         * aurait fallu descendre vers six degres, c'est-a-dire un couchant
+         * permanent, et assombrir la moitie de la plaine pour un effet qu'on
+         * n'a pas demande.
+         *
+         * Six evaluations de terrain par pixel, soit le poste le plus cher du
+         * shader, pour rien : le terme est retire. La lecon vaut d'etre ecrite,
+         * parce que l'effet est tentant et que rien dans le code ne dit qu'il
+         * ne peut pas marcher — seule la mesure le dit.
+         */
         void main(){
           // Coordonnees de texture repliees modulo la periode du bruit : la
           // position monde croit sans borne et finirait par perdre en precision.
@@ -282,6 +308,32 @@ ${TOWN_GLSL}
           c = mix(c, uHorizon, smoothstep(0.46, 0.92, f));
 
           c = mix(mix(c, uShadow, 0.30), mix(c, uStreak, 0.55), streak);
+
+          // --- ET UNE VARIATION DE TEINTE, PAS SEULEMENT DE VALEUR.
+          //
+          //     La strie ne melange que deux couleurs de la palette : elle fait
+          //     donc varier la LUMINOSITE du sol sans jamais en changer la
+          //     couleur, et un pre entier reste une seule teinte plus ou moins
+          //     eclairee. Aucune prairie ne ressemble a ca — il y a de l'herbe
+          //     jeune, de l'herbe seche, de la terre qui affleure, et c'est
+          //     leur cohabitation qui donne sa richesse a un champ.
+          //
+          //     Une rotation de teinte suffit, sur une echelle differente de
+          //     celle de la strie (soixante metres contre seize) : superposees
+          //     a la meme frequence, les deux se confondraient en une seule
+          //     tache et on n'aurait rien gagne.
+          {
+            float tint = fbm2(vec2(p.x * 0.017 + 31.7, p.y * 0.017));
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            //   Vers le CHAUD d'un cote, vers le FROID de l'autre, autour du
+            //   gris de meme luminance : la teinte tourne, la valeur ne bouge
+            //   pas. C'est ce qui evite que la variation se lise comme des
+            //   taches sales.
+            vec3 warm = mix(c, vec3(lum) * vec3(1.14, 1.02, 0.80), 0.55);
+            vec3 cool = mix(c, vec3(lum) * vec3(0.84, 1.04, 1.06), 0.55);
+            c = mix(c, mix(cool, warm, smoothstep(0.36, 0.64, tint)),
+                    0.34 * (1.0 - uTech));
+          }
 
           // --- LES BRINS.
           //
@@ -382,12 +434,38 @@ ${TOWN_GLSL}
           float lambert = 0.78 + 0.34 * smoothstep(0.10, 0.52, ndl);
           float dome = 0.80 + 0.30 * clamp(N.y, 0.0, 1.0);
           c *= mix(lambert, dome, uOvercast);
+
+
           c += uDayFill * (0.045 + 0.11 * clamp(N.y, 0.0, 1.0)) * uOvercast;
           // Les versants exposes accrochent un lisere clair sur la crete — mais
           // pas sous les nuages : un lisere de soleil sans soleil est la faute
           // qui trahit un eclairage peint.
           c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5)
              * (1.0 - uOvercast * 0.75);
+
+          // --- L'ECLAT DE L'HERBE, ET C'EST CE QUI EN FAIT UNE MATIERE.
+          //
+          //     Un sol qui n'a qu'un albedo et un ombrage diffus est une
+          //     COULEUR posee sur une forme : il ne renvoie rien, donc rien ne
+          //     dit de quoi il est fait. Un brin d'herbe est une lame lisse et
+          //     cireuse — c'est la premiere chose qu'on voit d'un pre a
+          //     contre-jour, et c'est ce qui manquait ici.
+          //
+          //     Le speculaire est LARGE (exposant 26) parce qu'un brin n'est
+          //     pas un miroir, et il est module par le micro-relief des brins :
+          //     ce sont les touffes exposees qui accrochent, jamais les creux.
+          //     C'est cette correlation qui le fait lire comme de l'herbe et
+          //     non comme un vernis.
+          {
+            vec3 V2 = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
+            vec3 H = nsafe(V2 + L, vec3(0.0, 1.0, 0.0));
+            float sheen = pow(max(dot(N, H), 1e-4), 26.0);
+            //   Il n'existe qu'au PREMIER PLAN. Au-dela, la lame passe sous le
+            //   pixel : ce qui reste n'est plus un eclat, c'est du bruit qui
+            //   scintille a chaque pas de camera.
+            c += uDayLight * sheen * (0.30 + blade * 0.85) * detail * 0.55
+               * (1.0 - uOvercast * 0.85);
+          }
 
           // --- 4. Grandes nappes de lumiere.
           //
@@ -934,6 +1012,24 @@ ${TOWN_GLSL}
           float toward = max(dot(normalize(vec3(vWorld.x, 0.0, vWorld.z) - vec3(uCam.x, 0.0, uCam.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0);
           c += mix(vec3(0.34, 0.46, 0.30), uDayFill * 0.72, uWet)
              * smoothstep(0.68, 0.99, f) * pow(max(toward, 1e-4), 2.0) * 1.05;
+
+          // --- LA DIFFUSION ATMOSPHERIQUE, ET ELLE N'EST PAS LA BRUME.
+          //
+          //     La brume d'horizon fait fondre le lointain vers UNE couleur, la
+          //     meme dans toutes les directions. L'air reel ne fait pas ca : il
+          //     renvoie beaucoup plus de lumiere du cote du soleil que du cote
+          //     oppose — c'est la raison pour laquelle un paysage a contre-jour
+          //     a un lointain lumineux et laiteux, et un paysage eclaire de dos
+          //     un lointain net et sombre. Sans ce terme, les deux moities de
+          //     l'horizon ont la meme valeur et la scene perd sa DIRECTION.
+          //
+          //     Il croit avec la distance parcourue dans l'air (donc avec f) et
+          //     avec l'alignement au soleil, exactement comme la diffusion de
+          //     Mie dont il est la version a un terme.
+          c += mix(uDayLight, uHorizon, 0.45)
+             * smoothstep(0.14, 0.92, f)
+             * (0.10 + 0.55 * pow(max(toward, 1e-4), 2.6))
+             * (1.0 - uOvercast * 0.55) * 0.42;
 
           // --- LE VOILE DE L'AVERSE.
           //

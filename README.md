@@ -10,7 +10,12 @@ de fond d'écran Windows Vista qu'on n'a jamais vraiment oubliée.
 Azur profond au zénith qui blanchit à l'horizon, cumulus volumétriques éclairés
 par une vraie normale, soleil en étoile dans le cadre, plaine dont le relief se
 lit par la hauteur et non par la pente, ligne d'arbres et skyline de cristal sur
-l'horizon. Le détail de chaque décision est dans
+l'horizon.
+
+Par-dessus, une **passe optique** qui décrit un objectif et pas une fenêtre
+parfaite : occlusion ambiante en espace écran, rayons crépusculaires masqués par
+la profondeur, profondeur de champ sur le lointain, flou de mouvement par
+reprojection, et une courbe filmique en sortie. Le détail de chaque décision est dans
 [docs/01-ART-DIRECTION.md](docs/01-ART-DIRECTION.md) §6.
 
 **Une partie dure 30 secondes.** Il n'y a qu'**une porte** à l'écran, loin

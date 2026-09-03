@@ -21,6 +21,15 @@ export class PostFX {
   private bloom: BloomEffect;
   private camera: PerspectiveCamera;
   private motion = 0.55;
+  /**
+   * Force de l'occlusion ambiante.
+   *
+   * Coupee sur le profil bas : c'est six lectures de profondeur par pixel, et
+   * c'est le seul ajout de cette passe qu'on peut retirer sans que l'image
+   * perde son identite — un telephone d'entree de gamme garde le bloom, les
+   * rayons et l'etalonnage, qui font l'essentiel du style.
+   */
+  private ao: number;
 
   constructor(
     renderer: WebGLRenderer,
@@ -33,6 +42,7 @@ export class PostFX {
       multisampling: 0,
     });
     this.camera = camera;
+    this.ao = quality === 'low' ? 0 : 0.85;
     this.composer.addPass(new RenderPass(scene, camera));
 
     // Le bloom EST le gloss du projet, mais un rayon trop large avale ce
@@ -75,6 +85,24 @@ export class PostFX {
 
   resize(w: number, h: number): void {
     this.composer.setSize(w, h);
+  }
+
+  /**
+   * Ce que la CAMERA impose au post-traitement.
+   *
+   * Les plans proche et lointain servent a linaeriser la profondeur — sans eux
+   * l'occlusion ambiante lit un tampon hyperbolique et ne peut rien en tirer —
+   * et le plan de nettete suit le surfeur, jamais une constante : la camera vit
+   * sur des ressorts et recule au boost, un plan fixe ferait respirer le flou a
+   * chaque acceleration.
+   */
+  optics(focusMetres: number): void {
+    this.surf.optics(this.camera.near, this.camera.far, focusMetres, this.ao);
+  }
+
+  /** Le soleil a l'ecran et la force des rayons. Voir SurfEffect.sun. */
+  sunAt(x: number, y: number, strength: number, r: number, g: number, b: number): void {
+    this.surf.sun(x, y, strength, r, g, b);
   }
 
   render(dt: number): void {

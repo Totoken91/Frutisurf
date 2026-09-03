@@ -1,5 +1,5 @@
 import { BlendFunction, Effect, EffectAttribute } from 'postprocessing';
-import { Matrix4, Uniform, Vector2 } from 'three';
+import { Matrix4, Uniform, Vector2, Vector3 } from 'three';
 
 /**
  * Tous les effets pilotes par la glisse, fusionnes en un seul passage :
@@ -53,6 +53,28 @@ uniform float uMotion;     // force du flou, deja rapportee a la pose
 uniform vec2  uFocus;      // le surfeur a l'ecran : le flou l'epargne
 uniform float uGrit;       // 0..1 : l'etalonnage sale des mondes couverts
 uniform float uTime;       // secondes, pour le grain
+uniform vec2  uSunUv;      // le soleil a l'ecran
+uniform float uRays;       // 0..1 : force des rayons crepusculaires
+uniform vec3  uRayTint;    // couleur de la lumiere du moment
+uniform float uAO;         // 0..1 : force de l'occlusion ambiante
+uniform float uDof;        // metres : distance de nettete, 0 = desactive
+uniform vec2  uTexel;      // taille d'un pixel en UV
+uniform vec2  uPlanes;     // near, far de la camera
+
+/**
+ * Profondeur LINEAIRE en metres.
+ *
+ * Le tampon de profondeur est hyperbolique : 90 % de ses valeurs decrivent les
+ * dix premiers metres. Comparer deux echantillons bruts ne dit donc rien de la
+ * distance qui les separe — c'est la faute qui rend une occlusion ambiante
+ * inexploitable, et elle se voit comme un halo sombre autour de tout ce qui est
+ * proche.
+ */
+float metres(float d){
+  float n = uPlanes.x;
+  float f = uPlanes.y;
+  return (2.0 * n * f) / (f + n - (d * 2.0 - 1.0) * (f - n));
+}
 
 float hash12(vec2 p){
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -60,10 +82,58 @@ float hash12(vec2 p){
   return fract((p3.x + p3.y) * p3.z);
 }
 
+// Douze directions en spirale, generees une fois : un disque de Poisson coute
+// une table, une spirale de Fibonacci coute deux lignes et se disperse aussi
+// bien. C'est le meme motif qui sert a l'occlusion et a la profondeur de champ.
+vec2 spiral(int i, float n, float turns){
+  float t = (float(i) + 0.5) / n;
+  float a = t * turns;
+  return vec2(cos(a), sin(a)) * sqrt(t);
+}
+
 void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor){
   vec2 dir = uv - uCenter;
   float dist = length(dir);
   vec3 col = inputColor.rgb;
+  float zm = metres(depth);
+
+  // --- L'OCCLUSION AMBIANTE, ET C'EST ELLE QUI POSE TOUT LE RESTE.
+  //
+  //     Le jeu n'a aucune ombre portee en dehors de celle du surfeur : chaque
+  //     objet — une maison, un brin, le pied d'une balise — flotte sur le sol
+  //     avec exactement la meme valeur que lui. C'est le defaut le plus couteux
+  //     du rendu, et le moins cher a corriger : la ou deux surfaces se
+  //     rencontrent, la lumiere du ciel arrive moins bien, donc c'est plus
+  //     sombre. Rien d'autre.
+  //
+  //     La version ici est une AO d'horizon a six echantillons : on regarde si
+  //     les voisins sont PLUS PRES de la camera que le pixel courant. S'ils le
+  //     sont, ils lui cachent une partie du ciel.
+  //
+  //     Le rayon est en METRES et converti en pixels par la profondeur, pas
+  //     l'inverse : un rayon fixe en UV donnerait une AO large au loin et
+  //     invisible sous les pieds, ce qui est le contraire de ce qu'on veut.
+  if (uAO > 0.002 && zm < 240.0) {
+    float radius = clamp(0.55 / max(zm, 1.0), 0.0015, 0.045);
+    float occ = 0.0;
+    for (int i = 0; i < 6; i++) {
+      vec2 o = spiral(i, 6.0, 14.0) * radius;
+      float dz = zm - metres(readDepth(uv + o));
+      // Un voisin plus proche occulte, mais SEULEMENT s'il est proche en
+      // profondeur : au-dela d'un metre et demi ce n'est plus un pli, c'est un
+      // objet devant, et l'assombrir dessinerait un contour noir autour de
+      // tout — le halo qui trahit une AO mal bornee.
+      occ += smoothstep(0.04, 0.55, dz) * (1.0 - smoothstep(1.2, 2.6, dz));
+    }
+    occ /= 6.0;
+    // Elle s'efface au loin, la ou le pli passe sous le pixel et ou l'AO ne
+    // produit plus que du scintillement.
+    occ *= uAO * (1.0 - smoothstep(90.0, 230.0, zm));
+    // On assombrit en TEINTANT vers l'ombre du ciel, pas vers le noir : une
+    // occlusion grise sur un monde colore le desature, et c'est ce qui donne
+    // l'aspect « sale » des AO posees a la va-vite.
+    col *= mix(vec3(1.0), vec3(0.62, 0.68, 0.80), occ);
+  }
 
   // --- LE FLOU DE MOUVEMENT.
   //
@@ -113,6 +183,95 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
           col = acc / 6.0;
         }
       }
+    }
+  }
+
+  // --- LA PROFONDEUR DE CHAMP.
+  //
+  //     Une image entierement nette est une image de logiciel de CAO : aucun
+  //     objectif ne fait ca, et l'oeil le sait sans savoir pourquoi. Un leger
+  //     flou au-dela du plan de nettete suffit a faire basculer le rendu du
+  //     cote « photographie », et il fait un second travail, plus important :
+  //     il HIERARCHISE. Le surfeur et la porte restent nets, l'horizon fond.
+  //
+  //     Le plan de nettete est la distance du SURFEUR, pas une constante : la
+  //     camera vit sur des ressorts et recule au boost, un plan fixe ferait
+  //     respirer le flou a chaque acceleration.
+  //
+  //     Seulement le LOINTAIN, jamais le premier plan. Un flou d'avant-plan est
+  //     l'effet le plus cher a bien faire — il demande de savoir ce qu'il y a
+  //     DERRIERE ce qu'on floute — et fait immediatement du sale quand on le
+  //     bricole en espace ecran. Le sol qui defile sous les pieds est deja
+  //     traite par le flou de mouvement, qui est le bon outil pour lui.
+  if (uDof > 0.5 && zm > 90.0) {
+    // EN METRES ABSOLUS, PAS EN MULTIPLES DU PLAN DE NETTETE. Le plan est a une
+    // dizaine de metres — le surfeur — donc un flou qui demarrerait a « une
+    // fois et demie le plan » commencerait a quinze metres et noierait tout le
+    // paysage des le premier plan. Ce qu'on veut flouter, c'est l'HORIZON.
+    float coc = smoothstep(120.0, 620.0, zm) * 0.55;
+    if (coc > 0.02) {
+      float r = coc * 0.0055;
+      vec3 acc = col;
+      for (int i = 0; i < 6; i++) {
+        vec2 o = spiral(i, 6.0, 11.0) * r;
+        acc += texture2D(inputBuffer, uv + o).rgb;
+      }
+      col = mix(col, acc / 7.0, coc);
+    }
+  }
+
+  // --- LES RAYONS CREPUSCULAIRES.
+  //
+  //     C'est l'effet qui separe le plus nettement « un ciel avec un soleil
+  //     dessine dedans » de « une scene eclairee par un soleil ». On accumule
+  //     la couleur de l'image le long du rayon qui va du pixel vers le soleil,
+  //     et on ne garde que ce qui vient du CIEL : les pixels de decor sont
+  //     rejetes par la profondeur. Ce qui reste, ce sont les trainees de
+  //     lumiere qui passent A COTE d'un nuage, d'une colline ou d'une maison —
+  //     donc exactement les rayons qu'on voit dans la realite, et pour la meme
+  //     raison physique.
+  //
+  //     Le masque de profondeur est ce qui fait tout : sans lui, la couleur du
+  //     decor se met a bavez vers le soleil et l'image se met a couler.
+  if (uRays > 0.004) {
+    vec2 toSun = uSunUv - uv;
+    float far = length(toSun);
+    // Au-dela d'un ecran et demi, le soleil est trop loin pour que les rayons
+    // aient un sens : on ne va pas chercher de la lumiere hors du cadre.
+    float reach = 1.0 - smoothstep(0.55, 1.30, far);
+    if (reach > 0.01) {
+      vec3 shaft = vec3(0.0);
+      float wsum = 0.0;
+      for (int i = 1; i <= 10; i++) {
+        float t = float(i) / 10.0;
+        vec2 p = uv + toSun * t * 0.72;
+        // Le poids decroit : la lumiere se disperse en s'eloignant de sa
+        // source. Une somme a poids constant donne une bouillie uniforme.
+        float w = (1.0 - t) * (1.0 - t);
+        // Seul le ciel emet. readDepth rend 1 sur le fond, et on prend une
+        // marge : un pixel de nuage tres lointain compte aussi.
+        float sky = smoothstep(0.9985, 0.99999, readDepth(p));
+        shaft += texture2D(inputBuffer, p).rgb * sky * w;
+        wsum += w;
+      }
+      shaft /= max(wsum, 1e-4);
+      // --- DEUX MASQUES, ET SANS EUX C'EST UN OEUF BLANC AU MILIEU DU CADRE.
+      //
+      //     1. LE COEUR NE RAYONNE PAS. Tout pres du soleil, les dix
+      //        echantillons tombent au meme endroit : on n'accumule plus une
+      //        trainee, on recopie dix fois le meme pixel brillant, et le
+      //        resultat est une ELLIPSE OPAQUE de trois cents pixels. C'est
+      //        exactement ce qu'a donne le premier jet. Le halo du soleil est
+      //        deja dessine par le ciel, avec ses branches et sa couronne ; ce
+      //        que la passe doit ajouter, c'est ce qui se passe A COTE.
+      float core = smoothstep(0.035, 0.24, far);
+      //     2. LES RAYONS SE VOIENT SUR CE QU'ILS ECLAIRENT. Sur le ciel, le
+      //        faisceau se superpose a la couleur qu'il vient d'echantillonner
+      //        et ne fait que doubler la luminosite d'un aplat deja clair. Sur
+      //        le DECOR, il lit comme de la lumiere qui deborde par-dessus une
+      //        colline — le seul endroit ou l'oeil accepte de le voir.
+      float onSky = smoothstep(0.9985, 0.99999, depth);
+      col += shaft * uRayTint * uRays * reach * core * mix(1.0, 0.30, onSky);
     }
   }
 
@@ -195,6 +354,35 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
     col += (g - 0.5) * uGrit * 0.055 * (0.35 + (1.0 - abs(l2 * 2.0 - 1.0)));
   }
 
+  // --- LA COURBE FILMIQUE, EN DERNIER.
+  //
+  //     Le rendu passe deja par un tonemap neutre au niveau des materiaux :
+  //     celui-la fait son travail, qui est de ramener une plage dynamique dans
+  //     l'ecran sans rien casser. Ce qu'il ne fait pas, c'est ce qu'une
+  //     pellicule fait — un PIED qui ecrase doucement les noirs et une EPAULE
+  //     qui retient les hautes lumieres au lieu de les couper net.
+  //
+  //     C'est la difference entre une image « exposee » et une image
+  //     « etalonnee », et elle se voit surtout sur les deux extremes : le ciel
+  //     pres du soleil cesse d'etre un aplat blanc, et les ombres du sol
+  //     cessent d'etre un aplat sombre.
+  //
+  //     Elle vient APRES tout le reste, y compris les rayons et le grain :
+  //     c'est l'etage de sortie, et tout ce qui passe devant elle doit etre
+  //     traite comme de la lumiere, pas comme des pixels.
+  {
+    vec3 k = max(col, 0.0);
+    // Epaule : x/(x+1) renormalise pour que le blanc reste blanc. Sans la
+    // renormalisation, tout le rendu perd 20 % de luminosite d'un coup.
+    const float W = 1.28;
+    vec3 sh = k * (1.0 + k / (W * W)) / (1.0 + k);
+    // Pied : un leger contraste en S sur les valeurs basses. Applique sur
+    // TOUTE la plage il ecraserait les demi-tons, qui sont l'essentiel de
+    // l'image dans un jeu aussi clair que celui-la.
+    vec3 lo = sh * sh * (3.0 - 2.0 * sh);
+    col = mix(sh, lo, 0.22 * (1.0 - smoothstep(0.35, 0.85, dot(sh, vec3(0.2126, 0.7152, 0.0722)))));
+  }
+
   // --- Pare-feu NaN, DERNIERE instruction du shader.
   //
   // Un seul pixel non fini suffit a noircir TOUTE l'image : le bloom le
@@ -243,6 +431,13 @@ export class SurfEffect extends Effect {
         ['uMotion', new Uniform(0)],
         ['uGrit', new Uniform(0)],
         ['uTime', new Uniform(0)],
+        ['uSunUv', new Uniform(new Vector2(0.5, 0.8))],
+        ['uRays', new Uniform(0)],
+        ['uRayTint', new Uniform(new Vector3(1, 0.96, 0.86))],
+        ['uAO', new Uniform(0.85)],
+        ['uDof', new Uniform(0)],
+        ['uTexel', new Uniform(new Vector2(1 / 1280, 1 / 720))],
+        ['uPlanes', new Uniform(new Vector2(0.1, 4000))],
       ]),
     });
   }
@@ -295,6 +490,29 @@ export class SurfEffect extends Effect {
   grit(amount: number, time: number): void {
     this.uniforms.get('uGrit')!.value = Math.min(1, Math.max(0, amount));
     this.uniforms.get('uTime')!.value = time % 1000;
+  }
+
+  /**
+   * Le soleil a l'ecran, et la force des rayons.
+   *
+   * `visible` doit deja tenir compte du fait que le soleil est DERRIERE la
+   * camera : projeter un point derriere le plan proche rend une position
+   * miroir parfaitement plausible, et les rayons partiraient du mauvais cote
+   * de l'ecran sans que rien ne signale l'erreur.
+   */
+  sun(x: number, y: number, strength: number, r: number, g: number, b: number): void {
+    const u = this.uniforms;
+    (u.get('uSunUv')!.value as Vector2).set(safe(x), safe(y));
+    u.get('uRays')!.value = Math.max(0, Math.min(1, strength));
+    (u.get('uRayTint')!.value as Vector3).set(r, g, b);
+  }
+
+  /** Les deux reglages qui dependent de la camera : plans et plan de nettete. */
+  optics(near: number, far: number, focusMetres: number, ao: number): void {
+    const u = this.uniforms;
+    (u.get('uPlanes')!.value as Vector2).set(near, far);
+    u.get('uDof')!.value = focusMetres;
+    u.get('uAO')!.value = ao;
   }
 
 }

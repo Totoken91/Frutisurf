@@ -91,6 +91,10 @@ export class Game {
   private cast = new Vector3();
   /** Position ecran du surfeur, reutilisee a chaque image. */
   private focus = new Vector3();
+  /** Un point pose au loin dans la direction du soleil, pour le projeter. */
+  private sunPoint = new Vector3();
+  /** Axe de visee courant, pour savoir si le soleil est devant ou derriere. */
+  private viewDir = new Vector3();
   /** x, z du surfeur et force du sillage, envoyes au shader d'eau. */
   private wake = new Vector3();
   /** Force du sillage lissee : il enfle et se resorbe, il ne clignote pas. */
@@ -710,6 +714,47 @@ export class Game {
     // L'ETALONNAGE SALE SUIT LE CIEL, pas le monde choisi. Il arrive donc au
     // rythme du fondu, comme la pluie qu'on entend.
     this.post.surf.grit(this.world.overcastAmount, this.time);
+
+    // --- LE SOLEIL A L'ECRAN, POUR LES RAYONS CREPUSCULAIRES.
+    //
+    //     On projette un point pose TRES LOIN dans sa direction plutot que la
+    //     direction elle-meme : `project` attend une position monde, et le
+    //     soleil n'en a pas. Mille metres suffisent — au-dela, la position
+    //     ecran ne bouge plus d'un pixel.
+    //
+    //     Et on verifie qu'il est DEVANT. Projeter un point derriere le plan
+    //     proche rend une position miroir parfaitement plausible : les rayons
+    //     partiraient du mauvais cote du cadre, en se dirigeant vers un soleil
+    //     qu'on a dans le dos, sans que rien ne signale l'erreur.
+    {
+      const cam = this.engine.camera;
+      const d = this.world.day.sun;
+      this.sunPoint.set(
+        cam.position.x + d.x * 1000,
+        cam.position.y + d.y * 1000,
+        cam.position.z + d.z * 1000,
+      );
+      cam.getWorldDirection(this.viewDir);
+      const ahead = this.viewDir.dot(d);
+      this.sunPoint.project(cam);
+      // Les rayons meurent quand le soleil sort du champ, quand il passe sous
+      // l'horizon, et sous un plafond de nuages — dans les trois cas il n'y a
+      // plus de faisceau a voir, et en laisser un trahirait l'effet.
+      const front = Math.max(0, Math.min(1, (ahead - 0.05) * 2.2));
+      const up = Math.max(0, Math.min(1, d.y * 5.0));
+      const lit = this.world.day.light;
+      this.post.sunAt(
+        this.sunPoint.x * 0.5 + 0.5,
+        this.sunPoint.y * 0.5 + 0.5,
+        front * up * (1 - this.world.overcastAmount * 0.82) * 0.16,
+        lit.r,
+        lit.g,
+        lit.b,
+      );
+      // Le plan de nettete est la distance camera-surfeur, mesuree et non
+      // supposee : elle change avec la vitesse, le recul et la secousse.
+      this.post.optics(cam.position.distanceTo(this.surfer.rig.position));
+    }
     // Ou se trouve le surfeur a l'ecran : le flou de mouvement l'epargne, et
     // avec lui la seule chose que le joueur doit lire a tout instant.
     this.focus.copy(this.surfer.rig.position);
