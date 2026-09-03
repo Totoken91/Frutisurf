@@ -18,6 +18,8 @@ import { Gate } from './Gate';
 import { Clouds } from './Clouds';
 import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
+import { Grove } from './Grove';
+import { Ridge } from './Ridge';
 import { Motes } from './Motes';
 import { Leaves } from './Leaves';
 import { Rain } from './Rain';
@@ -43,6 +45,8 @@ export class World {
   readonly rain: Rain;
   readonly water: Water;
   readonly palms: Palms;
+  readonly grove: Grove;
+  readonly ridge: Ridge;
   readonly turbines: Turbines;
   /** L'heure. Source unique, relue par tous les materiaux ci-dessous. */
   readonly day: Daylight;
@@ -102,6 +106,8 @@ export class World {
     this.gate = new Gate();
     this.water = new Water(dense);
     this.palms = new Palms();
+    this.grove = new Grove();
+    this.ridge = new Ridge();
     this.turbines = new Turbines(dense ? 14 : 9);
     this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
     // Feuilles et pluie existent dans TOUS les mondes, a densite nulle hors
@@ -115,10 +121,11 @@ export class World {
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
     scene.add(this.sky);
+    scene.add(this.ridge.mesh);
     scene.add(this.ground.mesh);
     if (this.blades) scene.add(this.blades.mesh);
     scene.add(this.water.mesh);
-    scene.add(this.palms.mesh, this.turbines.mesh);
+    scene.add(this.palms.mesh, this.grove.mesh, this.turbines.mesh);
     scene.add(this.city.group);
     scene.add(this.town.buildings, this.town.halos);
     scene.add(this.clouds.mesh);
@@ -159,6 +166,8 @@ export class World {
       ...this.town.mats,
     ].filter(Boolean) as typeof this.lit;
     if (this.blades) this.lit.push(this.blades.mat);
+    this.lit.push(this.grove.mat);
+    this.lit.push(this.ridge.mat);
     this.blendWorld(1);
     this.applyDay();
     scene.add(this.lights);
@@ -263,6 +272,11 @@ export class World {
       blades: L(a.blades, b.blades),
       leaves: L(a.leaves, b.leaves),
       trees: L(a.trees, b.trees),
+      grove: L(a.grove, b.grove),
+      spire: L(a.spire, b.spire),
+      stone: L(a.stone, b.stone),
+      ridge: L(a.ridge, b.ridge),
+      ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
       town: L(a.town, b.town),
       rain: L(a.rain, b.rain),
       wind: L(a.wind, b.wind),
@@ -287,6 +301,11 @@ export class World {
     blades: number;
     leaves: number;
     trees: number;
+    grove: number;
+    spire: number;
+    stone: number;
+    ridge: number;
+    ridgeEdge: number;
     town: number;
     rain: number;
     wind: number;
@@ -371,6 +390,39 @@ export class World {
     rgb(p.uFrond, 'grassNear');
     rgb(p.uFrondTip, 'grassFar');
     p.uDensity.value = d.palms;
+
+    // --- LE BOSQUET. Il emprunte ses couleurs a l'HERBE et non a la ligne
+    //     d'arbres : un arbre pousse dans le champ qu'il occupe, et lui donner
+    //     la teinte de l'horizon le detacherait du sol sur lequel il est pose.
+    //     Le feuillage est donc l'herbe proche eclaircie, le tronc l'accent
+    //     chaud du monde, et la brume EXACTEMENT la bande d'horizon du sol —
+    //     c'est cette derniere egalite qui fait mourir le dernier rang dans le
+    //     paysage au lieu de le laisser s'arreter sur une ligne.
+    const gv = this.grove.mat.uniforms;
+    rgb(gv.uLeafLow, 'treeLine');
+    rgb(gv.uLeafHigh, 'grassNear');
+    rgb(gv.uTrunk, 'warmAccent');
+    // La pierre emprunte l'OMBRE DES NUAGES et non l'ombre de l'herbe. Les deux
+    // sont des gris de monde, mais l'ombre de l'herbe est teintee par l'herbe :
+    // sur la plaine elle donnait des rochers verts, et sur CHROME, ou elle vaut
+    // presque du noir, elle donnait des trous. L'ombre des nuages est le seul
+    // gris qui reste un gris dans les cinq mondes.
+    rgb(gv.uRock, 'cloudShadow');
+    rgb(gv.uHaze, 'grassHorizon');
+    gv.uDensity.value = d.grove;
+    gv.uSpire.value = d.spire;
+    gv.uStone.value = d.stone;
+    gv.uTown.value = d.town;
+
+    // --- LES CRETES. Leur roche est celle des rochers du bosquet — le meme
+    //     gris de monde — et leur brume est celle du CIEL et non du sol : une
+    //     montagne a deux kilometres est bien plus pres du ciel que de l'herbe,
+    //     et lui donner la teinte de l'horizon terrestre la collait au sol.
+    const rd = this.ridge.mat.uniforms;
+    rgb(rd.uRock, 'cloudShadow');
+    rgb(rd.uSnow, 'cloudRim');
+    rd.uAmount.value = d.ridge;
+    rd.uEdge.value = d.ridgeEdge;
 
     this.turbines.mat.uniforms.uDensity.value = d.turbines;
 
@@ -511,6 +563,8 @@ export class World {
     this.blades?.update(origin, time, speedN);
     this.water.update(camPos, origin, time, wake);
     this.palms.update(origin, time);
+    this.grove.update(origin, time);
+    this.ridge.update(origin, this.day.horizon);
     this.turbines.update(origin, time);
     this.clouds.update(origin, time);
     this.city.update(origin);

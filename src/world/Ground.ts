@@ -443,6 +443,43 @@ ${TOWN_GLSL}
           c += uHorizon * 0.20 * smoothstep(0.26, 0.72, ndl) * (1.0 - f * 0.5)
              * (1.0 - uOvercast * 0.75);
 
+          // --- L'OCCLUSION DE RELIEF, ET C'EST ELLE QUI DONNE DU VOLUME AUX
+          //     COLLINES.
+          //
+          //     Le probleme se voit sur n'importe quelle capture large : les
+          //     collines a cent metres ont exactement la meme valeur que le pre
+          //     sous les pieds, donc le paysage est PLAT. Le terme diffus n'y
+          //     peut rien — les pentes du jeu font sept degres de moyenne, et
+          //     sept degres ne separent pas deux versants.
+          //
+          //     Les vraies ombres portees non plus : elles ont ete essayees, et
+          //     retirees, precisement pour cette raison (voir le long
+          //     commentaire plus bas). Ce qui reste, et qui suffit, est
+          //     l'occlusion de forme : un fond de vallon voit moins de ciel
+          //     qu'une crete, donc il est plus sombre et plus froid. C'est vrai
+          //     par temps couvert comme en plein soleil, ce qui en fait le seul
+          //     terme d'ombrage sur lequel on puisse compter dans les cinq
+          //     mondes.
+          //
+          //     LA MESURE DU CREUX EST GRATUITE, et c'est ce qui rend le terme
+          //     abordable. terrainHeightAt prend une DISTANCE, et s'en sert
+          //     pour eteindre les couches fines ; l'appeler avec une grande
+          //     distance rend donc le relief LISSE, ses grandes ondulations
+          //     seules. L'ecart entre la hauteur reelle et cette version lissee
+          //     EST le creux, sans un seul echantillon supplementaire du bruit.
+          {
+            float macro = terrainHeightAt(vWorld.xz, 900.0);
+            float bowl = clamp((vWorld.y - macro) * 0.42, -1.0, 1.0);
+            // Le creux assombrit et REFROIDIT, la bosse eclaire et rechauffe.
+            // Une occlusion qui ne fait que baisser la valeur se lit comme un
+            // voile gris ; celle qui deplace aussi la teinte se lit comme de la
+            // lumiere, parce que c'est ce que fait le ciel.
+            c *= 1.0 + bowl * 0.20;
+            c = mix(c, c * vec3(0.88, 0.94, 1.06), max(-bowl, 0.0) * 0.55);
+            // Et la crete prend le ciel de plein fouet.
+            c += uSkyLight * max(bowl, 0.0) * 0.055 * (1.0 - uOvercast * 0.4);
+          }
+
           // --- L'ECLAT DE L'HERBE, ET C'EST CE QUI EN FAIT UNE MATIERE.
           //
           //     Un sol qui n'a qu'un albedo et un ombrage diffus est une
@@ -573,7 +610,22 @@ ${TOWN_GLSL}
 
           // --- Rafale : le passage de la vague eclaircit brievement l'herbe,
           //     les brins se couchant montrent leur face lisse au soleil.
-          c *= 1.0 + gustAt(vWorld.xz, uTime) * 0.055 * detail;
+          //
+          //     A 0,055 et modulee par le facteur de detail, elle n'existait qu'au
+          //     premier plan et n'y valait que cinq pour cent : autant dire rien.
+          //     c'est LA chose qui distingue un pre d'un tapis — une vague de
+          //     lumiere qui traverse tout le champ, jusqu'a l'horizon. Elle
+          //     garde une part de detail (les brins proches reagissent plus,
+          //     ce qui est vrai) mais elle ne s'y reduit plus.
+          {
+            float g = gustAt(vWorld.xz, uTime);
+            c *= 1.0 + g * (0.055 + 0.10 * detail);
+            // La face lisse d'un brin couche renvoie le ciel, pas l'herbe : la
+            // vague DESATURE en meme temps qu'elle eclaircit, et c'est ce
+            // decalage de teinte qui la fait lire comme du vent et non comme
+            // une variation d'albedo.
+            c = mix(c, mix(c, uSkyLight, 0.20), g * 0.55 * (1.0 - uOvercast * 0.5));
+          }
 
           // --- Brume d'horizon. Elle separe les plans lointains les uns des
           //     autres : sans elle, des collines a 300 m et a 900 m ont

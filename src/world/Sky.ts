@@ -89,6 +89,35 @@ ${GLSL_NOISE}
         // JAMAIS. La montee est calee pour qu'il occupe le haut de l'image.
         c = mix(c, uZenith, smoothstep(0.13, 0.50, h));
 
+        // --- LES CIRRUS, ET C'EST LA COUCHE QUI MANQUAIT AU CIEL.
+        //
+        //     Le dome n'avait qu'un degrade et des cumulus. Un degrade n'a pas
+        //     de profondeur — c'est un mur peint — et les cumulus vivent tous
+        //     a la meme altitude, donc ils n'en donnent pas non plus. Il
+        //     manquait l'etage du dessus : des voiles fibreux, dix fois plus
+        //     hauts, dix fois plus lents, qui fuient vers l'horizon.
+        //
+        //     LA PROJECTION EST LE TOUT DU PROCEDE. Un bruit echantillonne sur
+        //     la direction du regard s'enroule sur la sphere et donne des
+        //     taches concentriques autour du zenith. Divise par la hauteur, il
+        //     s'echantillonne sur un PLAN horizontal a altitude fixe — et un
+        //     plan vu en perspective donne exactement ce qu'on cherche : des
+        //     bandes qui s'ecrasent et se resserrent en approchant de
+        //     l'horizon. C'est la meme projection qu'une route qui fuit.
+        {
+          float hh = max(h, 0.055);
+          // Etirement fort dans l'axe du vent : un cirrus est une fibre, pas
+          // un flocon. C'est l'anisotropie qui le distingue d'un cumulus, bien
+          // avant sa couleur ou son altitude.
+          vec2 pl = vec2(d.x / hh * 0.26, d.z / hh * 1.15) + vec2(uTime * 0.010, uTime * 0.026);
+          float v = fbm2(pl * 0.42);
+          v = smoothstep(0.50, 0.88, v) * smoothstep(0.42, 0.70, fbm2(pl * 0.11 + 4.7));
+          // Ils meurent en bas (la brume les mange) et en haut (on y regarde a
+          // travers trop peu d'air pour qu'ils s'accumulent).
+          float band = smoothstep(0.05, 0.20, h) * (1.0 - smoothstep(0.40, 0.88, h));
+          c = mix(c, mix(vec3(1.0), uHigh, 0.14), v * band * 0.52 * (1.0 - uOvercast));
+        }
+
         // --- Soleil. Un halo etage plutot qu'un disque net : trois lobes de
         // duretes tres differentes donnent la diffusion atmospherique, la
         // couronne, puis le coeur. Un seul lobe fait une tache collee au ciel.

@@ -93,6 +93,43 @@ export interface WorldDef {
   /** Ligne d'arbres a l'horizon. Elle survit a la ville. */
   trees: number;
   /**
+   * LE BOSQUET : arbres, rochers et buissons semes entre 20 et 200 m.
+   *
+   * Il ne remplace ni `trees`, qui est une frise posee a l'horizon, ni `palms`,
+   * qui ne pousse que sur le sable. Il occupe la seule bande que les deux
+   * laissaient vide — le champ moyen — et c'est elle qui porte l'ECHELLE du
+   * monde : sans objet de taille connue entre le premier plan et le fond, un
+   * paysage n'a pas de distance, il a deux couleurs.
+   */
+  grove: number;
+  /**
+   * Silhouette du bosquet : 0 = couronnes rondes, 1 = cimes en fleche.
+   *
+   * Une seule forme d'arbre pour cinq mondes les aurait tous rendus parents.
+   * Le rond dit le verger et l'ete ; la fleche dit le versant et la saison
+   * froide, et c'est exactement la difference entre la plaine et octobre.
+   */
+  spire: number;
+  /**
+   * Part de PIERRE dans le semis, 0..1. Le reste est vivant.
+   *
+   * Elle monte toute seule avec la pente — un eboulis tient sur un flanc ou un
+   * arbre ne tient pas — mais son plancher est une propriete du monde : CHROME
+   * n'a pas de biologie, son bosquet est un champ de monolithes.
+   */
+  stone: number;
+  /**
+   * LES CRETES LOINTAINES, 0..1 sur la hauteur. Zero = horizon nu.
+   *
+   * C'est le seul reglage de decor qui n'ajoute aucun objet dans le monde
+   * jouable : il dit uniquement ce qu'il y a DERRIERE, a un ou deux
+   * kilometres. Un monde sans cretes n'est pas moins beau, il est plus PETIT
+   * — et parfois c'est le propos (un atoll n'a rien a l'horizon qu'un ocean).
+   */
+  ridge: number;
+  /** 0 = cretes erodees, 1 = aretes vives. CHROME n'a pas d'erosion. */
+  ridgeEdge: number;
+  /**
    * LE QUARTIER : maisons, lampadaires, route mouillee. Zero partout sauf en
    * octobre.
    *
@@ -296,6 +333,11 @@ export const WORLDS: WorldDef[] = [
     mods: NO_MODS,
     city: 1,
     trees: 1,
+    grove: 1,
+    spire: 0.12,
+    stone: 0.22,
+    ridge: 0.85,
+    ridgeEdge: 0.15,
     town: 0,
     turbines: 1,
     palms: 1,
@@ -383,6 +425,11 @@ export const WORLDS: WorldDef[] = [
     mods: { cruise: 1, grip: 0.88, lift: 1, plane: 2.3, boost: 1 },
     city: 0,
     trees: 0,
+    grove: 0.5,
+    spire: 0,
+    stone: 0.40,
+    ridge: 0.34,
+    ridgeEdge: 0.1,
     town: 0,
     turbines: 0.35,
     palms: 1,
@@ -434,6 +481,11 @@ export const WORLDS: WorldDef[] = [
     mods: { cruise: 1, grip: 0.94, lift: 1.12, plane: 1, boost: 1.18 },
     city: 0,
     trees: 0,
+    grove: 0.42,
+    spire: 0,
+    stone: 0.30,
+    ridge: 0.8,
+    ridgeEdge: 0.05,
     town: 0,
     turbines: 0,
     palms: 0,
@@ -496,6 +548,11 @@ export const WORLDS: WorldDef[] = [
     mods: { cruise: 1.08, grip: 0.94, lift: 0.96, plane: 1.15, boost: 1 },
     city: 1,
     trees: 1,
+    grove: 0.62,
+    spire: 1,
+    stone: 1,
+    ridge: 0.8,
+    ridgeEdge: 1,
     town: 0,
     turbines: 0.6,
     palms: 0,
@@ -616,6 +673,11 @@ export const WORLDS: WorldDef[] = [
     mods: { cruise: 0.97, grip: 0.88, lift: 1.10, plane: 1.06, boost: 1.08 },
     city: 0,
     trees: 0.95,
+    grove: 0.9,
+    spire: 0.72,
+    stone: 0.20,
+    ridge: 0.62,
+    ridgeEdge: 0.35,
     town: 1,
     // Les eoliennes ne sont plus un decor mais une INFORMATION : ce sont elles
     // qui disent, depuis l'horizon, qu'il y a du vent dans ce monde.
