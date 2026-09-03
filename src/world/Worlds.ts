@@ -48,6 +48,7 @@ export type WorldColorKey =
   | 'cityFace' | 'cityLit' | 'cityDeep' | 'treeLine'
   | 'warmAccent' | 'cloudCore' | 'cloudShadow' | 'cloudRim'
   | 'leafRust' | 'leafBlood' | 'leafAmber'
+  | 'bloomPale' | 'bloomWarm'
   | 'townWall' | 'townRoof' | 'townWindow';
 
 export const WORLD_COLOR_KEYS: WorldColorKey[] = [
@@ -57,6 +58,7 @@ export const WORLD_COLOR_KEYS: WorldColorKey[] = [
   'cityFace', 'cityLit', 'cityDeep', 'treeLine',
   'warmAccent', 'cloudCore', 'cloudShadow', 'cloudRim',
   'leafRust', 'leafBlood', 'leafAmber',
+  'bloomPale', 'bloomWarm',
   'townWall', 'townRoof', 'townWindow',
 ];
 
@@ -129,6 +131,15 @@ export interface WorldDef {
   ridge: number;
   /** 0 = cretes erodees, 1 = aretes vives. CHROME n'a pas d'erosion. */
   ridgeEdge: number;
+  /**
+   * LES FLEURS, 0..1. Densite des taches fleuries du pre.
+   *
+   * C'est le seul decor qui ne coute pas un sommet : il vit dans le shader du
+   * sol, sur la grille du monde, entre les touffes. Et c'est pourtant celui
+   * qu'on voit le plus, parce qu'il occupe le bas du cadre en permanence — la
+   * ou le joueur regarde quatre-vingt-dix pour cent du temps.
+   */
+  bloom: number;
   /**
    * LE QUARTIER : maisons, lampadaires, route mouillee. Zero partout sauf en
    * octobre.
@@ -338,6 +349,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.22,
     ridge: 0.85,
     ridgeEdge: 0.15,
+    bloom: 1,
     town: 0,
     turbines: 1,
     palms: 1,
@@ -430,6 +442,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.40,
     ridge: 0.34,
     ridgeEdge: 0.1,
+    bloom: 0.55,
     town: 0,
     turbines: 0.35,
     palms: 1,
@@ -486,6 +499,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.30,
     ridge: 0.8,
     ridgeEdge: 0.05,
+    bloom: 0.8,
     town: 0,
     turbines: 0,
     palms: 0,
@@ -553,6 +567,7 @@ export const WORLDS: WorldDef[] = [
     stone: 1,
     ridge: 0.8,
     ridgeEdge: 1,
+    bloom: 0,
     town: 0,
     turbines: 0.6,
     palms: 0,
@@ -678,6 +693,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.20,
     ridge: 0.62,
     ridgeEdge: 0.35,
+    bloom: 0.3,
     town: 1,
     // Les eoliennes ne sont plus un decor mais une INFORMATION : ce sont elles
     // qui disent, depuis l'horizon, qu'il y a du vent dans ce monde.

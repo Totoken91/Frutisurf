@@ -150,6 +150,9 @@ export class Ground {
          */
         uLitter: { value: 0 },
         /** Les deux tons du tapis. Les MEMES que ceux des feuilles en vol. */
+        uBloomA: { value: vec3('bloomPale') },
+        uBloomB: { value: vec3('bloomWarm') },
+        uBloom: { value: 1 },
         uLeafA: { value: vec3('leafRust') },
         uLeafB: { value: vec3('leafBlood') },
         /**
@@ -202,6 +205,8 @@ ${GLSL_DAY}
         uniform float uDetail, uDetailFar;
         uniform float uTech, uWet, uLitter, uTown, uOvercast;
         uniform vec3 uLeafA, uLeafB, uLamp;
+        uniform vec3 uBloomA, uBloomB;
+        uniform float uBloom;
 ${RIDER_GLSL}
         /** xz = centre de l'ombre projetee du surfeur, y = sa hauteur de vol. */
         uniform vec3 uCast;
@@ -360,6 +365,57 @@ ${TOWN_GLSL}
           //     les touffes est une moquette.
           c = mix(c * 0.84, mix(c, uStreak, 0.26) * 1.07, tuft);
           c *= 0.94 + 0.13 * blade;
+
+          // --- LES FLEURS, ET C'EST LE DECOR LE MOINS CHER DU JEU.
+          //
+          //     Elles ne coutent pas un sommet : elles vivent ici, sur la
+          //     grille du monde, entre les touffes. Et ce sont pourtant elles
+          //     qu'on voit le plus, parce qu'elles occupent le bas du cadre en
+          //     permanence — la ou le regard passe la course entiere.
+          //
+          //     DEUX REGLES, et la seconde est celle qu'on rate.
+          //
+          //     1. Elles poussent par TACHES. Une densite uniforme donne du
+          //        semis regulier, ce qu'aucun pre n'a jamais eu : une prairie
+          //        a des zones fleuries et des zones nues, et c'est cette
+          //        inegalite qui la rend vivante.
+          //     2. La COULEUR se lit sur la tache, jamais sur l'individu. Trois
+          //        teintes melangees fleur a fleur font du confetti ; une tache
+          //        blanche a cote d'une tache jaune fait un pre.
+          if (uBloom > 0.001) {
+            // Elles s'eteignent a cinquante metres, et pas plus loin : a
+            // vingt-six centimetres de pas, une cellule passe sous le pixel
+            // bien avant que la brume ne l'efface, et ce qui reste alors n'est
+            // plus une fleur mais du scintillement.
+            float near = 1.0 - smoothstep(0.04, 0.36, f);
+            float spread = smoothstep(0.46, 0.74, fbm2(p * 0.021 + 31.7));
+            float amount = spread * near * uBloom;
+            if (amount > 0.002) {
+              vec2 cell = floor(p * 3.85);
+              vec2 sub = fract(p * 3.85) - 0.5;
+              float ha = hash21(cell);
+              float hb = hash21(cell + 7.31);
+              sub -= (vec2(ha, hb) - 0.5) * 0.52;
+              float spot = 1.0 - smoothstep(0.13, 0.26, length(sub));
+              // Une cellule sur cinq porte une corolle. Au-dela, le pre devient
+              // un parterre — et un parterre n'est plus une plaine.
+              float on = step(0.72, ha) * spot * amount;
+              // La teinte est tiree de la TACHE (frequence 0,021, soit
+              // cinquante metres), pas de la cellule.
+              vec3 fc = mix(uBloomA, uBloomB, step(0.5, hash21(floor(p * 0.021 + 91.3))));
+              // Elles prennent l'ombre du nuage et l'heure comme le reste : une
+              // fleur qui reste blanche sous un nuage est un autocollant.
+              float k = clamp(on, 0.0, 1.0);
+              c = mix(c, fc, k * 0.94);
+              // Un petit surplus ADDITIF par-dessus le remplacement. Tout ce
+              // qui suit dans ce shader est multiplicatif — assombrissement de
+              // proximite, occlusion de relief, ombre de nuage, brume — et une
+              // corolle blanche qui subit la chaine entiere ressort grise. Une
+              // fleur au soleil est plus claire que ce qui l'entoure, pas de
+              // la meme valeur.
+              c += fc * k * 0.13;
+            }
+          }
 
           // --- Bandes de defilement : la lecture de vitesse
           float band = sin(p.y * 0.201) * 0.5 + 0.5;

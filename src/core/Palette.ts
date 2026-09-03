@@ -25,6 +25,12 @@ export const HEX = {
   /** Ligne d'arbres a la base de la ville : le vert le plus sombre du projet. */
   treeLine: 0x2f6b23,
 
+  // --- LES FLEURS DU PRE. Deux teintes et pas dix : une prairie fleurie l'est
+  //     par TACHES d'une seule couleur, et c'est ce qui la distingue d'un
+  //     confetti. Le pale porte la lumiere, le chaud porte l'accent.
+  bloomPale: 0xfdfbef,
+  bloomWarm: 0xffd23f,
+
   // --- L'herbe, en CHARTREUSE.
   //
   // La rampe precedente tirait vers l'emeraude (teinte 140 a 150 degres) : un

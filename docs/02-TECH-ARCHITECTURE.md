@@ -1123,3 +1123,30 @@ restait bloquée à son minimum, donc le système entier ne pouvait pas démarre
 
 C'est un outil à trois lignes de code et il vaut mieux qu'une colonne de plus
 dans le tableau : **un agrégat dit qu'il y a un problème, une trace dit lequel.**
+
+## 16. Trois pieges de rendu, dans l'ordre ou ils m'ont coute une passe
+
+Ils sont ranges ici parce qu'aucun des trois ne ressemble a sa cause.
+
+**Un materiau transparent ne peut pas se glisser sous un materiau opaque.**
+three.js tient DEUX listes de rendu, opaque puis transparente, et la seconde
+passe toujours apres la premiere quel que soit son `renderOrder` interne. Les
+cretes lointaines, montees transparentes a -960 pour passer entre le dome de
+ciel (-1000) et le sol (-900), peignaient donc une bande grise en travers de
+tout l'ecran : leur jupe, qui plonge loin sous l'horizon. La bonne reponse
+n'etait pas de forcer l'ordre mais de **rendre la profondeur** — le sol les
+recouvre parce qu'il est devant, et la jupe disparait exactement sur la
+silhouette reelle du relief, ce qu'aucun ordre de rendu n'aurait su faire.
+
+**Un anneau monte a l'envers ne rend rien du tout**, et une geometrie qui ne
+rend rien ressemble a un uniforme oublie, a un ordre de rendu, a une couleur
+trop pale — a tout sauf a un sens d'enroulement. Vaut la peine d'etre teste en
+premier quand un objet neuf est simplement absent.
+
+**Une comparaison a heure qui tourne ne compare pas deux versions du code.**
+Le cycle jour/nuit fait trois minutes et le chemin de lumiere sur l'eau se
+deplace avec le soleil. Deux captures prises a deux minutes d'intervalle
+comparent deux heures de la journee. Six hypotheses ont ete testees comme ca sur
+le lagon d'Okinawa avant que je m'en apercoive, et aucune des six mesures ne
+voulait rien dire. Sur un monde qui bouge tout seul, un A/B n'a de sens qu'a
+**etat gele** — heure comprise, pas seulement la camera.

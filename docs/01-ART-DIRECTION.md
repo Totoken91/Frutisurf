@@ -1807,3 +1807,49 @@ Ce budget est parti dans trois termes que la géométrie, elle, supporte :
   variation se lise comme des taches sales. Sur une échelle différente de celle
   de la strie (soixante mètres contre seize) : superposées à la même fréquence,
   les deux se confondraient.
+
+## Le champ moyen, et pourquoi il manquait
+
+Le defaut se voit sur n'importe quelle capture large, et il ne se nomme pas
+facilement : entre les vingt metres de premier plan que couvrent les touffes
+d'herbe et les trois cents metres ou commence la brume d'horizon, il n'y avait
+**rien**. Une nappe, un degrade, et le regard qui glisse jusqu'au fond sans
+rencontrer un seul objet dont il puisse estimer la taille.
+
+C'est exactement comme ca qu'on lit une distance : par comparaison avec un objet
+dont on connait la taille. Un paysage sans mobilier n'a pas d'echelle — il a une
+couleur de sol et une couleur de ciel, et il peut aussi bien mesurer trente
+metres que trois kilometres. Toute la brume atmospherique du monde ne rattrape
+pas ca : la brume separe des **plans**, encore faut-il qu'il y ait quelque chose
+dedans a separer.
+
+Quatre couches repondent a cette seule mesure.
+
+**Le bosquet** (`Grove.ts`) : arbres, rochers et buissons de 20 a 160 m, un objet
+tous les vingt metres. Trois archetypes choisis pour ce qu'ils font a la
+silhouette — l'arbre coupe la ligne d'horizon locale, le rocher pose la pente, le
+buisson remplit l'intervalle sans lequel les deux autres se lisent comme deux
+semis distincts poses l'un sur l'autre.
+
+**Les cretes** (`Ridge.ts`) : le relief jouable s'arrete a cinq cents metres, et
+cette limite se voyait — le ciel posait directement sur la derniere ondulation.
+Trois couronnes de silhouettes a 900, 1350 et 1950 m, dont l'azimut
+d'echantillonnage est corrige du deplacement du joueur : a neuf cents metres,
+cent metres de course font six degres, et les cretes glissent les unes devant les
+autres. Leur brume n'est pas une cle de palette mais **l'horizon courant du
+cycle jour/nuit**, verse a chaque image : une silhouette qui ne se dissout pas
+dans son fond redevient une decoupe de papier des que l'heure tourne.
+
+**L'occlusion de relief** : les pentes du jeu font sept degres de moyenne, et
+sept degres ne separent pas deux versants. Les vraies ombres portees avaient deja
+ete essayees et retirees pour cette raison. Reste l'occlusion de forme — un fond
+de vallon voit moins de ciel qu'une crete — et sa mesure est **gratuite** :
+`terrainHeightAt` prend une distance et s'en sert pour eteindre les couches
+fines, donc l'appeler de loin rend le relief lisse, et l'ecart des deux EST le
+creux.
+
+**Les fleurs** : le decor le moins cher du jeu, et celui qu'on voit le plus,
+parce qu'il occupe le bas du cadre en permanence. Deux regles, et la seconde est
+celle qu'on rate : elles poussent par **taches**, et la couleur se lit sur la
+tache et jamais sur l'individu. Trois teintes melangees fleur a fleur font du
+confetti ; une tache blanche a cote d'une tache jaune fait un pre.

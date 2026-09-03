@@ -277,6 +277,7 @@ export class World {
       stone: L(a.stone, b.stone),
       ridge: L(a.ridge, b.ridge),
       ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
+      bloom: L(a.bloom, b.bloom),
       town: L(a.town, b.town),
       rain: L(a.rain, b.rain),
       wind: L(a.wind, b.wind),
@@ -306,6 +307,7 @@ export class World {
     stone: number;
     ridge: number;
     ridgeEdge: number;
+    bloom: number;
     town: number;
     rain: number;
     wind: number;
@@ -353,6 +355,9 @@ export class World {
     // Le tapis suit la densite des feuilles en vol : les deux decrivent la
     // meme saison, il serait absurde qu'un monde ait l'une sans l'autre.
     g.uLitter.value = d.leaves;
+    rgb(g.uBloomA, 'bloomPale');
+    rgb(g.uBloomB, 'bloomWarm');
+    g.uBloom.value = d.bloom;
     rgb(g.uLeafA, 'leafRust');
     rgb(g.uLeafB, 'leafBlood');
 
