@@ -879,7 +879,7 @@ quarante secondes.
 
 ---
 
-## 11. Quatre mondes, quatre façons de jouer
+## 11. Six mondes, six façons de jouer
 
 ### Un monde change le jeu, pas le décor
 
@@ -921,7 +921,7 @@ le monde **calme**, et il l'assume.
 
 ### Un record par monde
 
-Un record unique aurait mis les quatre mondes en concurrence, et la seule
+Un record unique aurait mis les mondes en concurrence, et la seule
 stratégie gagnante serait de toujours jouer le plus généreux : les trois autres
 seraient devenus du décor qu'on visite une fois. Une clé de stockage par monde,
 et chacun devient son propre défi. C'est aussi ce qui rend le choix
@@ -1165,3 +1165,28 @@ et que la noyade y coûtait la partie sans faute du joueur. Octobre a 31 % d'eau
 en **367 mares distinctes** de 47 m de large en moyenne : couler y est une erreur
 qu'on a eu le temps de voir venir. Un monde mélancolique sans aucun risque serait
 une carte postale.
+
+### NÉBULA : la gravité douce
+
+Cinquième mécanique de monde, après le seuil de glisse d'OKINAWA, la houle, le
+vent d'OCTOBRE et le mercure de CHROME. Ici **on vole** : la portance à 1,45
+allonge fortement la durée de vol, donc le nombre de vrilles qu'on boucle et la
+hauteur des portes qu'on peut viser. Mesure à l'autopilote : **104 envols** par
+partie, contre 72 sur la plaine et 94 sur Bliss — c'est le monde le plus aérien
+du jeu, et de loin.
+
+Ce qu'elle coûte est immédiat et se sent à la première seconde : un disque qui
+plane est un disque qui **ne mord pas**. L'accroche tombe à 0,84, donc une fois
+en l'air on ne rattrape plus rien — la trajectoire est décidée au décollage.
+
+Deux mesures ont recalé le monde après le premier jet, et les deux disaient la
+même chose :
+
+- à `water: -4.2`, le plasma couvrait 33 % du monde et l'autopilote **coulait au
+  bout de vingt-sept secondes**. Un monde de gravité douce n'a pas besoin d'eau
+  pour gagner son temps — il le gagne en vol — et une mer large dans un monde
+  où l'on ne mord pas est une noyade programmée. Douze pour cent suffisent ;
+- à `plane: 1.10`, l'autopilote passait **99 % de sa course sous vingt-deux
+  mètres par seconde** : enlisé, jamais lancé. Même logique qu'OKINAWA — sur un
+  monde où le disque plane déjà, il serait absurde qu'il coule dès qu'il touche
+  le liquide.

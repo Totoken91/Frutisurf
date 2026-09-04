@@ -121,10 +121,10 @@ combo. Enchaîner gauche-droite est **plus rapide** que la ligne droite.
 ## Les mondes
 
 <p align="center">
-  <img src="docs/mondes.png" width="880" alt="Les cinq mondes cote a cote : plaine, Okinawa, Bliss, Chrome, Octobre" />
+  <img src="docs/mondes.png" width="880" alt="Les six mondes cote a cote : plaine, Okinawa, Bliss, Chrome, Octobre, Nebula" />
 </p>
 
-Cinq mondes, et ce ne sont pas cinq palettes. Chacun a son relief, son
+Six mondes, et ce ne sont pas six palettes. Chacun a son relief, son
 niveau d'eau, ses couleurs, son ciel et **ses règles**.
 
 | Monde | Eau | Ce qu'on y joue |
@@ -134,6 +134,7 @@ niveau d'eau, ses couleurs, son ciel et **ses règles**.
 | **BLISS** | 0 % | **les figures.** Que des collines et le ciel. Pas une goutte d'eau, donc plus de traversées à marquer : on n'a que le relief et l'air. |
 | **CHROME** | 28 % | **la vitesse.** Grille néon, mercure, tours magenta, et le seul monde qui ne connaît pas le plein jour — un néon a besoin de nuit. Sa grève est un simple ourlet : le sujet est que le néon touche le mercure, pas qu'il y ait une plage. |
 | **OCTOBRE** | 9 % | **le vent.** Une rue mouillée qui traverse un lotissement, sous une averse torrentielle : maisons alignées le long de la chaussée, rues transversales tous les cent douze mètres, fenêtres allumées, lampadaires qui posent leur reflet sur l'asphalte, feuilles mortes et crépuscule de plomb. Le seul monde **couvert** du jeu — plafond bas et déchiré, image désaturée et grenue, et les fenêtres pour seule couleur chaude. Le relief y **connaît la route** : dans la bande de la rue il ne garde que ses deux couches longues, donc pas de mare sur la chaussée et pas de montagne russe — les sauts sont hors du couloir, il faut aller les chercher. Le sol détrempé fait chasser le disque, et la rafale le **déporte** — la même rafale qui couche l'herbe, emporte les feuilles et incline la pluie. On la voit arriver avant de la sentir. |
+| **NÉBULA** | 18 % | **le vol.** Une lune sans atmosphère : ciel de nébuleuse, étoiles à toute heure, une géante gazeuse à anneaux posée au-dessus de l'horizon, et un halo prismatique en travers du ciel. Le sol est une **carte topographique** — des bandes d'arc-en-ciel calées sur l'altitude, donc chaque courbe de niveau a sa couleur et on lit le relief qu'on aborde d'un coup d'œil. Gravité douce : la portance à 1,45 y donne les vols les plus longs du jeu (mesure : 104 envols par partie contre 72 sur la plaine), et le prix est immédiat — un disque qui plane est un disque qui **ne mord pas**, donc on ne rattrape rien une fois en l'air. |
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un jeu de
 paramètres appliqué à la même scène. Rien n'est détruit, aucun shader n'est
@@ -275,7 +276,7 @@ feeling dépend d'un effet visuel, c'est que les ressorts sont ratés.
   séparées, l'hystérésis doit tenir (pas de glisse qui clignote au milieu du
   lac), et sortir en glissant doit laisser au moins **deux fois** la vitesse de
   sortir en coulant — sinon l'erreur ne coûte rien.
-- `check:worlds` : les cinq mondes, **à l'autopilote**. Dès qu'un monde change
+- `check:worlds` : les six mondes, **à l'autopilote**. Dès qu'un monde change
   le relief et l'eau, il change le jeu, et on peut en livrer un injouable — c'est
   arrivé. Le banc mesure la largeur de la nappe la plus large (traversable ?), la
   terre entre deux nappes (de quoi se relancer ?), la survie du pilote, le temps

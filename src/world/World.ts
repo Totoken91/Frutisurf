@@ -20,6 +20,7 @@ import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
 import { Grove } from './Grove';
 import { Ridge } from './Ridge';
+import { Planets } from './Planets';
 import { Motes } from './Motes';
 import { Leaves } from './Leaves';
 import { Rain } from './Rain';
@@ -47,6 +48,7 @@ export class World {
   readonly palms: Palms;
   readonly grove: Grove;
   readonly ridge: Ridge;
+  readonly planets: Planets;
   readonly turbines: Turbines;
   /** L'heure. Source unique, relue par tous les materiaux ci-dessous. */
   readonly day: Daylight;
@@ -108,6 +110,7 @@ export class World {
     this.palms = new Palms();
     this.grove = new Grove();
     this.ridge = new Ridge();
+    this.planets = new Planets();
     this.turbines = new Turbines(dense ? 14 : 9);
     this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
     // Feuilles et pluie existent dans TOUS les mondes, a densite nulle hors
@@ -121,6 +124,7 @@ export class World {
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
     scene.add(this.sky);
+    scene.add(this.planets.mesh);
     scene.add(this.ridge.mesh);
     scene.add(this.ground.mesh);
     if (this.blades) scene.add(this.blades.mesh);
@@ -168,6 +172,7 @@ export class World {
     if (this.blades) this.lit.push(this.blades.mat);
     this.lit.push(this.grove.mat);
     this.lit.push(this.ridge.mat);
+    this.lit.push(this.planets.mat);
     this.blendWorld(1);
     this.applyDay();
     scene.add(this.lights);
@@ -277,6 +282,11 @@ export class World {
       stone: L(a.stone, b.stone),
       ridge: L(a.ridge, b.ridge),
       ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
+      spectrum: L(a.spectrum, b.spectrum),
+      planets: L(a.planets, b.planets),
+      nebula: L(a.nebula, b.nebula),
+      clouds: L(a.clouds, b.clouds),
+      arc: L(a.arc, b.arc),
       bloom: L(a.bloom, b.bloom),
       town: L(a.town, b.town),
       rain: L(a.rain, b.rain),
@@ -307,6 +317,11 @@ export class World {
     stone: number;
     ridge: number;
     ridgeEdge: number;
+    spectrum: number;
+    planets: number;
+    nebula: number;
+    arc: number;
+    clouds: number;
     bloom: number;
     town: number;
     rain: number;
@@ -351,6 +366,7 @@ export class World {
     rgb(g.uSandWet, 'sandWet');
     rgb(g.uSandShell, 'sandShell');
     g.uTech.value = d.tech;
+    g.uSpectrum.value = d.spectrum;
     g.uWet.value = d.rain;
     // Le tapis suit la densite des feuilles en vol : les deux decrivent la
     // meme saison, il serait absurde qu'un monde ait l'une sans l'autre.
@@ -429,6 +445,12 @@ export class World {
     rd.uAmount.value = d.ridge;
     rd.uEdge.value = d.ridgeEdge;
 
+    // --- LES PLANETES. Elles n'ont qu'une densite : tout le reste de leur
+    //     aspect est une constante du fichier, parce qu'un seul monde les
+    //     porte et qu'un reglage par monde pour un monde n'est pas un reglage,
+    //     c'est une indirection.
+    this.planets.mat.uniforms.uAmount.value = d.planets;
+
     this.turbines.mat.uniforms.uDensity.value = d.turbines;
 
     // --- LE QUARTIER. Deux materiaux : les batiments et les halos.
@@ -470,13 +492,17 @@ export class World {
     }
 
     // Le plafond ne concerne QUE le dome : c'est lui qui porte le soleil.
-    (this.sky.material as ShaderMaterial).uniforms.uOvercast.value = d.overcast;
+    const skyU = (this.sky.material as ShaderMaterial).uniforms;
+    skyU.uOvercast.value = d.overcast;
+    skyU.uNebula.value = d.nebula;
+    skyU.uArc.value = d.arc;
 
     const cl = this.clouds.mat.uniforms;
     rgb(cl.uCore, 'cloudCore');
     rgb(cl.uShadow, 'cloudShadow');
     rgb(cl.uRim, 'cloudRim');
     cl.uOvercast.value = d.overcast;
+    cl.uAmount.value = d.clouds;
 
     if (!this.painted) {
       this.painted = true;
@@ -570,6 +596,10 @@ export class World {
     this.palms.update(origin, time);
     this.grove.update(origin, time);
     this.ridge.update(origin, this.day.horizon);
+    // Le limbe des planetes se fond dans le HAUT du ciel : elles vivent bien
+    // au-dessus de la bande d'horizon, et s'y fondre les aurait posees sur le
+    // sol au lieu de les poser dans le vide.
+    this.planets.update(origin, time, this.day.high);
     this.turbines.update(origin, time);
     this.clouds.update(origin, time);
     this.city.update(origin);

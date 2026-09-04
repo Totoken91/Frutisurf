@@ -48,6 +48,17 @@ export function createSky(): Mesh {
        * TACHE CLAIRE derriere le plafond, et c'est tout ce qu'on lui laisse.
        */
       uOvercast: { value: 0 },
+      /**
+       * LA NEBULEUSE, 0..1. Zero partout sauf dans le monde spatial.
+       *
+       * Elle ne remplace pas le degrade, elle s'y AJOUTE : un ciel de
+       * nebuleuse reste un ciel, avec son zenith plus sombre que son horizon.
+       * Ce qu'on ajoute est une structure — des nappes de gaz qui ont une
+       * FORME, donc une echelle, donc une distance.
+       */
+      uNebula: { value: 0 },
+      /** L'ARC-EN-CIEL, 0..1. Il se pose a l'oppose du soleil, comme le vrai. */
+      uArc: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -61,7 +72,7 @@ ${GLSL_SAFE}
 ${GLSL_NOISE}
       varying vec3 vDir;
       uniform vec3 uZenith, uHigh, uMid, uHorizon, uSun;
-      uniform float uNight, uTime, uOvercast;
+      uniform float uNight, uTime, uOvercast, uNebula, uArc;
 
       void main(){
         vec3 d = normalize(vDir);
@@ -118,6 +129,64 @@ ${GLSL_NOISE}
           c = mix(c, mix(vec3(1.0), uHigh, 0.14), v * band * 0.52 * (1.0 - uOvercast));
         }
 
+        // Le facteur de ciel degage sert des la nebuleuse : il est declare
+        // ici plutot que dans le bloc du soleil, ou il vivait quand il n'y
+        // avait rien avant lui.
+        float clear = 1.0 - uOvercast;
+
+        // --- LA NEBULEUSE.
+        //
+        //     Meme procede que les cirrus, et pour la meme raison : le bruit
+        //     est echantillonne sur une projection qui a un SENS. Ici c'est
+        //     l'azimut et la hauteur — une carte du ciel — et non la direction
+        //     brute, qui donnerait des taches concentriques autour du zenith.
+        //
+        //     Deux echelles : la grande porte la forme du nuage de gaz, la
+        //     petite ses filaments. Et c'est la PETITE qui choisit la teinte,
+        //     pas la grande : une nebuleuse dont chaque nappe est d'une seule
+        //     couleur est un aplat colore, ce qui est exactement ce qu'une
+        //     nebuleuse n'est pas.
+        if (uNebula > 0.001) {
+          vec2 q = vec2(atan(d.z, d.x) * 0.62, d.y * 1.55);
+          float n1 = fbm2(q * 1.55 + vec2(uTime * 0.0035, 0.0));
+          float n2 = fbm2(q * 4.10 - 3.1);
+          float veil = smoothstep(0.40, 0.84, n1 * 0.68 + n2 * 0.32);
+          vec3 hue = 0.5 + 0.5 * cos(6.28318 * (n2 * 1.15 + vec3(0.0, 0.33, 0.67)));
+          // Elle s'eteint au ras de l'horizon, ou la brume du monde prend le
+          // relais : une nebuleuse qui descend jusqu'au sol colle le ciel a la
+          // plaine au lieu de l'en detacher.
+          c = mix(c, hue * 0.72, veil * uNebula * 0.62 * smoothstep(-0.02, 0.30, h));
+          // Les filaments clairs, par-dessus : c'est eux qu'on regarde.
+          c += hue * smoothstep(0.72, 0.94, n2) * uNebula * 0.28 * smoothstep(0.0, 0.24, h);
+        }
+
+        // --- LE HALO PRISMATIQUE, ET C'EST UN HALO ET NON UN ARC-EN-CIEL.
+        //
+        //     Le premier jet posait un vrai arc-en-ciel : a quarante-deux
+        //     degres du point ANTISOLAIRE, comme dans la nature. C'est juste,
+        //     et c'est invisible — le soleil de ce jeu est place DANS le cadre,
+        //     droit devant (cf. SUN_DIR, treize degres d'azimut), donc son
+        //     point antisolaire est toujours dans le dos du joueur. On rendait
+        //     un arc-en-ciel parfait que personne ne pouvait voir.
+        //
+        //     Le halo a vingt-deux degres AUTOUR du soleil est le meme
+        //     phenomene de refraction, il est tout aussi reel — c'est celui des
+        //     cristaux de glace — et lui se place exactement la ou le joueur
+        //     regarde. Ses couleurs sont d'ailleurs dans l'autre sens que
+        //     l'arc-en-ciel : le rouge a l'interieur.
+        if (uArc > 0.001) {
+          float ad = acos(clamp(dot(d, sun), -1.0, 1.0));
+          float t = (ad - 0.30) / 0.155;
+          if (t > 0.0 && t < 1.0) {
+            // Profil triangulaire : net au milieu de la bande, eteint aux deux
+            // bords. Un profil carre donnerait un cerceau decoupe.
+            float arc = 1.0 - abs(t * 2.0 - 1.0);
+            arc = arc * arc;
+            vec3 bow = 0.5 + 0.5 * cos(6.28318 * (t * 0.80 + vec3(0.0, 0.33, 0.67)));
+            c += bow * arc * uArc * 0.62 * clear;
+          }
+        }
+
         // --- Soleil. Un halo etage plutot qu'un disque net : trois lobes de
         // duretes tres differentes donnent la diffusion atmospherique, la
         // couronne, puis le coeur. Un seul lobe fait une tache collee au ciel.
@@ -126,7 +195,6 @@ ${GLSL_NOISE}
         // quart du cadre et noyait l'etoile qu'il etait cense mettre en valeur.
         // Sous le plafond, seule la diffusion large survit — et elle survit
         // MEME renforcee : c'est elle qui fait la tache claire d'un jour gris.
-        float clear = 1.0 - uOvercast;
         c += vec3(0.30, 0.44, 0.52) * pow(sd, 4.5) * 0.14;    // diffusion large
         c += vec3(0.62, 0.70, 0.66) * pow(sd, 70.0) * 0.42 * clear;   // couronne
         c += vec3(1.00, 0.97, 0.90) * pow(sd, 1600.0) * 2.1 * clear;  // coeur

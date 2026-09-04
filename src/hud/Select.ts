@@ -139,12 +139,12 @@ export class Select {
             <b>ÉQUIPEMENT</b>
             <i>chaque choix se paie</i>
           </div>
-          <div class="pickrow worldrow">
+          <div class="pickrow worldrow n${WORLDS.length}" style="--n:${WORLDS.length}">
             <h3>MONDE</h3>
             <div class="worlds">
               ${WORLDS.map(
                 (w, i) => `
-              <button class="card wcard${w.rain > 0 ? ' wet' : ''}" type="button" data-world="${i}">
+              <button class="card wcard w-${w.id}${w.rain > 0 ? ' wet' : ''}" type="button" data-world="${i}">
                 <span class="wsky" style="--sky:${w.swatch[0]};--land:${w.swatch[1]};--sea:${w.swatch[2]};--seah:${w.swatch[3]}%"></span>
                 <span class="nm">${w.name}</span>
               </button>`,

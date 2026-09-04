@@ -18,7 +18,7 @@
 
 | # | Ajout | Contenu | Critère de sortie | État |
 |---|---|---|---|---|
-| 7 | **Cinq mondes** | Un jeu de paramètres par monde appliqué à la même scène : relief, eau, grève, houle, palette, ciel, densités, **règles** | `check:worlds` : chacun jouable à l'autopilote, mesuré | ✅ |
+| 7 | **Six mondes** | Un jeu de paramètres par monde appliqué à la même scène : relief, eau, grève, houle, palette, ciel, densités, **règles** | `check:worlds` : chacun jouable à l'autopilote, mesuré | ✅ |
 | 8 | **Équipement** | Sept buddies × six montures, coûts dérivés des multiplicateurs (OR excepté) | `check:pick` : le choix s'applique à la physique **et** à la livrée, et survit au rechargement | ✅ |
 | 9 | **OCTOBRE** | Monde couvert : pluie ancrée au monde, feuilles qui tombent et tapis peint dans le sol, sol mouillé et flaques, et le **vent comme mécanique** | `check:worlds` : le vent est mesuré et corrigeable (< 25 % du temps collé au bord du couloir) | ✅ |
 

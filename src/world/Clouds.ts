@@ -289,6 +289,13 @@ export class Clouds {
          * FORME du ciel. Voir le shader.
          */
         uOvercast: { value: 0 },
+        /**
+         * PRESENCE, 0..1. Elle DECIME le banc au lieu de le rendre pale : un
+         * nuage a moitie transparent est un bug, un ciel plus degage est une
+         * meteo. Un monde sans atmosphere la met a zero et n'a plus un seul
+         * cumulus — ce qui est la moindre des choses dans le vide.
+         */
+        uAmount: { value: 1 },
         uHorizon: { value: vec3('skyHorizon') },
         uCore: { value: vec3('cloudCore') },
         uShadow: { value: vec3('cloudShadow') },
@@ -299,7 +306,7 @@ export class Clouds {
         attribute vec3 iOffset;
         attribute vec2 iScale;
         attribute vec3 iMisc;
-        uniform float uTime, uSpan, uOvercast;
+        uniform float uTime, uSpan, uOvercast, uAmount;
         uniform vec3 uOrigin;
         varying vec2 vUv;
         varying float vOpacity;
@@ -307,6 +314,13 @@ export class Clouds {
         varying vec3 vDir;
 
         void main(){
+          // Le tirage vient de la POSITION de l'instance et non de son indice :
+          // le champ se replie devant la camera, et un tirage indexe ferait
+          // clignoter les nuages a chaque repli.
+          if (fract(sin(dot(iOffset.xz, vec2(12.9898, 78.233))) * 43758.5453) > uAmount) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            return;
+          }
           // Repli du champ devant la camera : les nuages ne s'epuisent jamais.
           vec3 o = iOffset;
           o.z = uOrigin.z - mod(uOrigin.z - o.z, uSpan);

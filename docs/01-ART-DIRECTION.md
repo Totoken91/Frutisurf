@@ -891,7 +891,7 @@ bas, parce que la lumière du monde vient d'en haut. GIVRE a dû descendre son
 haut à `#3f7fc4` : un verre presque blanc sature dans le bloom et **perd sa
 silhouette** au lieu de gagner en clarté.
 
-## 15. Les cinq mondes
+## 15. Les six mondes
 
 Un monde n'est pas une scène chargée à la place d'une autre : c'est un **jeu de
 paramètres** appliqué à la seule et même scène — cinq amplitudes de relief, un
@@ -1061,7 +1061,7 @@ dépasser qu'un croissant. **Six montures soigneusement distinctes dont on ne vo
 qu'un croissant sont six montures identiques.**
 
 
-## 16 bis. Ce que trois mesures ont trouvé dans les cinq mondes
+## 16 bis. Ce que trois mesures ont trouvé dans les cinq mondes d'alors
 
 Trois défauts partagés par **tous** les mondes, invisibles tant qu'on regarde
 une capture sans la mesurer, évidents dès qu'on la mesure.
@@ -1853,3 +1853,47 @@ parce qu'il occupe le bas du cadre en permanence. Deux regles, et la seconde est
 celle qu'on rate : elles poussent par **taches**, et la couleur se lit sur la
 tache et jamais sur l'individu. Trois teintes melangees fleur a fleur font du
 confetti ; une tache blanche a cote d'une tache jaune fait un pre.
+
+## NÉBULA, ou ce qu'on peint quand il n'y a ni herbe ni ombre
+
+Les cinq premiers mondes partagent une grammaire : un sol qui reçoit la
+lumière, une atmosphère qui l'atténue, un horizon qui les sépare. NÉBULA n'a
+aucun des trois — pas d'air, donc pas de brume ; pas de biologie, donc pas de
+vert ; une étoile lointaine, donc presque pas d'ombre. Tout ce sur quoi
+reposent les autres est retiré, et il faut reconstruire la lisibilité avec
+autre chose.
+
+**Le sol est une carte topographique.** Les bandes de spectre sont calées sur
+l'ALTITUDE, pas sur la position : chacune est une courbe de niveau, et le
+joueur lit la forme du relief qu'il aborde à la couleur, exactement comme sur
+une carte d'état-major. C'est la seule chose que ce monde ajoute à la
+lisibilité de jeu, et elle compense largement l'absence d'ombrage.
+
+Deux corrections ont été nécessaires, et toutes deux viennent de la même
+cause — une bande finit toujours par passer sous le pixel :
+
+- **la distance.** Au-delà de quatre-vingts mètres les bandes s'éteignent et le
+  sol retourne à sa valeur neutre, où la brume le prend en charge ;
+- **l'angle rasant**, et c'est la vraie correction. Une pente vue par la
+  tranche comprime des dizaines de courbes de niveau dans quelques pixels,
+  même à trente mètres : on obtenait une bande de moiré dur en travers de
+  l'horizon, le défaut classique d'une carte topographique rendue en
+  perspective. Le produit du regard par la normale mesure exactement cette
+  compression, et suffit à l'éteindre.
+
+**Les planètes remplacent la ville.** Elles font au-delà du monde ce que le
+bosquet fait dans son champ moyen : donner une taille connue, donc une
+distance, donc une échelle. Trois quads face caméra, et tout — disque,
+terminateur, ceintures, anneau elliptique — s'écrit analytiquement dans le
+fragment. Deux pièges y ont coûté une passe chacun : l'azimut zéro est dans le
+DOS du joueur (les trois corps étaient rendus et invisibles), et une géante
+posée à quatre degrés d'élévation disparaît derrière des crêtes qui montent à
+sept.
+
+**L'arc-en-ciel est devenu un halo**, et c'est le seul endroit où la physique a
+dû céder. Un vrai arc-en-ciel se place à quarante-deux degrés du point
+antisolaire ; or le soleil de ce jeu est placé DANS le cadre, droit devant, donc
+son point antisolaire est toujours dans le dos du joueur. On rendait un arc
+parfait que personne ne pouvait voir. Le halo à vingt-deux degrés autour du
+soleil est le même phénomène de réfraction, tout aussi réel, et il se place
+exactement là où le joueur regarde.

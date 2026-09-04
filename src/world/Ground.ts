@@ -126,6 +126,7 @@ export class Ground {
         uDetailFar: { value: 0.13 },
         /** 0 = prairie, 1 = dalle et grille neon. Le monde CHROME le met a 1. */
         uTech: { value: 0 },
+        uSpectrum: { value: 0 },
         /**
          * 0 = sol sec, 1 = sous l'averse. Le monde OCTOBRE le met a 1.
          *
@@ -203,7 +204,7 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
-        uniform float uTech, uWet, uLitter, uTown, uOvercast;
+        uniform float uTech, uWet, uLitter, uTown, uOvercast, uSpectrum;
         uniform vec3 uLeafA, uLeafB, uLamp;
         uniform vec3 uBloomA, uBloomB;
         uniform float uBloom;
@@ -1081,6 +1082,54 @@ ${TOWN_GLSL}
               }
             }
             c += warm * uTown * (0.05 + uDayNight * 0.15);
+          }
+
+          // --- LE SOL SPECTRAL, ET IL SUIT L'ALTITUDE.
+          //
+          //     Un arc-en-ciel plaque au hasard sur un terrain est un filtre :
+          //     il repeint, il ne dit rien. Cale sur la HAUTEUR du relief, il
+          //     devient une carte topographique — chaque bande est une courbe
+          //     de niveau, et le joueur lit d'un coup d'oeil ou monte et ou
+          //     descend le terrain qu'il aborde. C'est la seule chose que ce
+          //     monde ajoute a la LISIBILITE, et elle compense largement le
+          //     fait qu'il n'ait ni herbe ni ombre a offrir.
+          //
+          //     Le decalage lent dans le temps fait respirer les bandes sans
+          //     jamais deplacer le relief : la couleur glisse, la colline non.
+          if (uSpectrum > 0.001) {
+            // 0,55 par metre et non 0,185 : le relief de ce monde ne fait
+            // que neuf metres d'amplitude, donc a 0,185 la scene entiere
+            // tenait dans un sixieme de tour de spectre — un degrade, pas des
+            // bandes. Il faut au moins quatre ou cinq bandes dans le cadre
+            // pour qu'on lise une courbe de niveau.
+            float alt = vWorld.y * 0.72 + uTime * 0.018
+                      + fbm2(vWorld.xz * 0.010) * 0.35;
+            // La MEME rampe cosinusoidale que les planetes et l'arc-en-ciel du
+            // ciel. Trois spectres qui ne seraient pas d'accord se verraient
+            // du premier coup d'oeil.
+            vec3 bow = 0.55 + 0.45 * cos(6.28318 * (alt + vec3(0.0, 0.33, 0.67)));
+            // On garde la LUMINANCE du sol et on ne remplace que la teinte :
+            // tout ce que les couches precedentes ont sculpte — touffes,
+            // occlusion de relief, rafale — survit au repeint. Un mix brut
+            // aurait efface le modele en meme temps que la couleur.
+            float lum = dot(c, vec3(0.299, 0.587, 0.114));
+            // LES BANDES S'ETEIGNENT AVEC LA DISTANCE, et pas par gout : une
+            // courbe de niveau finit toujours par passer sous le pixel, et ce
+            // qu'il en reste alors n'est plus une bande mais un moire qui
+            // rampe a chaque pas de camera. Le loin retourne donc a la valeur
+            // neutre du monde, ou la brume le prend en charge — ce qui est
+            // aussi ce que fait une vraie perspective aerienne.
+            float keep = 1.0 - smoothstep(0.30, 0.86, f);
+            // ET ELLES S'ETEIGNENT AUSSI A L'ANGLE RASANT, ce qui est la vraie
+            // correction. La distance ne suffit pas : une pente vue par la
+            // tranche comprime des dizaines de courbes de niveau dans quelques
+            // pixels, meme a trente metres, et ce qu'on y voyait etait une
+            // bande de moire dure en travers de l'horizon — le defaut classique
+            // d'une carte topographique rendue en perspective. Le produit du
+            // regard par la normale mesure exactement cette compression.
+            float graze = clamp(dot(N, nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0))), 0.0, 1.0);
+            keep *= smoothstep(0.06, 0.38, graze);
+            c = mix(c, bow * (0.35 + lum * 1.25), uSpectrum * keep);
           }
 
           // --- LA GRILLE Y2K.

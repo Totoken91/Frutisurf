@@ -171,6 +171,34 @@ export interface WorldDef {
   /** 0 = herbe, 1 = grille Y2K. Bascule la matiere du sol. */
   tech: number;
   /**
+   * LE SOL SPECTRAL, 0..1. Repeint le relief en bandes d'arc-en-ciel calees
+   * sur l'ALTITUDE.
+   *
+   * Ce n'est pas un filtre de couleur : c'est une carte topographique. Chaque
+   * bande est une courbe de niveau, et sur un monde qui n'a ni herbe ni ombre
+   * a offrir, c'est elle qui rend le relief lisible.
+   */
+  spectrum: number;
+  /**
+   * LES PLANETES, 0..1. Trois corps poses au ras de l'horizon, a dix-sept
+   * cents metres, avec la meme parallaxe que les cretes.
+   *
+   * Elles font pour l'au-dela du monde ce que le bosquet fait pour son champ
+   * moyen : donner une taille connue, donc une distance, donc une echelle.
+   */
+  planets: number;
+  /** LA NEBULEUSE, 0..1. Des nappes de gaz colorees dans le dome de ciel. */
+  nebula: number;
+  /**
+   * LES CUMULUS, 0..1. Un monde sans atmosphere n'en a aucun.
+   *
+   * Elle decime le banc au lieu de le rendre pale : le ciel se degage, il ne
+   * s'efface pas.
+   */
+  clouds: number;
+  /** L'ARC-EN-CIEL, 0..1. Pose a l'oppose du soleil, comme le vrai. */
+  arc: number;
+  /**
    * 0 = ciel degage, 1 = plafond de nuages.
    *
    * Distinct de `power` dans les cles de ciel, et il le faut : `power` regle
@@ -324,6 +352,32 @@ const SKY_CHROME: Keyframe[] = [
     light: 0xb890ff, power: 0.30, fill: 0x2a1a5c, night: 1.0, warm: 0.2 },
 ];
 
+/**
+ * NEBULA. Le seul ciel du jeu qui ne se leve ni ne se couche.
+ *
+ * Les quatre autres racontent une journee ; celui-ci raconte une ORBITE. Il
+ * garde donc `night` haut a toutes les heures — les etoiles ne s'eteignent
+ * jamais, et c'est ce qui dit qu'on n'est plus sous une atmosphere — et ce qui
+ * change d'un moment a l'autre n'est pas la lumiere du jour mais la face du
+ * systeme qu'on regarde : le violet froid, le cyan d'une etoile blanche au
+ * zenith, le magenta d'un passage de nebuleuse.
+ *
+ * La PUISSANCE reste basse partout. Un ciel noir avec une lumiere de midi
+ * donne un decor de studio : des objets pleinement eclaires poses sur du vide.
+ * Ce qu'on veut est l'inverse — un eclairage rasant et faible, et des couleurs
+ * qui viennent du ciel lui-meme et non du soleil.
+ */
+const SKY_NEBULA: Keyframe[] = [
+  { at: 0.0, zenith: 0x0a0424, high: 0x2a0f5e, mid: 0x7a2a9e, horizon: 0xff9ad8,
+    light: 0xffa6e0, power: 0.60, fill: 0x4a2078, night: 0.86, warm: 0.85 },
+  { at: 0.25, zenith: 0x060a30, high: 0x123a86, mid: 0x2a86c8, horizon: 0x8ce8f0,
+    light: 0xd8f6ff, power: 0.78, fill: 0x2a5a9e, night: 0.62, warm: 0.0 },
+  { at: 0.5, zenith: 0x120426, high: 0x4a0f6e, mid: 0xc22a9e, horizon: 0xffb0a0,
+    light: 0xff86c8, power: 0.64, fill: 0x662a8c, night: 0.80, warm: 0.9 },
+  { at: 0.75, zenith: 0x02030e, high: 0x0a0630, mid: 0x2a0f5e, horizon: 0x6a2a9e,
+    light: 0xa87cff, power: 0.42, fill: 0x2a1450, night: 1.0, warm: 0.25 },
+];
+
 // ---------------------------------------------------------------------------
 // LES MONDES
 // ---------------------------------------------------------------------------
@@ -358,6 +412,11 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
+    spectrum: 0,
+    planets: 0,
+    nebula: 0,
+    clouds: 1,
+    arc: 0,
     overcast: 0,
     sky: SKY_PLAIN,
     dayStart: 0.16,
@@ -451,6 +510,11 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
+    spectrum: 0,
+    planets: 0,
+    nebula: 0,
+    clouds: 1,
+    arc: 0,
     overcast: 0,
     sky: SKY_OKINAWA,
     dayStart: 0.22,
@@ -508,6 +572,11 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
+    spectrum: 0,
+    planets: 0,
+    nebula: 0,
+    clouds: 1,
+    arc: 0,
     overcast: 0,
     sky: SKY_BLISS,
     dayStart: 0.19,
@@ -576,6 +645,11 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 1,
+    spectrum: 0,
+    planets: 0,
+    nebula: 0,
+    clouds: 1,
+    arc: 0,
     overcast: 0,
     sky: SKY_CHROME,
     dayStart: 0.62,
@@ -723,6 +797,11 @@ export const WORLDS: WorldDef[] = [
     // volant a la place du joueur.
     wind: 2.4,
     tech: 0,
+    spectrum: 0,
+    planets: 0,
+    nebula: 0,
+    clouds: 1,
+    arc: 0,
     // Le plafond. C'est lui qui eteint le soleil du dome : sans ca, un ciel de
     // plomb avec une etoile de cinema plantee dedans.
     overcast: 0.92,
@@ -730,6 +809,112 @@ export const WORLDS: WorldDef[] = [
     // On arrive juste avant le couchant : la partie entiere bascule dedans.
     dayStart: 0.42,
     swatch: ['#6a4258', '#8a6f34', '#4f5648', 30],
+  },
+  {
+    id: 'nebula',
+    name: 'NÉBULA',
+    blurb: 'sol prismatique, anneaux, gravité douce',
+    // --- LE RELIEF D'UNE PETITE LUNE.
+    //
+    //     Grandes ondulations, tres peu de detail fin : sur un corps sans
+    //     erosion, il n'y a ni ruisseau ni racine pour creuser les petites
+    //     echelles. La couche longue domine largement et les trois courtes
+    //     sont ecrasees — on obtient des dunes larges et lisses, qui sont
+    //     exactement ce qu'il faut pour une gravite douce : de longues rampes,
+    //     et du temps en l'air.
+    amp: [9.0, 3.0, 1.1, 0.45, 0.05],
+    // --- LA MER DE PLASMA. Basse, mais presente : sans elle le monde perdait
+    //     la traversee, qui est la premiere source de temps du jeu (mesure :
+    //     quatre cents secondes par partie sur la plaine). Un monde sans eau
+    //     doit gagner son temps ailleurs, et NEBULA n'a ni ville a longer ni
+    //     saison a exploiter.
+    // MESURE : a -4,2 le plasma couvrait 33 % du monde et l'autopilote coulait
+    // au bout de vingt-sept secondes. Un monde de gravite douce n'a pas besoin
+    // d'eau pour gagner son temps — il le gagne en VOL — et une mer large dans
+    // un monde ou l'on ne mord pas est une noyade programmee. On descend a
+    // douze pour cent : de quoi placer quelques traversees, pas de quoi barrer
+    // la route.
+    water: -7.2,
+    // Pas de plage : il n'y a pas de sable sur une lune de gaz. Un ourlet, et
+    // le plasma touche directement le sol prismatique.
+    shore: [0.25, 0.45],
+    // Une houle LONGUE et lente. En gravite douce, une vague courte se
+    // franchit sans la sentir ; une vague de quatre-vingt-dix metres se surfe.
+    swell: [1.9, 90, 0.55],
+    colors: {
+      // Le sol est presque neutre : c'est `spectrum` qui lui donne sa couleur,
+      // et un albedo deja colore se battrait avec lui. Ce qu'on regle ici est
+      // la VALEUR — le modele du relief — pas la teinte.
+      grassNear: 0x2a2646,
+      grassMid: 0x3a3560,
+      grassFar: 0x4e4880,
+      grassHorizon: 0x6f66a8,
+      grassShadow: 0x14122a,
+      grassStreak: 0x8f86c8,
+      // Le plasma : noir au fond, cyan electrique en surface.
+      waterShallow: 0x5ce8ff,
+      waterDeep: 0x0a1038,
+      waterFoam: 0xd8f4ff,
+      sandDry: 0x4a4270,
+      sandPale: 0x6e64a0,
+      sandWet: 0x241f44,
+      sandShell: 0xc0b4f0,
+      // Pas de ville : ces trois-la ne servent plus qu'a la brume de fond.
+      cityFace: 0x6a5cc8,
+      cityLit: 0xffa8f0,
+      cityDeep: 0x180f40,
+      treeLine: 0x241a52,
+      cloudCore: 0xc4b0ff,
+      cloudShadow: 0x4a3a8c,
+      cloudRim: 0xffc0f4,
+      warmAccent: 0x7a5cc0,
+      bloomPale: 0xe8f0ff,
+      bloomWarm: 0x9a7cff,
+    },
+    // --- LA GRAVITE DOUCE, ET C'EST LA MECANIQUE DU MONDE.
+    //
+    //     Cinquieme mecanique apres le seuil de glisse d'OKINAWA, la houle, le
+    //     vent d'OCTOBRE et le mercure de CHROME : ici on VOLE. La portance a
+    //     1,45 allonge fortement la duree de vol, donc le nombre de vrilles
+    //     qu'on boucle et la hauteur des portes qu'on peut viser. Ce qu'elle
+    //     coute est immediat : un disque qui plane est un disque qui ne mord
+    //     pas, donc on ne rattrape rien une fois en l'air, et la croisiere
+    //     paie la difference.
+    //     Le seuil de dejaugeage suit la meme logique qu'OKINAWA : sur un
+    //     monde ou le disque plane deja, il serait absurde qu'il coule des
+    //     qu'il touche le liquide. A 1,10 l'autopilote passait 99 % de sa
+    //     course sous vingt-deux metres par seconde — enlise, jamais lance.
+    mods: { cruise: 1.0, grip: 0.84, lift: 1.45, plane: 1.42, boost: 1.06 },
+    city: 0,
+    trees: 0,
+    // Le semis est un champ de MONOLITHES : stone a 1, donc pas un seul etre
+    // vivant. Rien ne pousse ici, et c'est le propos.
+    grove: 0.55,
+    spire: 1,
+    stone: 1,
+    ridge: 0.9,
+    ridgeEdge: 0.85,
+    bloom: 0,
+    town: 0,
+    turbines: 0,
+    palms: 0,
+    // Pas un brin d'herbe. Le premier plan est nu, comme le reste.
+    blades: 0,
+    leaves: 0,
+    rain: 0,
+    wind: 0,
+    tech: 0,
+    overcast: 0,
+    spectrum: 1,
+    planets: 1,
+    nebula: 1,
+    clouds: 0,
+    arc: 0.85,
+    sky: SKY_NEBULA,
+    // On arrive de nuit : c'est l'heure ou la nebuleuse et les anneaux se
+    // voient le mieux, et c'est la premiere image que le monde doit donner.
+    dayStart: 0.80,
+    swatch: ['#12063a', '#4e4880', '#5ce8ff', 26],
   },
 ];
 
