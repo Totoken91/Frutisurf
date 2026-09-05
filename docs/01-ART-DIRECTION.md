@@ -1854,114 +1854,103 @@ celle qu'on rate : elles poussent par **taches**, et la couleur se lit sur la
 tache et jamais sur l'individu. Trois teintes melangees fleur a fleur font du
 confetti ; une tache blanche a cote d'une tache jaune fait un pre.
 
-## NÉBULA, ou la leçon la plus chère du projet
+## ORBITE, ou la leçon la plus chère du projet
 
-Le premier jet de ce monde a été jeté en entier, et le retour du joueur tenait
-en un mot. Il avait raison, et la cause était nette : **j'avais appliqué une
-palette « space rainbow » sur la machinerie du monde-prairie au lieu de
-construire un monde qui ressemble à l'espace.** Le shader du sol restait un
-shader d'herbe avec le vert échangé, et comme il n'y avait ni herbe ni fleurs à
-mettre dedans, `blades: 0` et `bloom: 0` laissaient le premier plan — la moitié
-de l'écran, en permanence — sans un seul pixel de détail. Un dégradé lisse. Le
-disque flottait sur du brouillard coloré.
+Ce monde a été construit **trois fois**. Les deux premières ont été jetées, et
+le retour du joueur sur la seconde tenait en un mot. Il avait raison les deux
+fois, et pour la même cause :
+
+> **Je décorais le même terrain au lieu de construire un monde.**
+
+Le moteur rend des collines douces, un dôme de ciel et de la brume. Chaque
+essai consistait à repeindre ça — un arc-en-ciel plaqué sur l'altitude d'abord,
+une régolithe grise ensuite. Dans les deux cas le résultat était une **nappe à
+valeur moyenne** : pas de noir, pas de ligne dure, pas de silhouette. Et comme
+il n'y avait ni herbe ni fleurs à mettre dedans, `blades: 0` et `bloom: 0`
+laissaient le premier plan — la moitié de l'écran, en permanence — sans un
+pixel de détail.
 
 C'est exactement le défaut contre lequel la première ligne de ce chapitre met en
-garde : **un monde n'est pas une palette.** Il aura fallu le refaire pour que la
-règle serve à quelque chose.
+garde. Il aura fallu le commettre deux fois pour que la règle serve.
 
-### Ce qui fait une surface lunaire
+### Un ciel noir se fabrique en ENLEVANT
 
-Dans l'ordre d'importance, et aucun des quatre n'est optionnel :
+C'est le pivot de la troisième version, et c'est un changement d'approche, pas
+de réglage. Baisser les quatre couleurs du dégradé donne un ciel **gris foncé**.
+Ce qui trahit encore l'air, ce sont les **termes** : le voile blanc au ras de
+l'horizon, la lueur du côté du soleil, le lobe large de diffusion autour de lui,
+le remplissage sous la ligne de sol, l'écrasement du dégradé entre l'horizon et
+le zénith. Tous existent parce qu'il y a de l'air entre l'œil et le fond, et
+aucun n'a de sens dans le vide.
 
-1. **Elle est sombre.** Une poussière de silicate renvoie douze pour cent de ce
-   qu'elle reçoit — c'est un charbon clair. Ce n'est pas du réalisme : c'est le
-   contraste avec le ciel et avec les éclats qui fait lire l'espace. La première
-   version avait un sol à valeur moyenne, un ciel à valeur moyenne, des
-   montagnes à valeur moyenne, et une image dont tout est à la même valeur est
-   molle quelle que soit sa palette.
-2. **Elle est criblée.** Sans végétation ni ombre portée, les cratères sont la
-   seule structure lisible à moyenne distance. Deux échelles — les grands
-   portent le paysage, les petits le premier plan — parce qu'un champ d'impacts
-   tous du même diamètre se lit comme un motif.
-3. **Elle est poussiéreuse au pixel**, avec un grain qui meurt vite : à la
-   puissance un il survivait jusqu'à cent mètres, où il passe sous le pixel et
-   ne produit plus qu'une neige qui grouille à chaque pas de caméra.
-4. **Elle scintille.** La régolithe est pleine de billes de verre d'impact, et
-   ce sont ces points brillants qui donnent à l'image les hautes lumières qui
-   lui manquaient partout.
-
-### Deux normales, et c'est toute la leçon technique
-
-Premier essai de matière : une seule normale, où la poussière pesait sept fois
-le relief des cratères. Résultat, une **tôle froissée** — les cratères
-disparaissaient dans le grain, le spéculaire s'allumait partout à la fois, et
-l'irisation, calculée sur cette même normale hachée, mettait un point de couleur
-différent sur chaque pixel. Du confetti, pas une matière.
-
-Les deux échelles ne servent pas à la même chose et ne doivent donc pas entrer
-dans le même vecteur :
-
-- **Nc**, le relief des cratères. Il **éclaire** : c'est lui qui donne au flanc
-  son côté au soleil et son côté à l'ombre, donc c'est lui qui creuse le trou.
-  Un bol qu'on assombrit et une lèvre qu'on éclaircit, sans pente, donnent des
-  **anneaux peints** — l'œil lit un motif posé à plat sur le sol.
-- **Ns**, la poussière. Elle **scintille**, et rien d'autre : ses facettes ne
-  servent qu'à décider quels grains renvoient l'étoile à cet instant.
-
-La pente ne coûte rien, d'ailleurs : c'est la dérivée du profil du cratère, et
-on la connaît déjà quand on calcule le creux.
-
-### L'arc-en-ciel doit être gagné
-
-C'est le cœur du monde, et c'est là que la première version se plantait le plus
-franchement : elle **plaquait** un spectre sur le sol, calé sur l'altitude. Une
-décalcomanie.
-
-L'irisation est une **interférence de couche mince** : elle ne vit qu'à angle
-rasant et au voisinage de la direction spéculaire, exactement comme sur une
-flaque d'huile ou une labradorite. Sa teinte vient donc de l'**angle** et jamais
-de la position — on avance de deux pas et le halo se déplace sur le sol, ce
-qu'aucun placage ne fait. C'est ce qui sépare une matière d'un filtre.
-
-Elle se prend sur **Nc** et non sur Ns : sur la normale hachée, deux pixels
-voisins tombaient sur deux teintes opposées et on obtenait du bruit coloré. Et
-elle est **discrète** — deux essais pour l'admettre. À 0,85 d'intensité et huit
-tours de spectre par radian, elle repeignait le sol entier en bandes et cerclait
-chaque cratère d'anneaux durs : on retombait sur la flaque d'huile du premier
-jet, par un autre chemin. Une irisation qu'on **remarque** n'en est plus une.
-
-### Un jour sous un ciel noir
-
-Deuxième contresens du premier jet : nuit partout, puissance à 0,42. Sans
-lumière, pas d'ombre de cratère et pas un éclat de poussière — un sol
-uniformément sombre et plat.
-
-Or ce qui fait l'image d'un corps sans atmosphère n'est pas la nuit, c'est le
-**contraste**. Le soleil y tape sans être diffusé par quoi que ce soit : le côté
-éclairé brûle, le côté à l'ombre est vraiment noir, et le ciel reste noir en
-plein jour parce qu'il n'y a pas d'air pour le bleuir. Les quatre moments de
-NÉBULA gardent donc `night` haut — les étoiles ne s'éteignent jamais — avec une
-puissance de plein jour. Ce n'est pas contradictoire : `night` décrit le **ciel**,
-`power` décrit l'**étoile**, et sur une lune les deux sont vrais en même temps.
+Le drapeau `space` les éteint donc un par un, et il ne reste que ce qui
+survivrait vraiment : l'étoile, sa couronne, et les étoiles du fond. La ligne de
+sol touche alors le **noir pur** — et c'est cette frontière dure qui donne au
+monde sa silhouette, gratuitement.
 
 Le même raisonnement a donné `air`, qui dose la perspective aérienne des crêtes
-lointaines. Sur un corps sans atmosphère il n'y a rien entre l'œil et la crête :
-une montagne à deux kilomètres y est aussi contrastée qu'un caillou à deux
-mètres. Noyées dans une brume bleue, les crêtes de NÉBULA ressemblaient à des
-Alpes.
+lointaines : sans atmosphère, une montagne à deux kilomètres est aussi
+contrastée qu'un bloc à deux mètres.
 
-### Le ciel profond est une bande, pas un nuage
+### Le sol : deux valeurs extrêmes et un trait net
 
-Du bruit fractal étalé sur tout le dôme ne donne pas une galaxie, ça donne une
-tache. Ce qui fait qu'on **reconnaît** un ciel profond, c'est qu'il a une
-direction : la matière est concentrée dans un plan, on la voit par la tranche, et
-elle barre le ciel d'un bout à l'autre. Deux choses de plus comptent autant :
-des **voies sombres** en soustractif (une nébuleuse cache autant qu'elle
-éclaire — sans elles, un brouillard lumineux uniforme), et **deux teintes** et
-non six (émission rouge-magenta, réflexion bleu-cyan ; un spectre complet rend
-un arc-en-ciel délavé).
+Une croûte de verre volcanique presque noire, fendue par un réseau de failles
+d'où sort la lumière du cœur. La règle du monde tient en une phrase : **quasi
+monochrome, une seule couleur d'accent, et elle est émissive.**
 
-Et les étoiles ont enfin des **magnitudes**. Toutes au même diamètre et à la
-même valeur, elles donnaient de la neige. Un vrai champ stellaire est dominé par
-quelques astres très brillants au milieu d'une poussière à peine visible, et
-c'est cet écart qui le fait lire.
+Le réseau est une distance à l'**arête** d'un diagramme de Voronoï, et pas au
+germe : c'est toute la différence entre un semis de taches rondes et un réseau
+de fractures. Une croûte qui casse se fend le long des lignes équidistantes de
+ses centres de contrainte — c'est littéralement la définition d'une arête de
+Voronoï, et c'est pour ça que le motif est juste au lieu d'être seulement joli.
+
+Trois corrections l'ont amené là :
+
+- **Elles sont fines.** Premier réglage : 1,30 m de fondu sur une maille de
+  26 m, émission à 2,6. Ça ne donne pas des fissures, ça donne des **tubes
+  néon** — le réseau mangeait tout le cadre, le bloom achevait de le faire
+  déborder, et on ne voyait plus ni le sol ni le personnage. Une faille se lit
+  parce qu'elle est **nette**, pas parce qu'elle est large.
+- **Elles viennent par plaques.** Une croûte ne se fend pas uniformément ; sans
+  masque, on obtient un grillage régulier jusqu'à l'horizon.
+- **Le verre a une surface.** Entre les failles, le premier réglage était un
+  aplat noir — or c'est lui qui occupe la plus grande part de l'image. Des rides
+  de coulée, un grain fin, et un spéculaire étroit qui dit « verre » plutôt que
+  « roche ».
+
+Une quatrième correction, plus instructive : le spéculaire s'accrochait au
+micro-relief de la normale du sol, **qui vient de la texture d'herbe**. Le bon
+terme sur la mauvaise surface — ça rendait un grésillement blanc en forme de
+touffes au premier plan. Le verre utilise donc la normale **nue** du terrain,
+gardée de côté avant que le micro-relief végétal ne s'y ajoute.
+
+### Les blocs en apesanteur, et pourquoi pas un panneau
+
+Le ciel occupe le haut, le sol occupe le bas, et entre les deux il n'y avait
+rien. Sur les mondes à atmosphère ce vide est rempli par les nuages, la brume,
+la ligne d'arbres, les tours — tout ce qu'un monde spatial vient justement de
+perdre.
+
+La deuxième version avait mis là une géante gazeuse peinte sur un quad face
+caméra. Elle a été supprimée sur retour du joueur, et la raison vaut d'être
+écrite : **un panneau collé dans le ciel ne bouge par rapport à rien.** Pas de
+parallaxe, donc pas de distance ; pas de distance, donc pas d'échelle ; et l'œil
+finit par le lire comme un autocollant, quelle que soit la qualité de ce qu'on
+peint dessus.
+
+Les blocs, eux, sont à dix, trente, quatre-vingts mètres. Ils se croisent, ils
+se dépassent, ils passent au-dessus de la tête. Facettes dures — aucun triangle
+ne partage de sommet, chacun porte la normale de sa face — parce qu'une roche
+brisée n'a que des arêtes vives, et qu'un galet en apesanteur ne raconte rien.
+Leur face **inférieure** prend la couleur du cœur : les failles brillent sous
+eux, donc ils sont éclairés par le monde qu'ils survolent, et c'est ce détail
+qui les y raccroche au lieu de les laisser flotter dans une scène étrangère.
+
+### Un arbitrage de jouabilité, assumé
+
+Physiquement, le versant à l'ombre d'un corps sans air est quasiment noir, et
+c'est superbe. Mais on **saute** dans ce monde, et on ne peut pas timer un
+relief qu'on ne voit pas : à 0,085 de plancher, des pans entiers de terrain
+devenaient illisibles. Le réseau de failles rattrape une partie du travail — il
+dessine la topographie comme un filaire — mais il vient par plaques, donc il ne
+peut pas être le seul. Le plancher est monté à 0,16.

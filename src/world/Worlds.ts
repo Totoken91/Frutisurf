@@ -179,25 +179,31 @@ export interface WorldDef {
   /** 0 = herbe, 1 = grille Y2K. Bascule la matiere du sol. */
   tech: number;
   /**
-   * LE SOL SPECTRAL, 0..1. Repeint le relief en bandes d'arc-en-ciel calees
-   * sur l'ALTITUDE.
-   *
-   * Ce n'est pas un filtre de couleur : c'est une carte topographique. Chaque
-   * bande est une courbe de niveau, et sur un monde qui n'a ni herbe ni ombre
-   * a offrir, c'est elle qui rend le relief lisible.
-   */
-  regolith: number;
-  /** LA NEBULEUSE, 0..1. Des nappes de gaz colorees dans le dome de ciel. */
-  nebula: number;
-  /**
    * LES CUMULUS, 0..1. Un monde sans atmosphere n'en a aucun.
    *
    * Elle decime le banc au lieu de le rendre pale : le ciel se degage, il ne
    * s'efface pas.
    */
   clouds: number;
-  /** L'ARC-EN-CIEL, 0..1. Pose a l'oppose du soleil, comme le vrai. */
-  arc: number;
+  /**
+   * LE VIDE, 0..1, et c'est la bascule qui fait un monde spatial.
+   *
+   * Elle ne colore rien : elle RETIRE l'atmosphere. Le degrade du ciel
+   * s'effondre vers le noir, le voile d'horizon disparait, la bande claire au
+   * ras du sol disparait, et les etoiles se densifient. Sans elle, un monde
+   * spatial garde une lueur d'horizon bleutee — et une lueur d'horizon, c'est
+   * de l'air. C'est le premier truc qui trahit un faux ciel noir.
+   */
+  space: number;
+  /**
+   * LES BLOCS EN APESANTEUR, 0..1. Des morceaux du monde qui ne sont jamais
+   * retombes, entre huit et soixante-dix metres.
+   *
+   * Ils remplissent la bande que les nuages, la brume et la ligne d'arbres
+   * occupent sur les mondes a atmosphere — et qu'un monde spatial vient
+   * justement de perdre.
+   */
+  debris: number;
   /**
    * 0 = ciel degage, 1 = plafond de nuages.
    *
@@ -352,48 +358,35 @@ const SKY_CHROME: Keyframe[] = [
     light: 0xb890ff, power: 0.30, fill: 0x2a1a5c, night: 1.0, warm: 0.2 },
 ];
 
+
 /**
- * NEBULA. UN JOUR SOUS UN CIEL NOIR, et c'est tout le contraire de ce que
- * j'avais fait au premier jet.
+ * ORBITE. UN CIEL QU'ON FABRIQUE EN ENLEVANT.
  *
- * Premiere version : nuit partout, puissance a 0,42, ciel violet a valeur
- * moyenne. Resultat, un sol uniformement sombre et plat — pas une ombre de
- * cratere, pas un eclat de poussiere, parce qu'il n'y avait pas de lumiere
- * pour les faire. Une image molle sous un ciel mou.
+ * Les cinq autres ciels racontent une journee : une couleur qui monte, une
+ * lumiere qui tourne, une brume qui epaissit. Celui-ci n'a rien de tout ca
+ * parce qu'il n'a pas d'air. Ses quatre couleurs sont donc presque identiques
+ * et presque noires — c'est le drapeau `space` du monde qui fait le travail, en
+ * ecrasant le degrade et en eteignant les termes atmospheriques un par un.
  *
- * Or ce qui fait l'image d'un corps sans atmosphere n'est PAS la nuit : c'est
- * le contraste. Le soleil y tape sans etre diffuse par quoi que ce soit, donc
- * le cote eclaire brule et le cote a l'ombre est vraiment noir, et le ciel
- * reste NOIR en plein jour parce qu'il n'y a pas d'air pour le bleuir. C'est
- * l'image de toutes les photos lunaires, et on ne l'obtient qu'en montant la
- * puissance ET en descendant le ciel.
+ * Ce qui change d'un moment a l'autre n'est pas le ciel, c'est L'ANGLE DE
+ * L'ETOILE. Sa puissance reste haute partout : dans le vide, une etoile ne
+ * faiblit pas au couchant, elle passe simplement derriere l'horizon. Ce sont
+ * les ombres qui s'allongent, pas la lumiere qui baisse — et c'est exactement
+ * ce qu'on veut d'un monde dont tout le dessin repose sur le contraste.
  *
- * Les quatre moments gardent donc `night` haut — les etoiles ne s'eteignent
- * jamais — avec une puissance de plein jour. Ce n'est pas contradictoire ici :
- * `night` decrit le CIEL, `power` decrit l'ETOILE, et sur une lune les deux
- * sont vrais en meme temps.
- *
- * Les quatre autres racontent une journee ; celui-ci raconte une ORBITE. Il
- * garde donc `night` haut a toutes les heures — les etoiles ne s'eteignent
- * jamais, et c'est ce qui dit qu'on n'est plus sous une atmosphere — et ce qui
- * change d'un moment a l'autre n'est pas la lumiere du jour mais la face du
- * systeme qu'on regarde : le violet froid, le cyan d'une etoile blanche au
- * zenith, le magenta d'un passage de nebuleuse.
- *
- * La PUISSANCE reste basse partout. Un ciel noir avec une lumiere de midi
- * donne un decor de studio : des objets pleinement eclaires poses sur du vide.
- * Ce qu'on veut est l'inverse — un eclairage rasant et faible, et des couleurs
- * qui viennent du ciel lui-meme et non du soleil.
+ * La seule teinte du cycle est celle de l'etoile elle-meme : bleu-blanc a son
+ * zenith, plus froide et plus faible quand elle rase. Rien d'autre n'est
+ * colore, et c'est ce qui laisse toute la place au cyan des failles.
  */
-const SKY_NEBULA: Keyframe[] = [
-  { at: 0.0, zenith: 0x05030f, high: 0x14082e, mid: 0x3a1050, horizon: 0x7a2a72,
-    light: 0xffd8e8, power: 0.92, fill: 0x1e1038, night: 0.92, warm: 0.55 },
-  { at: 0.25, zenith: 0x03040e, high: 0x0a1030, mid: 0x16305e, horizon: 0x2e6f96,
-    light: 0xffffff, power: 1.10, fill: 0x14203c, night: 0.78, warm: 0.0 },
-  { at: 0.5, zenith: 0x08030f, high: 0x1e0836, mid: 0x561458, horizon: 0xa8386a,
-    light: 0xffe0d0, power: 0.96, fill: 0x2a1030, night: 0.88, warm: 0.7 },
-  { at: 0.75, zenith: 0x010207, high: 0x060418, mid: 0x120a2e, horizon: 0x2a1450,
-    light: 0xc8b0ff, power: 0.62, fill: 0x0e0a20, night: 1.0, warm: 0.2 },
+const SKY_ORBITE: Keyframe[] = [
+  { at: 0.0, zenith: 0x02030a, high: 0x03040d, mid: 0x05060f, horizon: 0x090a16,
+    light: 0x9ec8ff, power: 0.86, fill: 0x0a1024, night: 1.0, warm: 0.18 },
+  { at: 0.25, zenith: 0x02030a, high: 0x03040c, mid: 0x04050e, horizon: 0x080912,
+    light: 0xffffff, power: 1.15, fill: 0x0c1428, night: 1.0, warm: 0.0 },
+  { at: 0.5, zenith: 0x03020a, high: 0x05030e, mid: 0x080410, horizon: 0x0e0818,
+    light: 0xd8e4ff, power: 0.92, fill: 0x120c26, night: 1.0, warm: 0.22 },
+  { at: 0.75, zenith: 0x010207, high: 0x020309, mid: 0x03040b, horizon: 0x05060f,
+    light: 0x7898d8, power: 0.60, fill: 0x070a1a, night: 1.0, warm: 0.10 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -431,10 +424,9 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    regolith: 0,
-    nebula: 0,
     clouds: 1,
-    arc: 0,
+    space: 0,
+    debris: 0,
     overcast: 0,
     sky: SKY_PLAIN,
     dayStart: 0.16,
@@ -529,10 +521,9 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    regolith: 0,
-    nebula: 0,
     clouds: 1,
-    arc: 0,
+    space: 0,
+    debris: 0,
     overcast: 0,
     sky: SKY_OKINAWA,
     dayStart: 0.22,
@@ -591,10 +582,9 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    regolith: 0,
-    nebula: 0,
     clouds: 1,
-    arc: 0,
+    space: 0,
+    debris: 0,
     overcast: 0,
     sky: SKY_BLISS,
     dayStart: 0.19,
@@ -664,10 +654,9 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 1,
-    regolith: 0,
-    nebula: 0,
     clouds: 1,
-    arc: 0,
+    space: 0,
+    debris: 0,
     overcast: 0,
     sky: SKY_CHROME,
     dayStart: 0.62,
@@ -816,10 +805,9 @@ export const WORLDS: WorldDef[] = [
     // volant a la place du joueur.
     wind: 2.4,
     tech: 0,
-    regolith: 0,
-    nebula: 0,
     clouds: 1,
-    arc: 0,
+    space: 0,
+    debris: 0,
     // Le plafond. C'est lui qui eteint le soleil du dome : sans ca, un ciel de
     // plomb avec une etoile de cinema plantee dedans.
     overcast: 0.92,
@@ -829,124 +817,135 @@ export const WORLDS: WorldDef[] = [
     swatch: ['#6a4258', '#8a6f34', '#4f5648', 30],
   },
   {
-    id: 'nebula',
-    name: 'NÉBULA',
-    blurb: 'sol prismatique, anneaux, gravité douce',
-    // --- LE RELIEF D'UNE PETITE LUNE.
+    id: 'orbite',
+    name: 'ORBITE',
+    blurb: 'obsidienne fracturée, ciel noir, gravité douce',
+    // --- UN RELIEF ANGULEUX, ET C'EST LE CONTRAIRE DE CE QUE J'AI ESSAYE
+    //     DEUX FOIS.
     //
-    //     Grandes ondulations, tres peu de detail fin : sur un corps sans
-    //     erosion, il n'y a ni ruisseau ni racine pour creuser les petites
-    //     echelles. La couche longue domine largement et les trois courtes
-    //     sont ecrasees — on obtient des dunes larges et lisses, qui sont
-    //     exactement ce qu'il faut pour une gravite douce : de longues rampes,
-    //     et du temps en l'air.
-    amp: [9.0, 3.0, 1.1, 0.45, 0.05],
-    // --- LA MER DE PLASMA. Basse, mais presente : sans elle le monde perdait
-    //     la traversee, qui est la premiere source de temps du jeu (mesure :
-    //     quatre cents secondes par partie sur la plaine). Un monde sans eau
-    //     doit gagner son temps ailleurs, et NEBULA n'a ni ville a longer ni
-    //     saison a exploiter.
-    // MESURE : a -4,2 le plasma couvrait 33 % du monde et l'autopilote coulait
-    // au bout de vingt-sept secondes. Un monde de gravite douce n'a pas besoin
-    // d'eau pour gagner son temps — il le gagne en VOL — et une mer large dans
-    // un monde ou l'on ne mord pas est une noyade programmee. On descend a
-    // douze pour cent : de quoi placer quelques traversees, pas de quoi barrer
-    // la route.
-    water: -7.2,
-    // Pas de plage : il n'y a pas de sable sur une lune de gaz. Un ourlet, et
-    // le plasma touche directement le sol prismatique.
-    shore: [0.25, 0.45],
-    // Une houle LONGUE et lente. En gravite douce, une vague courte se
-    // franchit sans la sentir ; une vague de quatre-vingt-dix metres se surfe.
-    swell: [1.9, 90, 0.55],
+    //     Les deux versions precedentes de ce monde avaient de grandes dunes
+    //     molles : neuf metres d'amplitude etalee sur quatre cent quatre-vingts
+    //     metres. Sur un terrain aussi plat, aucun eclairage ne peut rien —
+    //     il n'y a pas de pente, donc pas d'ombre, donc pas de silhouette, et
+    //     l'image reste une nappe quoi qu'on peigne dessus.
+    //
+    //     Ici les couches COURTES dominent : la 84 m et la 42 m portent le
+    //     relief, la 480 m ne fait que le basculer. On obtient des aretes, des
+    //     ressauts et des creux francs — de quoi decouper des silhouettes
+    //     noires sur le vide, et de quoi sauter.
+    //     TROIS MESURES POUR TROUVER CE RELIEF, et le diagnostic est
+    //     contre-intuitif : UN RELIEF ANGULEUX N'EST PAS UN RELIEF A COURTES
+    //     LONGUEURS D'ONDE.
+    //
+    //     Premier jet, [7,0 5,5 6,5 4,8 0,32] — les couches courtes dominent,
+    //     pour faire des aretes. Resultat : mort a 371 s, 18 envols contre 94
+    //     sur BLISS. Une bosse de 42 m a forte amplitude ne lance pas, elle
+    //     fait BROUTER : beaucoup de courbure, donc des micro-envols subis,
+    //     donc de la vitesse perdue a chaque reception. Le monde du vol etait
+    //     devenu le monde ou l'on ne vole pas.
+    //
+    //     Deuxieme essai, [8,4 5,2 3,0 2,0] — mieux, mais encore 469 s et 18
+    //     envols. Troisieme, cale sur BLISS qui est le seul autre monde sans
+    //     eau : 600 s, 106 envols, le plus aerien du jeu. Les couches LONGUES
+    //     portent le relief, ici comme partout ailleurs.
+    //
+    //     L'angularite se joue donc la ou elle se voit vraiment — dans la
+    //     matiere, les aretes des cretes et les facettes des blocs — et pas
+    //     dans un relief qui la paierait en jouabilite.
+    amp: [8.0, 4.8, 2.7, 1.5, 0.09],
+    // AUCUN LIQUIDE. Une planetoide brisee n'a pas de mer, et un monde spatial
+    // avec une flaque au milieu perdrait la seule chose qu'il vend : le vide.
+    // Son revenu vient donc entierement du VOL, comme BLISS — et le relief
+    // anguleux plus la gravite douce le lui donnent largement.
+    water: -60,
+    shore: [0.2, 0.3],
+    swell: [0, 60, 1],
     colors: {
-      // --- LA ROCHE. SOMBRE, ET C'EST LE REGLAGE LE PLUS IMPORTANT DU MONDE.
-      //
-      //     Une poussiere de silicate renvoie douze pour cent de ce qu'elle
-      //     recoit — c'est un charbon clair, pas un beton. Ce n'est pas un
-      //     detail de realisme : c'est le CONTRASTE avec le ciel et avec les
-      //     billes de verre qui fait lire l'espace. Le premier jet de ce monde
-      //     avait un sol a valeur moyenne, comme son ciel, comme ses
-      //     montagnes, comme tout le reste — et une image ou tout est a la
-      //     meme valeur est molle, quelle que soit sa palette.
-      //
-      //     Les six cles gardent la meme TEINTE (un gris legerement violet) et
-      //     ne different que par la valeur : une roche n'a pas six couleurs,
-      //     elle a six niveaux.
-      grassNear: 0x3a3550,
-      grassMid: 0x2b2740,
-      grassFar: 0x242034,
-      grassHorizon: 0x3c3656,
-      grassShadow: 0x0d0b18,
-      grassStreak: 0xb9b2d8,
-      // Le plasma : noir au fond, cyan electrique en surface.
-      waterShallow: 0x5ce8ff,
-      waterDeep: 0x0a1038,
-      waterFoam: 0xd8f4ff,
-      sandDry: 0x4a4270,
-      sandPale: 0x6e64a0,
-      sandWet: 0x241f44,
-      sandShell: 0xc0b4f0,
-      // Pas de ville : ces trois-la ne servent plus qu'a la brume de fond.
-      cityFace: 0x6a5cc8,
-      cityLit: 0xffa8f0,
-      cityDeep: 0x180f40,
-      treeLine: 0x241a52,
-      cloudCore: 0xc4b0ff,
-      cloudShadow: 0x4a3a8c,
-      cloudRim: 0xffc0f4,
-      warmAccent: 0x7a5cc0,
-      bloomPale: 0xe8f0ff,
-      bloomWarm: 0x9a7cff,
+      // --- QUASI MONOCHROME. Six cles, une seule teinte : un gris bleute tres
+      //     sombre, decline en valeurs. C'est la discipline qui manquait aux
+      //     deux essais precedents — des qu'un monde a quatre familles de
+      //     couleurs, il devient de la boue, et aucune quantite de detail ne
+      //     rattrape ca.
+      grassNear: 0x22283c,
+      grassMid: 0x161a2a,
+      grassFar: 0x10131f,
+      grassHorizon: 0x0a0c16,
+      grassShadow: 0x05060c,
+      grassStreak: 0x8fa8d8,
+      // L'ACCENT, et il n'y en a qu'un : le cyan du coeur, qui sort des
+      // failles. Il passe par leafRust, la cle que le sol lit pour le tapis
+      // de feuilles — inutilisee ici, donc libre.
+      leafRust: 0x1ce8ff,
+      leafBlood: 0x1ce8ff,
+      leafAmber: 0x9cf6ff,
+      waterShallow: 0x1ce8ff,
+      waterDeep: 0x02040c,
+      waterFoam: 0xd0f8ff,
+      sandDry: 0x1a1e2e,
+      sandPale: 0x2a3044,
+      sandWet: 0x0c0e18,
+      sandShell: 0x8fa8d8,
+      cityFace: 0x1a2036,
+      cityLit: 0x1ce8ff,
+      cityDeep: 0x04060e,
+      treeLine: 0x090b14,
+      cloudCore: 0x2a3450,
+      cloudShadow: 0x141a2c,
+      cloudRim: 0x6a80b0,
+      warmAccent: 0x2a3450,
+      bloomPale: 0x9cf6ff,
+      bloomWarm: 0x1ce8ff,
     },
-    // --- LA GRAVITE DOUCE, ET C'EST LA MECANIQUE DU MONDE.
+    // --- LA GRAVITE DOUCE. Sur un caillou de cette taille on ne tombe pas,
+    //     on RETOMBE — la portance a 1,48 double presque la duree de vol, donc
+    //     le nombre de vrilles et la hauteur des portes qu'on peut viser. Le
+    //     prix est immediat : un disque qui plane ne mord pas, donc la
+    //     trajectoire est decidee au decollage et on ne rattrape plus rien une
+    //     fois en l'air.
+    //     MESURE, ET ELLE A CORRIGE MON PREMIER CHIFFRE DE MOITIE. A
+    //     lift 1,48 — le double de ce que porte n'importe quel autre monde —
+    //     l'autopilote passait AU-DESSUS des portes au lieu de les enfiler :
+    //     41 portes contre 93 sur BLISS, sept envols comptes, et une mort a
+    //     268 s. Le systeme de porte pose la suivante d'apres la hauteur a
+    //     laquelle on a franchi la precedente ; sorti de la plage pour
+    //     laquelle il a ete calibre, il s'emballe et devient injouable.
     //
-    //     Cinquieme mecanique apres le seuil de glisse d'OKINAWA, la houle, le
-    //     vent d'OCTOBRE et le mercure de CHROME : ici on VOLE. La portance a
-    //     1,45 allonge fortement la duree de vol, donc le nombre de vrilles
-    //     qu'on boucle et la hauteur des portes qu'on peut viser. Ce qu'elle
-    //     coute est immediat : un disque qui plane est un disque qui ne mord
-    //     pas, donc on ne rattrape rien une fois en l'air, et la croisiere
-    //     paie la difference.
-    //     Le seuil de dejaugeage suit la meme logique qu'OKINAWA : sur un
-    //     monde ou le disque plane deja, il serait absurde qu'il coule des
-    //     qu'il touche le liquide. A 1,10 l'autopilote passait 99 % de sa
-    //     course sous vingt-deux metres par seconde — enlise, jamais lance.
-    mods: { cruise: 1.0, grip: 0.84, lift: 1.45, plane: 1.42, boost: 1.06 },
+    //     1,22 reste la plus forte portance du jeu (BLISS est a 1,12) sans
+    //     sortir du domaine. Le monde garde son identite aerienne, et il la
+    //     garde en etant JOUABLE.
+    mods: { cruise: 1.0, grip: 0.90, lift: 1.22, plane: 1, boost: 1.16 },
     city: 0,
     trees: 0,
-    // Le semis est un champ de BLOCS : stone a 1, donc pas un seul etre
-    // vivant. Rien ne pousse ici, et c'est le propos. Densite haute en
-    // revanche — sans herbe ni fleurs, ces blocs sont le SEUL objet du premier
-    // plan, et un premier plan sans objet n'a pas d'echelle.
-    grove: 0.85,
+    // Des blocs, denses : sans herbe ni fleurs, ils sont le SEUL objet du
+    // premier plan, et un premier plan sans objet n'a pas d'echelle.
+    grove: 0.9,
     spire: 1,
     stone: 1,
-    ridge: 0.9,
-    ridgeEdge: 0.85,
-    air: 0.22,
+    ridge: 0.95,
+    // Aretes vives : rien n'erode un caillou sans air.
+    ridgeEdge: 1,
+    // ET AUCUNE PERSPECTIVE AERIENNE. C'est un des rares indices qui disent
+    // "pas d'atmosphere" sans qu'on ait a l'ecrire : une crete a deux
+    // kilometres y est aussi contrastee qu'un bloc a deux metres.
+    air: 0.10,
     bloom: 0,
     town: 0,
     turbines: 0,
     palms: 0,
-    // Pas un brin d'herbe. Le premier plan est nu, comme le reste.
     blades: 0,
     leaves: 0,
     rain: 0,
     wind: 0,
     tech: 0,
-    overcast: 0,
-    regolith: 1,
-    nebula: 1,
     clouds: 0,
-    arc: 0.85,
-    sky: SKY_NEBULA,
-    // On arrive a l'heure la plus DURE : etoile blanche au zenith, ciel noir,
-    // ombres franches. C'est la seule heure ou la regolithe montre ses
-    // crateres et ses billes de verre, et c'est la premiere image que le monde
-    // doit donner.
-    dayStart: 0.22,
-    swatch: ['#05030f', '#2b2740', '#5ce8ff', 20],
+    space: 1,
+    debris: 1,
+    overcast: 0,
+    sky: SKY_ORBITE,
+    // Etoile haute : c'est l'heure ou les failles se lisent le mieux contre un
+    // sol eclaire, et ou les ombres decoupent le relief.
+    dayStart: 0.24,
+    swatch: ['#03040c', '#161a2a', '#1ce8ff', 0],
   },
 ];
 

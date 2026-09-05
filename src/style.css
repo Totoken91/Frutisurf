@@ -1245,18 +1245,19 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
    savent pas dire "arc-en-ciel", et c'est pourtant la premiere chose qu'il faut
    comprendre avant de cliquer. Un spectre dans la bande de sol, un anneau clair
    dans le ciel, et la carte se lit sans son nom. */
-/* La bande spectrale s'est AMINCIE en meme temps que le monde : le sol de
-   NEBULA n'est plus un arc-en-ciel, c'est une regolithe sombre qui prend un
-   reflet irise a angle rasant. La vignette doit dire ca — un lisere, pas un
-   aplat — sinon elle promet un monde qui n'existe plus. */
-.wcard.w-nebula .wsky {
-  background-image: linear-gradient(96deg,
-      rgba(255,90,160,0.55) 0%, rgba(255,210,90,0.55) 22%, rgba(108,240,160,0.55) 46%,
-      rgba(76,200,255,0.55) 70%, rgba(180,124,255,0.55) 100%),
-    linear-gradient(180deg, var(--sky) 0%, var(--sky) 52%, var(--land) 52%, var(--land) 100%);
-  background-size: 100% 15%, 100% 100%;
-  background-position: 0 62%, 0 0;
-  background-repeat: no-repeat, no-repeat;
+/* ORBITE a droit a sa vignette. Ses trois bandes sont noir sur noir : sans un
+   trait, la carte est un rectangle vide et rien ne dit ce qu'on y trouve. Deux
+   failles cyan et un semis d'etoiles suffisent — c'est exactement ce que le
+   monde montre, et ca se lit a cinquante pixels. */
+.wcard.w-orbite .wsky {
+  background-image:
+    radial-gradient(1px 1px at 18% 16%, rgba(255,255,255,0.95) 50%, transparent 50%),
+    radial-gradient(1px 1px at 62% 10%, rgba(255,255,255,0.8) 50%, transparent 50%),
+    radial-gradient(1px 1px at 82% 26%, rgba(255,255,255,0.9) 50%, transparent 50%),
+    radial-gradient(1px 1px at 38% 30%, rgba(255,255,255,0.7) 50%, transparent 50%),
+    linear-gradient(74deg, transparent 46%, rgba(28,232,255,0.95) 47.5%, transparent 49%),
+    linear-gradient(-58deg, transparent 60%, rgba(28,232,255,0.75) 61.4%, transparent 62.8%),
+    linear-gradient(180deg, var(--sky) 0%, var(--sky) 54%, var(--land) 54%, var(--land) 100%);
 }
 
 /* Le nombre de colonnes vient du NOMBRE DE MONDES, pose en ligne par la vue —

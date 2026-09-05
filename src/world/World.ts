@@ -20,6 +20,7 @@ import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
 import { Grove } from './Grove';
 import { Ridge } from './Ridge';
+import { Debris } from './Debris';
 import { Motes } from './Motes';
 import { Leaves } from './Leaves';
 import { Rain } from './Rain';
@@ -47,6 +48,7 @@ export class World {
   readonly palms: Palms;
   readonly grove: Grove;
   readonly ridge: Ridge;
+  readonly debris: Debris;
   readonly turbines: Turbines;
   /** L'heure. Source unique, relue par tous les materiaux ci-dessous. */
   readonly day: Daylight;
@@ -108,6 +110,7 @@ export class World {
     this.palms = new Palms();
     this.grove = new Grove();
     this.ridge = new Ridge();
+    this.debris = new Debris();
     this.turbines = new Turbines(dense ? 14 : 9);
     this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
     // Feuilles et pluie existent dans TOUS les mondes, a densite nulle hors
@@ -122,6 +125,7 @@ export class World {
     this.sky = createSky();
     scene.add(this.sky);
     scene.add(this.ridge.mesh);
+    scene.add(this.debris.mesh);
     scene.add(this.ground.mesh);
     if (this.blades) scene.add(this.blades.mesh);
     scene.add(this.water.mesh);
@@ -168,6 +172,7 @@ export class World {
     if (this.blades) this.lit.push(this.blades.mat);
     this.lit.push(this.grove.mat);
     this.lit.push(this.ridge.mat);
+    this.lit.push(this.debris.mat);
     this.blendWorld(1);
     this.applyDay();
     scene.add(this.lights);
@@ -278,10 +283,9 @@ export class World {
       ridge: L(a.ridge, b.ridge),
       ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
       air: L(a.air, b.air),
-      regolith: L(a.regolith, b.regolith),
-      nebula: L(a.nebula, b.nebula),
       clouds: L(a.clouds, b.clouds),
-      arc: L(a.arc, b.arc),
+      space: L(a.space, b.space),
+      debris: L(a.debris, b.debris),
       bloom: L(a.bloom, b.bloom),
       town: L(a.town, b.town),
       rain: L(a.rain, b.rain),
@@ -313,10 +317,9 @@ export class World {
     ridge: number;
     ridgeEdge: number;
     air: number;
-    regolith: number;
-    nebula: number;
-    arc: number;
     clouds: number;
+    space: number;
+    debris: number;
     bloom: number;
     town: number;
     rain: number;
@@ -361,7 +364,7 @@ export class World {
     rgb(g.uSandWet, 'sandWet');
     rgb(g.uSandShell, 'sandShell');
     g.uTech.value = d.tech;
-    g.uRegolith.value = d.regolith;
+    g.uVoid.value = d.space;
     g.uWet.value = d.rain;
     // Le tapis suit la densite des feuilles en vol : les deux decrivent la
     // meme saison, il serait absurde qu'un monde ait l'une sans l'autre.
@@ -441,6 +444,17 @@ export class World {
     rd.uEdge.value = d.ridgeEdge;
     rd.uAir.value = d.air;
 
+    // --- LES BLOCS EN APESANTEUR. Ils empruntent la roche au SOL et le lisere
+    //     a la strie du monde : ce sont des morceaux du terrain, il serait
+    //     absurde qu'ils aient leur propre palette. Et leur face inferieure
+    //     prend la couleur du coeur, la meme que celle qui sort des failles.
+    const db = this.debris.mat.uniforms;
+    rgb(db.uRock, 'grassNear');
+    rgb(db.uDark, 'grassShadow');
+    rgb(db.uRim, 'grassStreak');
+    rgb(db.uCore, 'leafRust');
+    db.uAmount.value = d.debris;
+
     this.turbines.mat.uniforms.uDensity.value = d.turbines;
 
     // --- LE QUARTIER. Deux materiaux : les batiments et les halos.
@@ -484,8 +498,7 @@ export class World {
     // Le plafond ne concerne QUE le dome : c'est lui qui porte le soleil.
     const skyU = (this.sky.material as ShaderMaterial).uniforms;
     skyU.uOvercast.value = d.overcast;
-    skyU.uNebula.value = d.nebula;
-    skyU.uArc.value = d.arc;
+    skyU.uVoid.value = d.space;
 
     const cl = this.clouds.mat.uniforms;
     rgb(cl.uCore, 'cloudCore');
@@ -586,6 +599,7 @@ export class World {
     this.palms.update(origin, time);
     this.grove.update(origin, time);
     this.ridge.update(origin, this.day.horizon);
+    this.debris.update(origin, time);
     this.turbines.update(origin, time);
     this.clouds.update(origin, time);
     this.city.update(origin);

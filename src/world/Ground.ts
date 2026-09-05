@@ -126,7 +126,7 @@ export class Ground {
         uDetailFar: { value: 0.13 },
         /** 0 = prairie, 1 = dalle et grille neon. Le monde CHROME le met a 1. */
         uTech: { value: 0 },
-        uRegolith: { value: 0 },
+        uVoid: { value: 0 },
         /**
          * 0 = sol sec, 1 = sous l'averse. Le monde OCTOBRE le met a 1.
          *
@@ -204,7 +204,7 @@ ${GLSL_DAY}
         uniform float uTime, uSpeed;
         uniform sampler2D uGrass;
         uniform float uDetail, uDetailFar;
-        uniform float uTech, uWet, uLitter, uTown, uOvercast, uRegolith;
+        uniform float uTech, uWet, uLitter, uTown, uOvercast, uVoid;
         uniform vec3 uLeafA, uLeafB, uLamp;
         uniform vec3 uBloomA, uBloomB;
         uniform float uBloom;
@@ -245,59 +245,49 @@ ${TOWN_GLSL}
          * parce que l'effet est tentant et que rien dans le code ne dit qu'il
          * ne peut pas marcher — seule la mesure le dit.
          */
-        // --- LE CHAMP DE CRATERES.
+        // --- LE RESEAU DE FAILLES.
         //
-        //     Une cellule, un cratere, decale et redimensionne par le hachage
-        //     de la cellule. On balaie les NEUF cellules voisines et pas
-        //     seulement la sienne : un cratere deborde toujours de sa case, et
-        //     sans les voisines ses bords se coupent net sur la grille — on
-        //     lit alors un damier, ce qu'aucune surface impactee n'a jamais.
+        //     Distance a l'ARETE d'un diagramme de Voronoi, et pas au germe :
+        //     c'est toute la difference entre un semis de taches rondes et un
+        //     reseau de fractures. Une croute qui casse se fend le long des
+        //     lignes equidistantes de ses centres de contrainte — c'est
+        //     litteralement la definition d'une arete de Voronoi, et c'est
+        //     pour ca que le motif est juste au lieu d'etre seulement joli.
         //
-        //     Retour : x = le creux (0 au fond du bol, 1 dehors),
-        //              y = le bourrelet (0 partout, 1 sur la levre),
-        //              zw = la PENTE, en unites monde.
-        //
-        //     C'EST LA PENTE QUI FAIT LE TROU, et elle m'a manque au premier
-        //     jet. Un bol qu'on assombrit et une levre qu'on eclaircit donnent
-        //     des ANNEAUX PEINTS : la lumiere ne les sculpte pas, donc l'oeil
-        //     lit un motif pose a plat sur le sol. Il faut que le flanc tourne
-        //     vers le soleil d'un cote et s'en detourne de l'autre — alors le
-        //     meme cratere devient un trou, et son ombre bouge quand l'heure
-        //     tourne. La pente est la derivee du profil, donc elle ne coute
-        //     rien : on la connait deja quand on calcule le creux.
-        vec4 craterField(vec2 wp, float cell){
-          vec2 g0 = floor(wp / cell);
-          vec4 outv = vec4(1.0, 0.0, 0.0, 0.0);
+        //     Deux passes, comme il se doit : la premiere trouve le germe le
+        //     plus proche, la seconde mesure la distance au plan median entre
+        //     lui et chacun de ses voisins. En une seule passe on obtiendrait
+        //     la distance au germe, donc des cellules pleines, donc des
+        //     galets.
+        vec2 crackHash(vec2 p){
+          return vec2(hash21(p), hash21(p + 37.19));
+        }
+        float crackNet(vec2 wp, float cell){
+          vec2 g = floor(wp / cell);
+          vec2 f = fract(wp / cell);
+          vec2 mr = vec2(0.0);
+          float md = 8.0;
           for (int j = -1; j <= 1; j++) {
             for (int i = -1; i <= 1; i++) {
-              vec2 id = g0 + vec2(float(i), float(j));
-              float ha = hash21(id * 0.731 + 3.1);
-              float hb = hash21(id * 0.517 + 19.7);
-              // Une cellule sur deux porte un impact. Toutes les cellules
-              // pleines donneraient une mousse reguliere, pas un bombardement.
-              if (hb < 0.60) continue;
-              vec2 cc = (id + vec2(ha, fract(ha * 7.31)) * 0.62 + 0.19) * cell;
-              float r = cell * (0.15 + hb * 0.24);
-              vec2 rel = wp - cc;
-              float len = length(rel) + 1e-4;
-              float d = len / max(r, 1e-3);
-
-              float t = clamp(d / 0.88, 0.0, 1.0);
-              float bowl = t * t * (3.0 - 2.0 * t);
-              // Derivee du smoothstep : 6t(1-t), ramenee en unites monde.
-              float dbowl = 6.0 * t * (1.0 - t) / (0.88 * max(r, 1e-3));
-              float lip = (1.0 - smoothstep(0.0, 0.32, abs(d - 0.94)))
-                        * (1.0 - smoothstep(1.1, 1.5, d));
-
-              outv.x = min(outv.x, bowl);
-              outv.y = max(outv.y, lip);
-              // Le flanc monte vers l'exterieur dans le bol, redescend apres la
-              // levre. Le signe suit donc la position par rapport a la levre.
-              float side = d < 0.94 ? 1.0 : -0.55;
-              outv.zw += (rel / len) * dbowl * side * r;
+              vec2 o = vec2(float(i), float(j));
+              vec2 r = o + crackHash(g + o) - f;
+              float d = dot(r, r);
+              if (d < md) { md = d; mr = r; }
             }
           }
-          return outv;
+          md = 8.0;
+          for (int j = -2; j <= 2; j++) {
+            for (int i = -2; i <= 2; i++) {
+              vec2 o = vec2(float(i), float(j));
+              vec2 r = o + crackHash(g + o) - f;
+              vec2 diff = r - mr;
+              float len = dot(diff, diff);
+              if (len > 1e-5) {
+                md = min(md, dot(0.5 * (mr + r), normalize(diff)));
+              }
+            }
+          }
+          return md * cell;
         }
 
         void main(){
@@ -320,6 +310,12 @@ ${TOWN_GLSL}
           // l'echelle d'une touffe d'herbe : lue apres, la normale perturbee
           // aurait sable les flaques en confettis de dix centimetres.
           float macroFlat = N.y;
+          // La normale NUE, gardee de cote. Le verre d'ORBITE en a besoin : le
+          // micro-relief qu'on ajoute plus bas vient de la texture d'HERBE, et
+          // un speculaire etroit qui s'accroche a des formes de brins rend un
+          // gresillement blanc en touffes au premier plan. Le bon terme sur la
+          // mauvaise surface.
+          vec3 Nbare = N;
 
           // --- Profondeur normalisee : asymptotique, jamais de coupure franche.
           //     A 95 m d'echelle, la plaine etait entierement noyee dans la
@@ -1139,130 +1135,137 @@ ${TOWN_GLSL}
             c += warm * uTown * (0.05 + uDayNight * 0.15);
           }
 
-          // --- LE REGOLITHE, ET C'EST UNE MATIERE, PAS UNE TEINTE.
+          // --- L'OBSIDIENNE FRACTUREE.
           //
-          //     Le premier jet de ce monde repeignait l'herbe en arc-en-ciel
-          //     et coupait les touffes : le premier plan — la moitie de
-          //     l'ecran, en permanence — devenait un DEGRADE LISSE. Pas de
-          //     grain, pas de relief, pas de matiere : le disque flottait sur
-          //     une nappe de brouillard colore. Une palette n'a jamais fait un
-          //     monde, et c'est ecrit noir sur blanc dans la doc de ce projet.
+          //     Troisieme tentative pour ce monde, et les deux precedentes
+          //     ratent pour la meme raison : elles REPEIGNAIENT le sol de la
+          //     prairie au lieu de lui donner une matiere. Un arc-en-ciel
+          //     plaque d'abord, une regolithe grise ensuite — dans les deux
+          //     cas une nappe a valeur moyenne, sans noir, sans silhouette,
+          //     sans une seule ligne dure.
           //
-          //     Ce qui fait une surface lunaire, dans l'ordre d'importance :
-          //     elle est SOMBRE (albedo 0,12 : c'est le contraste avec le ciel
-          //     qui fait l'espace), elle est CRIBLEE (les crateres donnent la
-          //     seule structure lisible a moyenne distance, puisqu'il n'y a ni
-          //     vegetation ni ombre portee), elle est POUSSIEREUSE au pixel, et
-          //     elle SCINTILLE — la regolithe est pleine de billes de verre
-          //     d'impact, et ce sont ces points brillants qui donnent a l'image
-          //     les hautes lumieres qui lui manquaient partout.
-          if (uRegolith > 0.002) {
+          //     Ce qui manquait n'etait ni la couleur ni le detail : c'etait
+          //     le CONTRASTE et le DESSIN. Une croute de verre volcanique
+          //     presque noire, fendue par un reseau de failles d'ou sort la
+          //     lumiere du coeur — voila deux valeurs extremes et un trait
+          //     net, c'est-a-dire tout ce qui manquait. La regle du monde
+          //     tient en une phrase : QUASI MONOCHROME, UNE SEULE COULEUR
+          //     D'ACCENT, ET ELLE EST EMISSIVE.
+          if (uVoid > 0.002) {
             vec2 wp = vWorld.xz;
-            // Le grain le plus fin s'eteint en DETAIL AU CARRE : a la
-            // puissance un il survivait jusqu'a cent metres, ou il passe sous
-            // le pixel et ne produit plus qu'une neige qui grouille a chaque
-            // pas de camera.
-            float rgNear = detail * detail;
+            float near = detail * detail;
 
-            // 1. LA ROCHE. Trois echelles de VALEUR, aucune de teinte : une
-            //    poussiere de silicate n'a qu'une couleur, elle n'a que des
-            //    niveaux. La teinte viendra du ciel et de l'irisation.
-            float rgBroad = fbm2(wp * 0.017);
-            float rgMid = fbm3(wp * 0.21);
-            float rgFine = fbm2(wp * 2.6);
-            float val = 0.70 + rgBroad * 0.42 + (rgMid - 0.5) * 0.22 * detail
-                      + (rgFine - 0.5) * 0.18 * rgNear;
-            vec3 rock = mix(uShadow, uNear, clamp(val - 0.35, 0.0, 1.0));
-
-            // 2. LES CRATERES, sur deux echelles : les grands portent le
-            //    paysage, les petits le premier plan. Une seule echelle donne
-            //    une taille unique d'impact, et un champ de crateres tous du
-            //    meme diametre se lit comme un motif.
-            vec4 cBig = craterField(wp, 34.0);
-            vec4 cSml = craterField(wp, 6.5);
-            float bowl = min(cBig.x, mix(1.0, cSml.x, detail));
-            float rim = max(cBig.y, cSml.y * detail);
-            vec2 cslope = cBig.zw * 1.0 + cSml.zw * 0.6 * detail;
-            // Le fond du bol voit moins de ciel, la levre en voit plus : c'est
-            // de l'OCCLUSION et non de l'eclairage, donc elle survit a l'heure.
-            rock *= 0.62 + 0.38 * bowl;
-            rock += uStreak * rim * 0.10;
-
-            // --- DEUX NORMALES, ET C'EST TOUTE LA LECON DE CETTE PASSE.
+            // 1. LE VERRE, ET IL A UNE SURFACE.
             //
-            //     Premier jet : une seule normale, ou la poussiere pesait sept
-            //     fois le relief des crateres. Resultat, une tole froissee —
-            //     les crateres disparaissaient dans le grain, le speculaire
-            //     s'allumait partout, et l'irisation, calculee sur cette meme
-            //     normale hachee, mettait un point de couleur different sur
-            //     chaque pixel. Du confetti, pas une matiere.
+            //    Premier reglage : un albedo presque uniforme entre les
+            //    failles. Le reseau etait joli et le reste du cadre etait un
+            //    APLAT NOIR — or c'est lui qui occupe la plus grande part de
+            //    l'image, et une grande surface sans matiere annule tout ce
+            //    qu'on peut poser dessus.
             //
-            //     Les deux echelles ne servent pas a la meme chose et ne
-            //     doivent donc pas entrer dans le meme vecteur :
-            //       Nc — le relief des crateres. Il ECLAIRE : c'est lui qui
-            //            donne au flanc son cote au soleil et son cote a
-            //            l'ombre, donc c'est lui qui creuse le trou.
-            //       Ns — la poussiere. Elle SCINTILLE, et rien d'autre : ses
-            //            facettes ne servent qu'a decider quels grains
-            //            renvoient l'etoile a cet instant.
-            vec3 Nc = normalize(N + vec3(-cslope.x, 0.0, -cslope.y) * 1.5);
-            float e = 0.07;
-            float n0 = fbm2(wp * 3.4);
-            float nx = fbm2((wp + vec2(e, 0.0)) * 3.4);
-            float nz = fbm2((wp + vec2(0.0, e)) * 3.4);
-            vec3 Ns = normalize(Nc + vec3(n0 - nx, 0.0, n0 - nz) * 2.2 * rgNear);
+            //    Une coulee figee a une direction : le bruit est donc ETIRE
+            //    dans l'axe de l'ecoulement, et le meme champ sert de valeur et
+            //    de relief. C'est ce qui distingue un verre volcanique d'une
+            //    pierre — la pierre est isotrope, la coulee ne l'est jamais.
+            vec2 fw = vec2(wp.x * 0.055 + fbm2(wp * 0.012) * 2.4, wp.y * 0.011);
+            float flow = fbm2(fw);
+            vec3 glass = mix(uShadow, uNear, smoothstep(0.32, 0.82, flow));
 
-            // 3. L'ECLAIRAGE, sur Nc. Une lune n'a pas d'air pour remplir ses
-            //    ombres : le cote a l'ombre est VRAIMENT noir, et c'est ce
-            //    noir-la qui manquait partout dans la premiere version.
-            float rgNdl = dot(Nc, L);
-            rock *= 0.06 + 1.02 * smoothstep(-0.12, 0.70, rgNdl);
-            // Un soupcon de ciel, et pas plus : sur un corps sans air, la
-            // lumiere d'ambiance vient des etoiles et du sol lui-meme.
-            rock += uSkyLight * 0.030;
-
-            // 4. LES BILLES DE VERRE, sur Ns. Un lobe dur module par un champ
-            //    de facettes qui descend jusqu'a ZERO : c'est l'alternance
-            //    allume/eteint qui fait le scintillement, pas la brillance
-            //    moyenne. Le plancher a 0,12 du lagon avait deja coute une
-            //    passe — ici il n'y en a pas.
-            vec3 Vr = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
-            vec3 Hr = nsafe(Vr + L, vec3(0.0, 1.0, 0.0));
-            float facet = smoothstep(0.56, 0.90, fbm2(wp * 5.7 + 41.3));
-            float grit = smoothstep(0.44, 0.88, fbm2(wp * 15.0 - 7.1));
-            float spark = facet * grit * rgNear;
-            rock += vec3(1.0, 0.98, 0.94)
-                  * pow(max(dot(Ns, Hr), 1e-4), 210.0) * spark * 3.2;
-
-            // 5. L'IRISATION, ET C'EST ELLE QUI PORTE L'ARC-EN-CIEL.
+            // Les rides de coulee. ETIREES, MAIS PAS DANS L'AXE DE LA COURSE.
             //
-            //    Elle n'est PAS un filtre pose sur le sol. C'est une
-            //    interference de couche mince : elle ne vit qu'a angle RASANT
-            //    et au voisinage de la direction speculaire, exactement comme
-            //    sur une flaque d'huile ou une labradorite. Sa teinte vient
-            //    donc de l'ANGLE et jamais de la position — on avance de deux
-            //    pas et le halo se deplace sur le sol, ce qu'aucun plaquage de
-            //    couleur ne fait. C'est ce qui separe une matiere d'une
-            //    decalcomanie, et c'est tout le sujet de ce monde.
-            //
-            //    Elle se prend sur Nc et non sur Ns : sur la normale hachee,
-            //    deux pixels voisins tombaient sur deux teintes opposees et on
-            //    obtenait du bruit colore. Sur la normale lisse, la teinte
-            //    varie a l'echelle du paysage — donc on la lit comme une
-            //    nappe qui glisse, ce qu'elle est.
-            //    ET ELLE EST DISCRETE, ce qui a demande deux essais. A 0,85
-            //    d'intensite et huit tours de spectre par radian, elle
-            //    repeignait le sol entier en bandes et cerclait chaque cratere
-            //    d'anneaux durs : on retombait exactement sur la flaque d'huile
-            //    du premier jet, par un autre chemin. Une irisation qu'on
-            //    REMARQUE n'en est plus une — c'est un reflet qui apparait
-            //    quand l'angle est juste, et qui disparait sinon.
-            float fres = pow(1.0 - clamp(dot(Nc, Vr), 0.0, 1.0), 6.5);
-            float film = dot(Nc, Hr) * 3.2 + rgBroad * 1.6;
-            vec3 iri = 0.5 + 0.5 * cos(6.28318 * (film + vec3(0.0, 0.33, 0.67)));
-            rock += iri * fres * (0.35 + spark * 1.1) * 0.20;
+            // Premier reglage : un facteur huit d'anisotropie le long de Z.
+            // Or Z est justement l'axe ou l'on regarde : en perspective, des
+            // motifs longs dans cet axe deviennent des RAYURES qui filent vers
+            // l'horizon, et le sol s'est retrouve griffe de traits verticaux
+            // qu'on lit comme de la pluie ou un defaut de texture. Un facteur
+            // deux, en travers, suffit largement a dire "ca a coule".
+            vec2 rp = vec2(wp.x * 0.34, wp.y * 0.62);
+            float ripple = fbm2(rp * 1.6) * 0.62 + fbm2(rp * 5.1) * 0.38;
+            glass *= 0.84 + 0.30 * ripple * detail;
+            // Et un grain fin, qui meurt vite : au-dela il ne fait que
+            // grouiller.
+            glass *= 0.90 + 0.20 * fbm2(wp * 6.5) * near;
 
-            c = mix(c, rock, uRegolith);
+            // 2. LES FAILLES, sur deux echelles. La grande porte le paysage,
+            //    la petite le premier plan — un reseau a maille unique se lit
+            //    comme un grillage.
+            //
+            //    ET ELLES SONT FINES. Premier reglage : un metre trente de
+            //    fondu sur une maille de vingt-six metres, avec une emission a
+            //    2,6. Ca ne donne pas des fissures, ca donne des TUBES NEON —
+            //    le reseau mangeait tout le cadre, le bloom achevait de le
+            //    faire deborder, et on ne voyait plus ni le sol ni le
+            //    personnage. Une faille se lit parce qu'elle est NETTE, pas
+            //    parce qu'elle est large.
+            float dBig = crackNet(wp, 26.0);
+            float dSml = crackNet(wp, 5.2);
+            float wBig = 1.0 - smoothstep(0.015, 0.26, dBig);
+            float wSml = (1.0 - smoothstep(0.004, 0.075, dSml)) * near;
+            //    Et le reseau vient par PLAQUES : une croute ne se fend pas
+            //    partout uniformement, elle a des zones intactes. Sans ce
+            //    masque, on obtient un grillage regulier sur tout l'horizon.
+            float field = smoothstep(0.24, 0.56, fbm2(wp * 0.014 + 5.9));
+            float crack = max(wBig, wSml * 0.8) * field;
+
+            // Le bord de la faille est SOULEVE : une croute qui casse se
+            // retrousse. Sans ce lisere clair, la fente est un trait peint.
+            float lipB = (1.0 - smoothstep(0.30, 1.20, dBig)) * smoothstep(0.20, 0.42, dBig);
+            glass += uStreak * lipB * 0.10 * detail * field;
+
+            // 3. LA NORMALE DU VERRE, ET ELLE EST A NOUS.
+            //
+            //    La normale du sol porte deja un micro-relief, mais il vient de
+            //    la texture d'HERBE — des brins. Le speculaire du verre s'y
+            //    accrochait et rendait un gresillement blanc en forme de
+            //    touffes au premier plan : le bon terme sur la mauvaise
+            //    surface. On surcharge donc avec le relief de la coulee, assez
+            //    fort pour dominer, et le reflet suit enfin les rides.
+            float ex = 0.05;
+            float r0 = fbm2(rp * 5.1);
+            float rx = fbm2((rp + vec2(ex, 0.0)) * 5.1);
+            float rz = fbm2((rp + vec2(0.0, ex)) * 5.1);
+            vec3 Ng = normalize(Nbare + vec3(r0 - rx, 0.0, r0 - rz) * 1.5 * detail);
+
+            // 4. L'ECLAIRAGE, et il est DUR. Pas d'air pour remplir les
+            //    ombres : le cote a l'ombre tombe presque a zero, et c'est ce
+            //    noir-la qui fait toute la lecture d'un corps sans atmosphere.
+            //    Presque, et pas tout a fait : a zero franc, le versant a
+            //    l'ombre devient un aplat sans un detail, et on lit une
+            //    decoupe de papier noir au lieu d'un flanc.
+            float vNdl = smoothstep(-0.10, 0.66, dot(Ng, L));
+            //    LE PLANCHER EST A 0,16 ET PAS A 0,085, ET C'EST UN ARBITRAGE
+            //    DE JOUABILITE. Physiquement, le versant a l'ombre d'un corps
+            //    sans air est quasiment noir, et c'est superbe. Mais on saute
+            //    dans ce monde, et on ne peut pas timer un relief qu'on ne voit
+            //    pas : a 0,085 des pans entiers de terrain devenaient
+            //    illisibles et la course se jouait a l'aveugle. Le reseau de
+            //    failles rattrape une partie du travail — il dessine la
+            //    topographie comme un filaire — mais il vient par plaques, donc
+            //    il ne peut pas etre le seul.
+            glass *= 0.16 + 1.10 * vNdl;
+
+            // Le verre est LISSE, donc il a un vrai speculaire, etroit et net.
+            //    C'est lui qui dit "verre" plutot que "roche", et il donne au
+            //    premier plan les hautes lumieres qui lui manquaient.
+            vec3 Vv = nsafe(uCam - vWorld, vec3(0.0, 1.0, 0.0));
+            vec3 Hv = nsafe(Vv + L, vec3(0.0, 1.0, 0.0));
+            float polish = smoothstep(0.38, 0.88, ripple);
+            glass += vec3(0.80, 0.88, 1.0)
+                   * pow(max(dot(Ng, Hv), 1e-4), 110.0) * (0.18 + polish * 1.4) * 0.75;
+
+            // 4. LE COEUR, ET C'EST LA SEULE COULEUR DU MONDE.
+            //
+            //    Elle est EMISSIVE : elle ne depend ni du soleil ni de l'heure,
+            //    donc elle brule aussi fort du cote a l'ombre — c'est ce qui la
+            //    fait lire comme de la lumiere qui SORT du sol et non comme une
+            //    peinture posee dessus. Et c'est elle qui donne au monde son
+            //    unique accent : tout le reste est un gris bleute.
+            float pulse = 0.72 + 0.28 * sin(uTime * 0.6 + fbm2(wp * 0.03) * 8.0);
+            glass += uLeafA * crack * crack * pulse * 1.05;
+            // Le halo autour de la fente : la lumiere leche le verre alentour.
+            glass += uLeafA * crack * 0.10;
+
+            c = mix(c, glass, uVoid);
           }
 
           // --- LA GRILLE Y2K.

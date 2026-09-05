@@ -1166,27 +1166,32 @@ en **367 mares distinctes** de 47 m de large en moyenne : couler y est une erreu
 qu'on a eu le temps de voir venir. Un monde mélancolique sans aucun risque serait
 une carte postale.
 
-### NÉBULA : la gravité douce
+### ORBITE : la gravité douce, et trois mesures pour la doser
 
 Cinquième mécanique de monde, après le seuil de glisse d'OKINAWA, la houle, le
-vent d'OCTOBRE et le mercure de CHROME. Ici **on vole** : la portance à 1,45
-allonge fortement la durée de vol, donc le nombre de vrilles qu'on boucle et la
-hauteur des portes qu'on peut viser. Mesure à l'autopilote : **104 envols** par
-partie, contre 72 sur la plaine et 94 sur Bliss — c'est le monde le plus aérien
-du jeu, et de loin.
+vent d'OCTOBRE et le mercure de CHROME. Ici **on vole** : 106 envols par partie
+à l'autopilote, contre 72 sur la plaine et 94 sur Bliss — le monde le plus
+aérien du jeu. Le prix est immédiat : l'accroche tombe à 0,90, donc la
+trajectoire est décidée au décollage.
 
-Ce qu'elle coûte est immédiat et se sent à la première seconde : un disque qui
-plane est un disque qui **ne mord pas**. L'accroche tombe à 0,84, donc une fois
-en l'air on ne rattrape plus rien — la trajectoire est décidée au décollage.
+Trois mesures ont été nécessaires, et les deux premières m'ont donné tort.
 
-Deux mesures ont recalé le monde après le premier jet, et les deux disaient la
-même chose :
+**La portance.** Premier chiffre : 1,48, le double de ce que porte n'importe
+quel autre monde. Résultat : l'autopilote passait **au-dessus** des portes au
+lieu de les enfiler — 41 portes contre 93 sur Bliss, sept envols comptés, mort à
+268 s. Le système de porte pose la suivante d'après la hauteur à laquelle on a
+franchi la précédente ; sorti de la plage pour laquelle il a été calibré, il
+s'emballe et devient injouable. À 1,22 le monde garde son identité aérienne — et
+il la garde en étant jouable.
 
-- à `water: -4.2`, le plasma couvrait 33 % du monde et l'autopilote **coulait au
-  bout de vingt-sept secondes**. Un monde de gravité douce n'a pas besoin d'eau
-  pour gagner son temps — il le gagne en vol — et une mer large dans un monde
-  où l'on ne mord pas est une noyade programmée. Douze pour cent suffisent ;
-- à `plane: 1.10`, l'autopilote passait **99 % de sa course sous vingt-deux
-  mètres par seconde** : enlisé, jamais lancé. Même logique qu'OKINAWA — sur un
-  monde où le disque plane déjà, il serait absurde qu'il coule dès qu'il touche
-  le liquide.
+**Le relief**, et le diagnostic est contre-intuitif : **un relief anguleux n'est
+pas un relief à courtes longueurs d'onde.** Premier jet, les couches courtes
+dominantes pour faire des arêtes : mort à 371 s, 18 envols. Une bosse de 42 m à
+forte amplitude ne lance pas, elle fait **brouter** — beaucoup de courbure, donc
+des micro-envols subis, donc de la vitesse perdue à chaque réception. Le monde
+du vol était devenu le monde où l'on ne vole pas. Calé sur Bliss, qui est le
+seul autre monde sans eau : 600 s et 106 envols.
+
+L'angularité se joue donc là où elle se voit vraiment — dans la matière, les
+arêtes des crêtes et les facettes des blocs — et pas dans un relief qui la
+paierait en jouabilité.

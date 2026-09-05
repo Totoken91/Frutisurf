@@ -49,16 +49,18 @@ export function createSky(): Mesh {
        */
       uOvercast: { value: 0 },
       /**
-       * LA NEBULEUSE, 0..1. Zero partout sauf dans le monde spatial.
+       * LE VIDE, 0..1. Elle ne COLORE rien : elle RETIRE l'atmosphere.
        *
-       * Elle ne remplace pas le degrade, elle s'y AJOUTE : un ciel de
-       * nebuleuse reste un ciel, avec son zenith plus sombre que son horizon.
-       * Ce qu'on ajoute est une structure — des nappes de gaz qui ont une
-       * FORME, donc une echelle, donc une distance.
+       * Un ciel noir se fabrique en enlevant, pas en assombrissant. Baisser
+       * les quatre couleurs du degrade donne un ciel gris fonce ; ce qui
+       * trahit encore l'air, ce sont les TERMES : le voile blanc au ras de
+       * l'horizon, la lueur du cote du soleil, le lobe large de diffusion
+       * autour de lui, le remplissage sous la ligne de sol. Tous existent
+       * parce qu'il y a de l'air entre l'oeil et le fond, et aucun n'a de sens
+       * dans le vide. On les eteint donc un par un, et il ne reste que ce qui
+       * survivrait vraiment : l'etoile, sa couronne, et les etoiles du fond.
        */
-      uNebula: { value: 0 },
-      /** L'ARC-EN-CIEL, 0..1. Il se pose a l'oppose du soleil, comme le vrai. */
-      uArc: { value: 0 },
+      uVoid: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -72,7 +74,7 @@ ${GLSL_SAFE}
 ${GLSL_NOISE}
       varying vec3 vDir;
       uniform vec3 uZenith, uHigh, uMid, uHorizon, uSun;
-      uniform float uNight, uTime, uOvercast, uNebula, uArc;
+      uniform float uNight, uTime, uOvercast, uVoid;
 
       void main(){
         vec3 d = normalize(vDir);
@@ -93,8 +95,17 @@ ${GLSL_NOISE}
         // delavait tout le ciel a la hauteur exacte ou vivent les cumulus :
         // des nuages blancs sur un ciel blanc, il ne restait d'eux qu'un
         // contour. Le blanc ne doit tenir que les deux premiers degres.
-        vec3 c = mix(uHorizon, uMid, smoothstep(-0.02, 0.06, h));
-        c = mix(c, uHigh, smoothstep(0.04, 0.16, h));
+        // LE DEGRADE S'EFFONDRE. Dans le vide il n'y a pas de couche d'air
+        // plus epaisse a l'horizon qu'au zenith : la difference entre les
+        // quatre etages n'a plus de cause, donc elle n'a plus lieu d'etre. On
+        // ecrase les trois etages bas vers le zenith, et le dome devient
+        // uniformement noir — ce qui est le fond correct pour un champ
+        // d'etoiles.
+        vec3 hz = mix(uHorizon, uZenith, uVoid * 0.94);
+        vec3 md = mix(uMid, uZenith, uVoid * 0.88);
+        vec3 hi = mix(uHigh, uZenith, uVoid * 0.80);
+        vec3 c = mix(hz, md, smoothstep(-0.02, 0.06, h));
+        c = mix(c, hi, smoothstep(0.04, 0.16, h));
         // Le haut du cadre plafonne vers 22 degres d'elevation, soit h = 0,37 :
         // si l'azur profond n'arrive qu'au zenith geometrique, on ne le voit
         // JAMAIS. La montee est calee pour qu'il occupe le haut de l'image.
@@ -129,96 +140,7 @@ ${GLSL_NOISE}
           c = mix(c, mix(vec3(1.0), uHigh, 0.14), v * band * 0.52 * (1.0 - uOvercast));
         }
 
-        // Le facteur de ciel degage sert des la nebuleuse : il est declare
-        // ici plutot que dans le bloc du soleil, ou il vivait quand il n'y
-        // avait rien avant lui.
         float clear = 1.0 - uOvercast;
-
-        // --- LA VOIE LACTEE, ET C'EST UNE BANDE, PAS UN NUAGE.
-        //
-        //     Premier jet : du bruit fractal etale sur tout le dome. Ca ne
-        //     donne pas une galaxie, ca donne une tache — une purée verte et
-        //     violette a valeur moyenne, sans structure et sans direction. Or
-        //     ce qui fait qu'on RECONNAIT un ciel profond, c'est justement
-        //     qu'il a une direction : la matiere est concentree dans un PLAN,
-        //     on la voit par la tranche, et elle barre le ciel d'un bout a
-        //     l'autre.
-        //
-        //     Deux choses de plus, et elles comptent autant que la bande :
-        //
-        //     1. LES VOIES SOMBRES. Une nebuleuse n'est pas seulement de la
-        //        lumiere ajoutee ; c'est aussi de la poussiere qui en CACHE.
-        //        Sans terme soustractif, on obtient un brouillard lumineux
-        //        uniforme ; avec lui, on obtient de la profondeur, parce que
-        //        certaines nappes passent devant les autres.
-        //     2. DEUX TEINTES, pas six. Le premier jet tirait sa couleur d'un
-        //        spectre complet et rendait un arc-en-ciel delave. Une region
-        //        d'emission est rouge-magenta (hydrogene) ou bleu-cyan
-        //        (reflexion) — l'ecart entre les deux suffit, et c'est lui qui
-        //        rend la couleur credible.
-        if (uNebula > 0.001) {
-          // Le plan galactique, incline : une bande horizontale se lirait
-          // comme un decor de theatre.
-          vec3 gal = normalize(vec3(0.26, 0.62, -0.74));
-          float off = dot(d, gal);
-          float band = exp(-off * off * 7.5);
-
-          // Coordonnees DANS le plan : le bruit doit filer le long de la
-          // bande, pas tourner autour du zenith.
-          // nsafe et pas normalize : le banc a raison de le signaler meme si
-          // le vecteur gal est une constante qui ne peut pas etre colineaire a Y.
-          // Un produit vectoriel nul rend un NaN, un NaN dans une couleur rend
-          // un pixel noir, et ce pixel noir contamine ensuite tout le flou de
-          // bloom. Le jour ou l'on inclinera ce plan, la regle aura deja ete
-          // suivie.
-          vec3 ga = nsafe(cross(gal, vec3(0.0, 1.0, 0.0)), vec3(1.0, 0.0, 0.0));
-          vec3 gb = cross(gal, ga);
-          vec2 q = vec2(dot(d, ga), dot(d, gb)) * 2.4;
-
-          float coarse = fbm2(q * 1.15 + vec2(uTime * 0.002, 0.0));
-          float fine = fbm2(q * 3.6 - 5.3);
-          float glow = smoothstep(0.34, 0.86, coarse * 0.62 + fine * 0.38) * band;
-
-          // Les deux teintes, melangees par le bruit FIN : a l'echelle
-          // grossiere, chaque nappe serait d'une seule couleur et on lirait
-          // deux aplats poses cote a cote.
-          vec3 emit = mix(vec3(0.78, 0.16, 0.52), vec3(0.16, 0.52, 0.88),
-                          smoothstep(0.35, 0.75, fine));
-          c += emit * glow * uNebula * 0.85;
-
-          // LES VOIES SOMBRES, en dernier et en soustractif.
-          float dust = smoothstep(0.52, 0.88, fbm2(q * 2.05 + 19.7)) * band;
-          c *= 1.0 - dust * uNebula * 0.62;
-
-          // Le coeur : une surbrillance laiteuse au milieu de la bande, la ou
-          // les etoiles non resolues s'accumulent.
-          c += vec3(0.62, 0.58, 0.72) * pow(band, 2.6) * uNebula * 0.16;
-        }
-
-        // --- LE HALO PRISMATIQUE. MINCE, et c'est une correction.
-        //
-        //     A seize degres de large et 0,62 d'intensite, ce n'etait plus un
-        //     halo mais une echarpe arc-en-ciel en travers du ciel : elle
-        //     ecrasait la nebuleuse, la planete et tout le reste, et se lisait
-        //     comme un defaut de rendu. Un vrai halo de cristaux est un cercle
-        //     FIN et discret — on le remarque parce qu'il est net, pas parce
-        //     qu'il est gros.
-        if (uArc > 0.001) {
-          float ad = acos(clamp(dot(d, sun), -1.0, 1.0));
-          float t = (ad - 0.355) / 0.052;
-          if (t > 0.0 && t < 1.0) {
-            float arc = 1.0 - abs(t * 2.0 - 1.0);
-            arc = arc * arc;
-            // ET IL EST PRESQUE BLANC. Un halo de cristaux n'est pas un
-            // arc-en-ciel : c'est un cercle clair avec un LISERE colore, rouge
-            // en dedans et bleu en dehors. Sature a fond, il rendait une
-            // echarpe multicolore en travers du ciel, qui ecrasait la
-            // nebuleuse et se lisait comme un bug. A trente pour cent de
-            // teinte, on le remarque parce qu'il est net.
-            vec3 bow = 0.5 + 0.5 * cos(6.28318 * (t * 0.75 + vec3(0.0, 0.33, 0.67)));
-            c += mix(vec3(1.0), bow, 0.34) * arc * uArc * 0.30;
-          }
-        }
 
         // --- Soleil. Un halo etage plutot qu'un disque net : trois lobes de
         // duretes tres differentes donnent la diffusion atmospherique, la
@@ -228,7 +150,7 @@ ${GLSL_NOISE}
         // quart du cadre et noyait l'etoile qu'il etait cense mettre en valeur.
         // Sous le plafond, seule la diffusion large survit — et elle survit
         // MEME renforcee : c'est elle qui fait la tache claire d'un jour gris.
-        c += vec3(0.30, 0.44, 0.52) * pow(sd, 4.5) * 0.14;    // diffusion large
+        c += vec3(0.30, 0.44, 0.52) * pow(sd, 4.5) * 0.14 * (1.0 - uVoid); // diffusion large
         c += vec3(0.62, 0.70, 0.66) * pow(sd, 70.0) * 0.42 * clear;   // couronne
         c += vec3(1.00, 0.97, 0.90) * pow(sd, 1600.0) * 2.1 * clear;  // coeur
         // La tache derriere les nuages : large, molle, et de la couleur du ciel
@@ -263,14 +185,18 @@ ${GLSL_NOISE}
         // --- Voile atmospherique juste au-dessus de l'horizon. Il blanchit la
         // bande basse et donne la profondeur : sans lui, la plaine se colle au
         // ciel au lieu de s'y enfoncer.
-        float lowBand = pow(max(1.0 - clamp(abs(h) * 8.0, 0.0, 1.0), 1e-4), 2.4);
+        float lowBand = pow(max(1.0 - clamp(abs(h) * 8.0, 0.0, 1.0), 1e-4), 2.4)
+                      * (1.0 - uVoid);
         c = mix(c, uHorizon, lowBand * 0.42);
         // Et un supplement de lumiere du cote du soleil, ou l'air diffuse le plus.
         c += vec3(0.30, 0.36, 0.38) * lowBand * pow(max(dot(normalize(vec3(d.x, 0.0, d.z)), normalize(vec3(sun.x, 0.0, sun.z))), 1e-4), 3.0) * 0.55;
 
         // Sous l'horizon le dome ne doit jamais s'assombrir : le sol le recouvre,
         // mais les bords d'ecran en perspective large peuvent le laisser voir.
-        c = mix(c, uHorizon * 1.02, smoothstep(0.0, -0.16, h));
+        // Dans le vide, la ligne de sol touche le NOIR. C'est elle qui donne
+        // a un monde spatial sa silhouette dure, et c'est exactement ce qu'un
+        // remplissage a la couleur d'horizon lui retire.
+        c = mix(c, uHorizon * 1.02 * (1.0 - uVoid), smoothstep(0.0, -0.16, h));
 
         // --- LES ETOILES.
         //
@@ -290,7 +216,7 @@ ${GLSL_NOISE}
           // cellule sur deux cent vingt : c'est ce qu'il faut pour un ciel
           // d'ete vu depuis une plaine, et c'est dix fois trop peu pour un
           // ciel sans atmosphere, ou l'on voit tout ce qui existe.
-          float bright = smoothstep(mix(0.9955, 0.9770, uNebula), 1.0, rnd);
+          float bright = smoothstep(mix(0.9955, 0.9770, uVoid), 1.0, rnd);
           // Un plafond de nuages cache aussi les etoiles.
           bright *= clear;
           if (bright > 0.0) {
@@ -309,7 +235,7 @@ ${GLSL_NOISE}
                        * mix(0.28, 1.0, mag);
             float twink = 0.62 + 0.38 * sin(uTime * 2.1 + rnd * 88.0);
             float high = smoothstep(0.02, 0.30, d.y);
-            c += vec3(0.92, 0.96, 1.0) * bright * dot2 * twink * high * uNight * (26.0 + uNebula * 22.0);
+            c += vec3(0.92, 0.96, 1.0) * bright * dot2 * twink * high * uNight * (26.0 + uVoid * 26.0);
           }
         }
 
