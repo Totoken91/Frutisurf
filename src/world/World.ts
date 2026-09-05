@@ -20,7 +20,6 @@ import { Ground } from './Ground';
 import { GrassBlades } from './GrassBlades';
 import { Grove } from './Grove';
 import { Ridge } from './Ridge';
-import { Planets } from './Planets';
 import { Motes } from './Motes';
 import { Leaves } from './Leaves';
 import { Rain } from './Rain';
@@ -48,7 +47,6 @@ export class World {
   readonly palms: Palms;
   readonly grove: Grove;
   readonly ridge: Ridge;
-  readonly planets: Planets;
   readonly turbines: Turbines;
   /** L'heure. Source unique, relue par tous les materiaux ci-dessous. */
   readonly day: Daylight;
@@ -110,7 +108,6 @@ export class World {
     this.palms = new Palms();
     this.grove = new Grove();
     this.ridge = new Ridge();
-    this.planets = new Planets();
     this.turbines = new Turbines(dense ? 14 : 9);
     this.motes = new Motes(quality === 'high' ? 420 : quality === 'medium' ? 280 : 170);
     // Feuilles et pluie existent dans TOUS les mondes, a densite nulle hors
@@ -124,7 +121,6 @@ export class World {
     scene.environment = createEnvironment(renderer);
     this.sky = createSky();
     scene.add(this.sky);
-    scene.add(this.planets.mesh);
     scene.add(this.ridge.mesh);
     scene.add(this.ground.mesh);
     if (this.blades) scene.add(this.blades.mesh);
@@ -172,7 +168,6 @@ export class World {
     if (this.blades) this.lit.push(this.blades.mat);
     this.lit.push(this.grove.mat);
     this.lit.push(this.ridge.mat);
-    this.lit.push(this.planets.mat);
     this.blendWorld(1);
     this.applyDay();
     scene.add(this.lights);
@@ -284,7 +279,6 @@ export class World {
       ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
       air: L(a.air, b.air),
       regolith: L(a.regolith, b.regolith),
-      planets: L(a.planets, b.planets),
       nebula: L(a.nebula, b.nebula),
       clouds: L(a.clouds, b.clouds),
       arc: L(a.arc, b.arc),
@@ -320,7 +314,6 @@ export class World {
     ridgeEdge: number;
     air: number;
     regolith: number;
-    planets: number;
     nebula: number;
     arc: number;
     clouds: number;
@@ -447,12 +440,6 @@ export class World {
     rd.uAmount.value = d.ridge;
     rd.uEdge.value = d.ridgeEdge;
     rd.uAir.value = d.air;
-
-    // --- LES PLANETES. Elles n'ont qu'une densite : tout le reste de leur
-    //     aspect est une constante du fichier, parce qu'un seul monde les
-    //     porte et qu'un reglage par monde pour un monde n'est pas un reglage,
-    //     c'est une indirection.
-    this.planets.mat.uniforms.uAmount.value = d.planets;
 
     this.turbines.mat.uniforms.uDensity.value = d.turbines;
 
@@ -599,10 +586,6 @@ export class World {
     this.palms.update(origin, time);
     this.grove.update(origin, time);
     this.ridge.update(origin, this.day.horizon);
-    // Le limbe des planetes se fond dans le HAUT du ciel : elles vivent bien
-    // au-dessus de la bande d'horizon, et s'y fondre les aurait posees sur le
-    // sol au lieu de les poser dans le vide.
-    this.planets.update(origin, time, this.day.high);
     this.turbines.update(origin, time);
     this.clouds.update(origin, time);
     this.city.update(origin);

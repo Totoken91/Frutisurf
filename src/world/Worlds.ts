@@ -187,14 +187,6 @@ export interface WorldDef {
    * a offrir, c'est elle qui rend le relief lisible.
    */
   regolith: number;
-  /**
-   * LES PLANETES, 0..1. Trois corps poses au ras de l'horizon, a dix-sept
-   * cents metres, avec la meme parallaxe que les cretes.
-   *
-   * Elles font pour l'au-dela du monde ce que le bosquet fait pour son champ
-   * moyen : donner une taille connue, donc une distance, donc une echelle.
-   */
-  planets: number;
   /** LA NEBULEUSE, 0..1. Des nappes de gaz colorees dans le dome de ciel. */
   nebula: number;
   /**
@@ -440,7 +432,6 @@ export const WORLDS: WorldDef[] = [
     wind: 0,
     tech: 0,
     regolith: 0,
-    planets: 0,
     nebula: 0,
     clouds: 1,
     arc: 0,
@@ -539,7 +530,6 @@ export const WORLDS: WorldDef[] = [
     wind: 0,
     tech: 0,
     regolith: 0,
-    planets: 0,
     nebula: 0,
     clouds: 1,
     arc: 0,
@@ -602,7 +592,6 @@ export const WORLDS: WorldDef[] = [
     wind: 0,
     tech: 0,
     regolith: 0,
-    planets: 0,
     nebula: 0,
     clouds: 1,
     arc: 0,
@@ -676,7 +665,6 @@ export const WORLDS: WorldDef[] = [
     wind: 0,
     tech: 1,
     regolith: 0,
-    planets: 0,
     nebula: 0,
     clouds: 1,
     arc: 0,
@@ -829,7 +817,6 @@ export const WORLDS: WorldDef[] = [
     wind: 2.4,
     tech: 0,
     regolith: 0,
-    planets: 0,
     nebula: 0,
     clouds: 1,
     arc: 0,
@@ -950,7 +937,6 @@ export const WORLDS: WorldDef[] = [
     tech: 0,
     overcast: 0,
     regolith: 1,
-    planets: 1,
     nebula: 1,
     clouds: 0,
     arc: 0.85,

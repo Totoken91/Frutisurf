@@ -1258,15 +1258,6 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
   background-position: 0 62%, 0 0;
   background-repeat: no-repeat, no-repeat;
 }
-.wcard.w-nebula .wsky::before {
-  content: '';
-  position: absolute;
-  right: 16%; top: 12%;
-  width: 34%; height: 34%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, #ffd0f4 0%, #d84ac8 62%, #6a1a70 100%);
-  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.55), 0 0 6px rgba(255,140,240,0.8);
-}
 
 /* Le nombre de colonnes vient du NOMBRE DE MONDES, pose en ligne par la vue —
    meme regle que la rangee des buddys, et pour la meme raison : fige a cinq, le
