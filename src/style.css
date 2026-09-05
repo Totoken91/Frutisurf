@@ -1245,14 +1245,17 @@ body.picking #hud { opacity: 0; transition: opacity 0.2s ease-out; }
    savent pas dire "arc-en-ciel", et c'est pourtant la premiere chose qu'il faut
    comprendre avant de cliquer. Un spectre dans la bande de sol, un anneau clair
    dans le ciel, et la carte se lit sans son nom. */
+/* La bande spectrale s'est AMINCIE en meme temps que le monde : le sol de
+   NEBULA n'est plus un arc-en-ciel, c'est une regolithe sombre qui prend un
+   reflet irise a angle rasant. La vignette doit dire ca — un lisere, pas un
+   aplat — sinon elle promet un monde qui n'existe plus. */
 .wcard.w-nebula .wsky {
   background-image: linear-gradient(96deg,
-      rgba(255,90,160,0.85) 0%, rgba(255,176,58,0.85) 17%, rgba(255,233,90,0.85) 33%,
-      rgba(108,240,122,0.85) 50%, rgba(76,216,255,0.85) 68%, rgba(154,124,255,0.85) 85%,
-      rgba(255,108,224,0.85) 100%),
+      rgba(255,90,160,0.55) 0%, rgba(255,210,90,0.55) 22%, rgba(108,240,160,0.55) 46%,
+      rgba(76,200,255,0.55) 70%, rgba(180,124,255,0.55) 100%),
     linear-gradient(180deg, var(--sky) 0%, var(--sky) 52%, var(--land) 52%, var(--land) 100%);
-  background-size: 100% 46%, 100% 100%;
-  background-position: 0 100%, 0 0;
+  background-size: 100% 15%, 100% 100%;
+  background-position: 0 62%, 0 0;
   background-repeat: no-repeat, no-repeat;
 }
 .wcard.w-nebula .wsky::before {

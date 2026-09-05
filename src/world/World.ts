@@ -282,7 +282,8 @@ export class World {
       stone: L(a.stone, b.stone),
       ridge: L(a.ridge, b.ridge),
       ridgeEdge: L(a.ridgeEdge, b.ridgeEdge),
-      spectrum: L(a.spectrum, b.spectrum),
+      air: L(a.air, b.air),
+      regolith: L(a.regolith, b.regolith),
       planets: L(a.planets, b.planets),
       nebula: L(a.nebula, b.nebula),
       clouds: L(a.clouds, b.clouds),
@@ -317,7 +318,8 @@ export class World {
     stone: number;
     ridge: number;
     ridgeEdge: number;
-    spectrum: number;
+    air: number;
+    regolith: number;
     planets: number;
     nebula: number;
     arc: number;
@@ -366,7 +368,7 @@ export class World {
     rgb(g.uSandWet, 'sandWet');
     rgb(g.uSandShell, 'sandShell');
     g.uTech.value = d.tech;
-    g.uSpectrum.value = d.spectrum;
+    g.uRegolith.value = d.regolith;
     g.uWet.value = d.rain;
     // Le tapis suit la densite des feuilles en vol : les deux decrivent la
     // meme saison, il serait absurde qu'un monde ait l'une sans l'autre.
@@ -444,6 +446,7 @@ export class World {
     rgb(rd.uSnow, 'cloudRim');
     rd.uAmount.value = d.ridge;
     rd.uEdge.value = d.ridgeEdge;
+    rd.uAir.value = d.air;
 
     // --- LES PLANETES. Elles n'ont qu'une densite : tout le reste de leur
     //     aspect est une constante du fichier, parce qu'un seul monde les

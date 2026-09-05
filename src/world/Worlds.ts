@@ -132,6 +132,14 @@ export interface WorldDef {
   /** 0 = cretes erodees, 1 = aretes vives. CHROME n'a pas d'erosion. */
   ridgeEdge: number;
   /**
+   * DENSITE D'AIR, 0..1, pour la perspective aerienne des cretes lointaines.
+   *
+   * Un monde sans atmosphere n'en a aucune : ses montagnes a deux kilometres
+   * sont aussi contrastees qu'un caillou a deux metres. C'est un des rares
+   * indices qui disent "pas d'air" sans qu'on ait a l'ecrire.
+   */
+  air: number;
+  /**
    * LES FLEURS, 0..1. Densite des taches fleuries du pre.
    *
    * C'est le seul decor qui ne coute pas un sommet : il vit dans le shader du
@@ -178,7 +186,7 @@ export interface WorldDef {
    * bande est une courbe de niveau, et sur un monde qui n'a ni herbe ni ombre
    * a offrir, c'est elle qui rend le relief lisible.
    */
-  spectrum: number;
+  regolith: number;
   /**
    * LES PLANETES, 0..1. Trois corps poses au ras de l'horizon, a dix-sept
    * cents metres, avec la meme parallaxe que les cretes.
@@ -353,7 +361,25 @@ const SKY_CHROME: Keyframe[] = [
 ];
 
 /**
- * NEBULA. Le seul ciel du jeu qui ne se leve ni ne se couche.
+ * NEBULA. UN JOUR SOUS UN CIEL NOIR, et c'est tout le contraire de ce que
+ * j'avais fait au premier jet.
+ *
+ * Premiere version : nuit partout, puissance a 0,42, ciel violet a valeur
+ * moyenne. Resultat, un sol uniformement sombre et plat — pas une ombre de
+ * cratere, pas un eclat de poussiere, parce qu'il n'y avait pas de lumiere
+ * pour les faire. Une image molle sous un ciel mou.
+ *
+ * Or ce qui fait l'image d'un corps sans atmosphere n'est PAS la nuit : c'est
+ * le contraste. Le soleil y tape sans etre diffuse par quoi que ce soit, donc
+ * le cote eclaire brule et le cote a l'ombre est vraiment noir, et le ciel
+ * reste NOIR en plein jour parce qu'il n'y a pas d'air pour le bleuir. C'est
+ * l'image de toutes les photos lunaires, et on ne l'obtient qu'en montant la
+ * puissance ET en descendant le ciel.
+ *
+ * Les quatre moments gardent donc `night` haut — les etoiles ne s'eteignent
+ * jamais — avec une puissance de plein jour. Ce n'est pas contradictoire ici :
+ * `night` decrit le CIEL, `power` decrit l'ETOILE, et sur une lune les deux
+ * sont vrais en meme temps.
  *
  * Les quatre autres racontent une journee ; celui-ci raconte une ORBITE. Il
  * garde donc `night` haut a toutes les heures — les etoiles ne s'eteignent
@@ -368,14 +394,14 @@ const SKY_CHROME: Keyframe[] = [
  * qui viennent du ciel lui-meme et non du soleil.
  */
 const SKY_NEBULA: Keyframe[] = [
-  { at: 0.0, zenith: 0x0a0424, high: 0x2a0f5e, mid: 0x7a2a9e, horizon: 0xff9ad8,
-    light: 0xffa6e0, power: 0.60, fill: 0x4a2078, night: 0.86, warm: 0.85 },
-  { at: 0.25, zenith: 0x060a30, high: 0x123a86, mid: 0x2a86c8, horizon: 0x8ce8f0,
-    light: 0xd8f6ff, power: 0.78, fill: 0x2a5a9e, night: 0.62, warm: 0.0 },
-  { at: 0.5, zenith: 0x120426, high: 0x4a0f6e, mid: 0xc22a9e, horizon: 0xffb0a0,
-    light: 0xff86c8, power: 0.64, fill: 0x662a8c, night: 0.80, warm: 0.9 },
-  { at: 0.75, zenith: 0x02030e, high: 0x0a0630, mid: 0x2a0f5e, horizon: 0x6a2a9e,
-    light: 0xa87cff, power: 0.42, fill: 0x2a1450, night: 1.0, warm: 0.25 },
+  { at: 0.0, zenith: 0x05030f, high: 0x14082e, mid: 0x3a1050, horizon: 0x7a2a72,
+    light: 0xffd8e8, power: 0.92, fill: 0x1e1038, night: 0.92, warm: 0.55 },
+  { at: 0.25, zenith: 0x03040e, high: 0x0a1030, mid: 0x16305e, horizon: 0x2e6f96,
+    light: 0xffffff, power: 1.10, fill: 0x14203c, night: 0.78, warm: 0.0 },
+  { at: 0.5, zenith: 0x08030f, high: 0x1e0836, mid: 0x561458, horizon: 0xa8386a,
+    light: 0xffe0d0, power: 0.96, fill: 0x2a1030, night: 0.88, warm: 0.7 },
+  { at: 0.75, zenith: 0x010207, high: 0x060418, mid: 0x120a2e, horizon: 0x2a1450,
+    light: 0xc8b0ff, power: 0.62, fill: 0x0e0a20, night: 1.0, warm: 0.2 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -403,6 +429,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.22,
     ridge: 0.85,
     ridgeEdge: 0.15,
+    air: 1,
     bloom: 1,
     town: 0,
     turbines: 1,
@@ -412,7 +439,7 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    spectrum: 0,
+    regolith: 0,
     planets: 0,
     nebula: 0,
     clouds: 1,
@@ -501,6 +528,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.40,
     ridge: 0.34,
     ridgeEdge: 0.1,
+    air: 1,
     bloom: 0.55,
     town: 0,
     turbines: 0.35,
@@ -510,7 +538,7 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    spectrum: 0,
+    regolith: 0,
     planets: 0,
     nebula: 0,
     clouds: 1,
@@ -563,6 +591,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.30,
     ridge: 0.8,
     ridgeEdge: 0.05,
+    air: 1,
     bloom: 0.8,
     town: 0,
     turbines: 0,
@@ -572,7 +601,7 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 0,
-    spectrum: 0,
+    regolith: 0,
     planets: 0,
     nebula: 0,
     clouds: 1,
@@ -636,6 +665,7 @@ export const WORLDS: WorldDef[] = [
     stone: 1,
     ridge: 0.8,
     ridgeEdge: 1,
+    air: 1,
     bloom: 0,
     town: 0,
     turbines: 0.6,
@@ -645,7 +675,7 @@ export const WORLDS: WorldDef[] = [
     rain: 0,
     wind: 0,
     tech: 1,
-    spectrum: 0,
+    regolith: 0,
     planets: 0,
     nebula: 0,
     clouds: 1,
@@ -767,6 +797,7 @@ export const WORLDS: WorldDef[] = [
     stone: 0.20,
     ridge: 0.62,
     ridgeEdge: 0.35,
+    air: 1,
     bloom: 0.3,
     town: 1,
     // Les eoliennes ne sont plus un decor mais une INFORMATION : ce sont elles
@@ -797,7 +828,7 @@ export const WORLDS: WorldDef[] = [
     // volant a la place du joueur.
     wind: 2.4,
     tech: 0,
-    spectrum: 0,
+    regolith: 0,
     planets: 0,
     nebula: 0,
     clouds: 1,
@@ -842,15 +873,25 @@ export const WORLDS: WorldDef[] = [
     // franchit sans la sentir ; une vague de quatre-vingt-dix metres se surfe.
     swell: [1.9, 90, 0.55],
     colors: {
-      // Le sol est presque neutre : c'est `spectrum` qui lui donne sa couleur,
-      // et un albedo deja colore se battrait avec lui. Ce qu'on regle ici est
-      // la VALEUR — le modele du relief — pas la teinte.
-      grassNear: 0x2a2646,
-      grassMid: 0x3a3560,
-      grassFar: 0x4e4880,
-      grassHorizon: 0x6f66a8,
-      grassShadow: 0x14122a,
-      grassStreak: 0x8f86c8,
+      // --- LA ROCHE. SOMBRE, ET C'EST LE REGLAGE LE PLUS IMPORTANT DU MONDE.
+      //
+      //     Une poussiere de silicate renvoie douze pour cent de ce qu'elle
+      //     recoit — c'est un charbon clair, pas un beton. Ce n'est pas un
+      //     detail de realisme : c'est le CONTRASTE avec le ciel et avec les
+      //     billes de verre qui fait lire l'espace. Le premier jet de ce monde
+      //     avait un sol a valeur moyenne, comme son ciel, comme ses
+      //     montagnes, comme tout le reste — et une image ou tout est a la
+      //     meme valeur est molle, quelle que soit sa palette.
+      //
+      //     Les six cles gardent la meme TEINTE (un gris legerement violet) et
+      //     ne different que par la valeur : une roche n'a pas six couleurs,
+      //     elle a six niveaux.
+      grassNear: 0x3a3550,
+      grassMid: 0x2b2740,
+      grassFar: 0x242034,
+      grassHorizon: 0x3c3656,
+      grassShadow: 0x0d0b18,
+      grassStreak: 0xb9b2d8,
       // Le plasma : noir au fond, cyan electrique en surface.
       waterShallow: 0x5ce8ff,
       waterDeep: 0x0a1038,
@@ -887,13 +928,16 @@ export const WORLDS: WorldDef[] = [
     mods: { cruise: 1.0, grip: 0.84, lift: 1.45, plane: 1.42, boost: 1.06 },
     city: 0,
     trees: 0,
-    // Le semis est un champ de MONOLITHES : stone a 1, donc pas un seul etre
-    // vivant. Rien ne pousse ici, et c'est le propos.
-    grove: 0.55,
+    // Le semis est un champ de BLOCS : stone a 1, donc pas un seul etre
+    // vivant. Rien ne pousse ici, et c'est le propos. Densite haute en
+    // revanche — sans herbe ni fleurs, ces blocs sont le SEUL objet du premier
+    // plan, et un premier plan sans objet n'a pas d'echelle.
+    grove: 0.85,
     spire: 1,
     stone: 1,
     ridge: 0.9,
     ridgeEdge: 0.85,
+    air: 0.22,
     bloom: 0,
     town: 0,
     turbines: 0,
@@ -905,16 +949,18 @@ export const WORLDS: WorldDef[] = [
     wind: 0,
     tech: 0,
     overcast: 0,
-    spectrum: 1,
+    regolith: 1,
     planets: 1,
     nebula: 1,
     clouds: 0,
     arc: 0.85,
     sky: SKY_NEBULA,
-    // On arrive de nuit : c'est l'heure ou la nebuleuse et les anneaux se
-    // voient le mieux, et c'est la premiere image que le monde doit donner.
-    dayStart: 0.80,
-    swatch: ['#12063a', '#4e4880', '#5ce8ff', 26],
+    // On arrive a l'heure la plus DURE : etoile blanche au zenith, ciel noir,
+    // ombres franches. C'est la seule heure ou la regolithe montre ses
+    // crateres et ses billes de verre, et c'est la premiere image que le monde
+    // doit donner.
+    dayStart: 0.22,
+    swatch: ['#05030f', '#2b2740', '#5ce8ff', 20],
   },
 ];
 

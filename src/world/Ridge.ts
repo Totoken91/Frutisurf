@@ -151,6 +151,16 @@ export class Ridge {
         uAmount: { value: 1 },
         /** 0 = cretes arrondies, 1 = aretes vives. CHROME n'a pas d'erosion. */
         uEdge: { value: 0 },
+        /**
+         * DENSITE D'AIR, 0..1. Elle dose la perspective aerienne.
+         *
+         * Sur un corps SANS ATMOSPHERE il n'y a rien entre l'oeil et la crete :
+         * une montagne a deux kilometres y est aussi contrastee qu'un caillou
+         * a deux metres, et c'est un des rares indices visuels qui disent
+         * "pas d'air" sans qu'on ait a l'expliquer. Noyees dans une brume
+         * bleue, les cretes de NEBULA ressemblaient a des Alpes.
+         */
+        uAir: { value: 1 },
         // Des TABLEAUX et non des Color : c'est la convention de tous les
         // decors du jeu, et World.paint ecrit dans les trois canaux d'un
         // tableau. Sur un Color il posait des proprietes "0", "1", "2" a cote
@@ -239,7 +249,7 @@ ${GLSL_SAFE}
 ${GLSL_SAFE}
 ${GLSL_DAY}
         uniform vec3 uRock, uHaze, uSnow;
-        uniform float uAmount, uCap;
+        uniform float uAmount, uCap, uAir;
         varying float vTop, vLayer, vRidge;
 
         void main(){
@@ -253,7 +263,7 @@ ${GLSL_DAY}
           //     rasant le sol qu'en visant une cime. Sans ce second degrade,
           //     une silhouette de montagne se lit comme une decoupe de papier
           //     collee sur le ciel, quelle que soit sa couleur.
-          float far = vLayer < 0.5 ? 0.46 : (vLayer < 1.5 ? 0.64 : 0.79);
+          float far = (vLayer < 0.5 ? 0.46 : (vLayer < 1.5 ? 0.64 : 0.79)) * uAir;
           float haze = mix(min(far + 0.20, 0.97), far, vTop);
           // La roche est ASSOMBRIE avant d'etre noyee. Le gris de monde dont
           // elle sort est un gris d'ombre de nuage, donc deja clair ; noye a

@@ -134,56 +134,89 @@ ${GLSL_NOISE}
         // avait rien avant lui.
         float clear = 1.0 - uOvercast;
 
-        // --- LA NEBULEUSE.
+        // --- LA VOIE LACTEE, ET C'EST UNE BANDE, PAS UN NUAGE.
         //
-        //     Meme procede que les cirrus, et pour la meme raison : le bruit
-        //     est echantillonne sur une projection qui a un SENS. Ici c'est
-        //     l'azimut et la hauteur — une carte du ciel — et non la direction
-        //     brute, qui donnerait des taches concentriques autour du zenith.
+        //     Premier jet : du bruit fractal etale sur tout le dome. Ca ne
+        //     donne pas une galaxie, ca donne une tache — une purée verte et
+        //     violette a valeur moyenne, sans structure et sans direction. Or
+        //     ce qui fait qu'on RECONNAIT un ciel profond, c'est justement
+        //     qu'il a une direction : la matiere est concentree dans un PLAN,
+        //     on la voit par la tranche, et elle barre le ciel d'un bout a
+        //     l'autre.
         //
-        //     Deux echelles : la grande porte la forme du nuage de gaz, la
-        //     petite ses filaments. Et c'est la PETITE qui choisit la teinte,
-        //     pas la grande : une nebuleuse dont chaque nappe est d'une seule
-        //     couleur est un aplat colore, ce qui est exactement ce qu'une
-        //     nebuleuse n'est pas.
+        //     Deux choses de plus, et elles comptent autant que la bande :
+        //
+        //     1. LES VOIES SOMBRES. Une nebuleuse n'est pas seulement de la
+        //        lumiere ajoutee ; c'est aussi de la poussiere qui en CACHE.
+        //        Sans terme soustractif, on obtient un brouillard lumineux
+        //        uniforme ; avec lui, on obtient de la profondeur, parce que
+        //        certaines nappes passent devant les autres.
+        //     2. DEUX TEINTES, pas six. Le premier jet tirait sa couleur d'un
+        //        spectre complet et rendait un arc-en-ciel delave. Une region
+        //        d'emission est rouge-magenta (hydrogene) ou bleu-cyan
+        //        (reflexion) — l'ecart entre les deux suffit, et c'est lui qui
+        //        rend la couleur credible.
         if (uNebula > 0.001) {
-          vec2 q = vec2(atan(d.z, d.x) * 0.62, d.y * 1.55);
-          float n1 = fbm2(q * 1.55 + vec2(uTime * 0.0035, 0.0));
-          float n2 = fbm2(q * 4.10 - 3.1);
-          float veil = smoothstep(0.40, 0.84, n1 * 0.68 + n2 * 0.32);
-          vec3 hue = 0.5 + 0.5 * cos(6.28318 * (n2 * 1.15 + vec3(0.0, 0.33, 0.67)));
-          // Elle s'eteint au ras de l'horizon, ou la brume du monde prend le
-          // relais : une nebuleuse qui descend jusqu'au sol colle le ciel a la
-          // plaine au lieu de l'en detacher.
-          c = mix(c, hue * 0.72, veil * uNebula * 0.62 * smoothstep(-0.02, 0.30, h));
-          // Les filaments clairs, par-dessus : c'est eux qu'on regarde.
-          c += hue * smoothstep(0.72, 0.94, n2) * uNebula * 0.28 * smoothstep(0.0, 0.24, h);
+          // Le plan galactique, incline : une bande horizontale se lirait
+          // comme un decor de theatre.
+          vec3 gal = normalize(vec3(0.26, 0.62, -0.74));
+          float off = dot(d, gal);
+          float band = exp(-off * off * 7.5);
+
+          // Coordonnees DANS le plan : le bruit doit filer le long de la
+          // bande, pas tourner autour du zenith.
+          // nsafe et pas normalize : le banc a raison de le signaler meme si
+          // le vecteur gal est une constante qui ne peut pas etre colineaire a Y.
+          // Un produit vectoriel nul rend un NaN, un NaN dans une couleur rend
+          // un pixel noir, et ce pixel noir contamine ensuite tout le flou de
+          // bloom. Le jour ou l'on inclinera ce plan, la regle aura deja ete
+          // suivie.
+          vec3 ga = nsafe(cross(gal, vec3(0.0, 1.0, 0.0)), vec3(1.0, 0.0, 0.0));
+          vec3 gb = cross(gal, ga);
+          vec2 q = vec2(dot(d, ga), dot(d, gb)) * 2.4;
+
+          float coarse = fbm2(q * 1.15 + vec2(uTime * 0.002, 0.0));
+          float fine = fbm2(q * 3.6 - 5.3);
+          float glow = smoothstep(0.34, 0.86, coarse * 0.62 + fine * 0.38) * band;
+
+          // Les deux teintes, melangees par le bruit FIN : a l'echelle
+          // grossiere, chaque nappe serait d'une seule couleur et on lirait
+          // deux aplats poses cote a cote.
+          vec3 emit = mix(vec3(0.78, 0.16, 0.52), vec3(0.16, 0.52, 0.88),
+                          smoothstep(0.35, 0.75, fine));
+          c += emit * glow * uNebula * 0.85;
+
+          // LES VOIES SOMBRES, en dernier et en soustractif.
+          float dust = smoothstep(0.52, 0.88, fbm2(q * 2.05 + 19.7)) * band;
+          c *= 1.0 - dust * uNebula * 0.62;
+
+          // Le coeur : une surbrillance laiteuse au milieu de la bande, la ou
+          // les etoiles non resolues s'accumulent.
+          c += vec3(0.62, 0.58, 0.72) * pow(band, 2.6) * uNebula * 0.16;
         }
 
-        // --- LE HALO PRISMATIQUE, ET C'EST UN HALO ET NON UN ARC-EN-CIEL.
+        // --- LE HALO PRISMATIQUE. MINCE, et c'est une correction.
         //
-        //     Le premier jet posait un vrai arc-en-ciel : a quarante-deux
-        //     degres du point ANTISOLAIRE, comme dans la nature. C'est juste,
-        //     et c'est invisible — le soleil de ce jeu est place DANS le cadre,
-        //     droit devant (cf. SUN_DIR, treize degres d'azimut), donc son
-        //     point antisolaire est toujours dans le dos du joueur. On rendait
-        //     un arc-en-ciel parfait que personne ne pouvait voir.
-        //
-        //     Le halo a vingt-deux degres AUTOUR du soleil est le meme
-        //     phenomene de refraction, il est tout aussi reel — c'est celui des
-        //     cristaux de glace — et lui se place exactement la ou le joueur
-        //     regarde. Ses couleurs sont d'ailleurs dans l'autre sens que
-        //     l'arc-en-ciel : le rouge a l'interieur.
+        //     A seize degres de large et 0,62 d'intensite, ce n'etait plus un
+        //     halo mais une echarpe arc-en-ciel en travers du ciel : elle
+        //     ecrasait la nebuleuse, la planete et tout le reste, et se lisait
+        //     comme un defaut de rendu. Un vrai halo de cristaux est un cercle
+        //     FIN et discret — on le remarque parce qu'il est net, pas parce
+        //     qu'il est gros.
         if (uArc > 0.001) {
           float ad = acos(clamp(dot(d, sun), -1.0, 1.0));
-          float t = (ad - 0.30) / 0.155;
+          float t = (ad - 0.355) / 0.052;
           if (t > 0.0 && t < 1.0) {
-            // Profil triangulaire : net au milieu de la bande, eteint aux deux
-            // bords. Un profil carre donnerait un cerceau decoupe.
             float arc = 1.0 - abs(t * 2.0 - 1.0);
             arc = arc * arc;
-            vec3 bow = 0.5 + 0.5 * cos(6.28318 * (t * 0.80 + vec3(0.0, 0.33, 0.67)));
-            c += bow * arc * uArc * 0.62 * clear;
+            // ET IL EST PRESQUE BLANC. Un halo de cristaux n'est pas un
+            // arc-en-ciel : c'est un cercle clair avec un LISERE colore, rouge
+            // en dedans et bleu en dehors. Sature a fond, il rendait une
+            // echarpe multicolore en travers du ciel, qui ecrasait la
+            // nebuleuse et se lisait comme un bug. A trente pour cent de
+            // teinte, on le remarque parce qu'il est net.
+            vec3 bow = 0.5 + 0.5 * cos(6.28318 * (t * 0.75 + vec3(0.0, 0.33, 0.67)));
+            c += mix(vec3(1.0), bow, 0.34) * arc * uArc * 0.30;
           }
         }
 
@@ -253,15 +286,30 @@ ${GLSL_NOISE}
           vec2 sc = vec2(atan(d.z, d.x) * 2.4, d.y * 3.4) * 42.0;
           vec2 cell = floor(sc);
           float rnd = hash21(cell);
-          float bright = smoothstep(0.9955, 1.0, rnd);
+          // LE SEUIL DESCEND AVEC LA NEBULEUSE. A 0,9955 on garde une
+          // cellule sur deux cent vingt : c'est ce qu'il faut pour un ciel
+          // d'ete vu depuis une plaine, et c'est dix fois trop peu pour un
+          // ciel sans atmosphere, ou l'on voit tout ce qui existe.
+          float bright = smoothstep(mix(0.9955, 0.9770, uNebula), 1.0, rnd);
           // Un plafond de nuages cache aussi les etoiles.
           bright *= clear;
           if (bright > 0.0) {
             vec2 sub = fract(sc) - 0.5;
-            float dot2 = 1.0 - smoothstep(0.0, 0.34, length(sub));
+            // --- LES MAGNITUDES. Toutes les etoiles au meme diametre et a la
+            //     meme valeur donnent de la NEIGE : un semis regulier de points
+            //     identiques, qu'aucun ciel n'a jamais eu. Un vrai champ
+            //     stellaire est domine par quelques astres tres brillants au
+            //     milieu d'une poussiere a peine visible, et c'est cet ecart
+            //     qui le fait lire. Le rayon et l'intensite sortent donc du
+            //     meme hachage, eleve a une puissance pour que les brillantes
+            //     restent rares.
+            float mag = pow(hash21(cell + 31.7), 3.2);
+            float rad = mix(0.13, 0.40, mag);
+            float dot2 = (1.0 - smoothstep(0.0, rad, length(sub)))
+                       * mix(0.28, 1.0, mag);
             float twink = 0.62 + 0.38 * sin(uTime * 2.1 + rnd * 88.0);
             float high = smoothstep(0.02, 0.30, d.y);
-            c += vec3(0.92, 0.96, 1.0) * bright * dot2 * twink * high * uNight * 26.0;
+            c += vec3(0.92, 0.96, 1.0) * bright * dot2 * twink * high * uNight * (26.0 + uNebula * 22.0);
           }
         }
 
